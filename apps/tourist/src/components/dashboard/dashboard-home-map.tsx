@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import maplibregl from "maplibre-gl";
 import { CloudSun, ExternalLink, MapPin, Navigation } from "lucide-react";
+import {
+  Map as MapCanvas,
+  MapControls,
+  MapMarker,
+  MarkerContent,
+  MarkerTooltip,
+  type MapRef,
+} from "@/components/ui/map";
 
 type Relation<T> = T | T[] | null;
 
@@ -38,18 +46,6 @@ type WeatherState =
 
 const HONDURAS_CENTER: [number, number] = [-86.8, 15.2];
 const HONDURAS_ZOOM = 6.2;
-const DASHBOARD_MAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "&copy; OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
 
 function getText(value: Record<string, string> | null | undefined, fallback: string) {
   return value?.es ?? value?.en ?? fallback;
@@ -95,10 +91,7 @@ export function DashboardHomeMap({
   places: DashboardHomeMapPlace[];
   isGuest: boolean;
 }) {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
-  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">("loading");
+  const mapRef = useRef<MapRef | null>(null);
   const [activeRegion, setActiveRegion] = useState("");
   const [weather, setWeather] = useState<WeatherState>({
     status: "loading",
@@ -111,7 +104,7 @@ export function DashboardHomeMap({
   );
 
   const regions = useMemo<RegionFilter[]>(() => {
-    const bySlug = new Map<string, RegionFilter>();
+    const bySlug = new globalThis.Map<string, RegionFilter>();
     for (const place of places) {
       const region = getRegion(place);
       if (!region?.slug) continue;
@@ -138,93 +131,29 @@ export function DashboardHomeMap({
     : `/explore${activeRegion ? `?region=${activeRegion}` : ""}`;
 
   useEffect(() => {
-    if (!mapContainer.current || mapRef.current) return;
-
-    const map = new maplibregl.Map({
-      container: mapContainer.current,
-      style: DASHBOARD_MAP_STYLE,
-      center: HONDURAS_CENTER,
-      zoom: HONDURAS_ZOOM,
-      attributionControl: false,
-      interactive: true,
-      renderWorldCopies: false,
-    });
-
-    map.scrollZoom.disable();
-    map.dragRotate.disable();
-    map.touchZoomRotate.disableRotation();
-
-    map.on("load", () => setMapStatus("ready"));
-    map.on("error", () => setMapStatus("error"));
-    mapRef.current = map;
-
-    return () => {
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
-      map.remove();
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = [];
-
-    filteredPlaces.forEach((place) => {
-      const el = document.createElement("button");
-      const name = getText(place.name_i18n, place.slug);
-      const category = firstRelation(place.place_categories);
-      const categoryName = getText(category?.name_i18n, "Destino");
-      el.type = "button";
-      el.title = name;
-      el.style.width = "16px";
-      el.style.height = "16px";
-      el.style.borderRadius = "999px";
-      el.style.border = "3px solid white";
-      el.style.background = "#00796f";
-      el.style.boxShadow = "0 8px 20px rgba(15,23,42,0.22)";
-      el.style.cursor = "pointer";
-
-      const popup = new maplibregl.Popup({
-        offset: 14,
-        closeButton: false,
-        closeOnClick: true,
-        maxWidth: "220px",
-      }).setHTML(`
-        <div style="padding:10px 12px;font-family:Inter,system-ui,sans-serif;">
-          <strong style="display:block;font-size:12px;color:#0f172a;margin-bottom:3px;">${name}</strong>
-          <span style="font-size:11px;color:#00796f;">${categoryName}</span>
-        </div>
-      `);
-
-      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
-        .setLngLat([place.lng as number, place.lat as number])
-        .setPopup(popup)
-        .addTo(map);
-
-      markersRef.current.push(marker);
-    });
-
-    if (filteredPlaces.length > 1) {
-      const coords = filteredPlaces.map((place) => [place.lng as number, place.lat as number] as [number, number]);
-      const bounds = coords.reduce(
-        (acc, coord) => acc.extend(coord),
-        new maplibregl.LngLatBounds(coords[0], coords[0])
-      );
-      map.fitBounds(bounds, { padding: 60, maxZoom: 8.8, duration: 500 });
+    if (!filteredPlaces.length) {
+      map.easeTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration: 500 });
       return;
     }
 
-    map.easeTo({
-      center: filteredPlaces[0]
-        ? [filteredPlaces[0].lng as number, filteredPlaces[0].lat as number]
-        : HONDURAS_CENTER,
-      zoom: filteredPlaces[0] ? 8 : HONDURAS_ZOOM,
-      duration: 500,
-    });
+    if (filteredPlaces.length === 1) {
+      map.easeTo({
+        center: [filteredPlaces[0].lng as number, filteredPlaces[0].lat as number],
+        zoom: 8.2,
+        duration: 600,
+      });
+      return;
+    }
+
+    const coords = filteredPlaces.map((place) => [place.lng as number, place.lat as number] as [number, number]);
+    const bounds = coords.reduce(
+      (acc, coord) => acc.extend(coord),
+      new maplibregl.LngLatBounds(coords[0], coords[0])
+    );
+    map.fitBounds(bounds, { padding: 56, maxZoom: 8.8, duration: 650 });
   }, [filteredPlaces]);
 
   useEffect(() => {
@@ -265,23 +194,47 @@ export function DashboardHomeMap({
         Mapa Interactivo
       </h2>
 
-      <div className="mt-6 grid gap-6 rounded-2xl border border-[#d7e2de] bg-[#eaf2ef] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_260px] lg:p-6">
+      <div className="mt-6 grid gap-6 rounded-2xl border border-[#d7e2de] bg-[#eaf2ef] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_330px] lg:p-6">
         <div className="relative min-h-[300px] overflow-hidden rounded-xl border border-[#d7e2de] bg-white shadow-sm md:min-h-[360px]">
-          <div ref={mapContainer} className="absolute inset-0" />
-          {mapStatus !== "ready" && (
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(13,148,136,0.08),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.08),transparent_35%)]" />
-          )}
+          <MapCanvas
+            ref={mapRef}
+            className="absolute inset-0"
+            center={HONDURAS_CENTER}
+            zoom={HONDURAS_ZOOM}
+            maxZoom={10}
+            minZoom={5}
+            dragRotate={false}
+            pitchWithRotate={false}
+            touchPitch={false}
+            interactive
+          >
+            <MapControls position="top-right" showZoom showCompass={false} showLocate={false} />
+            {filteredPlaces.map((place) => {
+              const lng = place.lng as number;
+              const lat = place.lat as number;
+              const name = getText(place.name_i18n, place.slug);
+              const category = firstRelation(place.place_categories);
+              const categoryName = getText(category?.name_i18n, "Destino");
+              return (
+                <MapMarker key={place.id} longitude={lng} latitude={lat}>
+                  <MarkerContent>
+                    <span className="block h-4 w-4 rounded-full border-2 border-white bg-[#00796f] shadow-[0_8px_20px_rgba(15,23,42,0.22)]" />
+                  </MarkerContent>
+                  <MarkerTooltip>
+                    <div className="min-w-[140px] font-inter text-xs">
+                      <p className="font-semibold text-white">{name}</p>
+                      <p className="mt-0.5 text-white/80">{categoryName}</p>
+                    </div>
+                  </MarkerTooltip>
+                </MapMarker>
+              );
+            })}
+          </MapCanvas>
+
           {!placesWithCoords.length && (
-            <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-white/85 px-6 text-center">
               <p className="font-inter text-sm text-[#64748B]">
                 Aun no hay coordenadas disponibles para mostrar pins.
-              </p>
-            </div>
-          )}
-          {mapStatus === "error" && placesWithCoords.length > 0 && (
-            <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-              <p className="font-inter text-sm text-[#64748B]">
-                No se pudo cargar el mapa base en este momento.
               </p>
             </div>
           )}
