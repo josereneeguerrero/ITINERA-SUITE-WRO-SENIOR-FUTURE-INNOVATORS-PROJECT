@@ -20,6 +20,10 @@ import {
   DashboardHomeMap,
   type DashboardHomeMapPlace,
 } from "@/components/dashboard/dashboard-home-map";
+import {
+  DashboardHomeStories,
+  type DashboardHomeStory,
+} from "@/components/dashboard/dashboard-home-stories";
 
 type Category = {
   id: string;
@@ -56,6 +60,26 @@ type Place = {
       }
     | Array<{
         id?: string | null;
+        name_i18n: Record<string, string> | null;
+        slug: string | null;
+      }>
+    | null;
+};
+
+type Story = {
+  id: string;
+  slug: string;
+  title_i18n: Record<string, string> | null;
+  summary_i18n: Record<string, string> | null;
+  audio_storage_path: string | null;
+  featured: boolean | null;
+  created_at?: string | null;
+  regions:
+    | {
+        name_i18n: Record<string, string> | null;
+        slug: string | null;
+      }
+    | Array<{
         name_i18n: Record<string, string> | null;
         slug: string | null;
       }>
@@ -116,7 +140,8 @@ export default async function DashboardPage({
     redirect("/bienvenida?redirect=/dashboard");
   }
 
-  const [{ data: categoriesData }, { data: placesData }] = await Promise.all([
+  const [{ data: categoriesData }, { data: placesData }, { data: storiesData }] =
+    await Promise.all([
     supabase.from("place_categories").select("id,slug,name_i18n,icon_name").limit(6),
     supabase
       .from("places")
@@ -127,10 +152,21 @@ export default async function DashboardPage({
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
       .limit(24),
+    supabase
+      .from("stories")
+      .select(
+        "id,slug,title_i18n,summary_i18n,audio_storage_path,featured,created_at,regions(name_i18n,slug)"
+      )
+      .eq("status", "published")
+      .eq("moderation_status", "approved")
+      .order("featured", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(12),
   ]);
 
   const categories = ((categoriesData ?? []) as Category[]).slice(0, 4);
   const places = (placesData ?? []) as Place[];
+  const featuredStory = shuffle((storiesData ?? []) as Story[])[0] ?? null;
   const shuffledPlaces = shuffle(places);
   const sliderItems: ImageAutoSliderItem[] = shuffledPlaces.slice(0, 12).map((place, index) => {
     const category = firstRelation(place.place_categories);
@@ -192,6 +228,8 @@ export default async function DashboardPage({
       </section>
 
       <DashboardHomeMap places={places as DashboardHomeMapPlace[]} isGuest={isGuest} />
+
+      <DashboardHomeStories story={featuredStory as DashboardHomeStory | null} />
 
       <section className="mx-auto mt-14 w-full max-w-6xl px-6 pb-36 md:px-10">
         <div className="mb-6 flex items-center justify-between gap-4">
