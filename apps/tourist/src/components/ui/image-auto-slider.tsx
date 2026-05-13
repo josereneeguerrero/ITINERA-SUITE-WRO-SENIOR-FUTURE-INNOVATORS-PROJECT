@@ -1,3 +1,7 @@
+ "use client";
+
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Star } from "lucide-react";
 
@@ -15,14 +19,44 @@ export type ImageAutoSliderItem = {
 export function ImageAutoSlider({
   items,
   durationSeconds = 26,
+  maxItems = 8,
 }: {
   items: ImageAutoSliderItem[];
   durationSeconds?: number;
+  maxItems?: number;
 }) {
-  const safeItems = items.length > 0 ? items : [];
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [isInView, setIsInView] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  const safeItems = (items.length > 0 ? items : []).slice(0, Math.max(4, maxItems));
   const looped = [...safeItems, ...safeItems];
 
   if (!safeItems.length) return null;
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePref = () => setReduceMotion(media.matches);
+    updatePref();
+    media.addEventListener("change", updatePref);
+
+    const target = trackRef.current;
+    if (!target) {
+      return () => media.removeEventListener("change", updatePref);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsInView(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+      media.removeEventListener("change", updatePref);
+    };
+  }, []);
 
   return (
     <div className="relative overflow-hidden rounded-2xl">
@@ -30,9 +64,11 @@ export function ImageAutoSlider({
       <div className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24 bg-gradient-to-l from-[#f0f5f2] to-transparent" />
 
       <div
-        className="flex w-max gap-6"
+        ref={trackRef}
+        className="flex w-max gap-6 transform-gpu"
         style={{
-          animation: `itinera-auto-scroll ${durationSeconds}s linear infinite`,
+          animation: reduceMotion ? "none" : `itinera-auto-scroll ${durationSeconds}s linear infinite`,
+          animationPlayState: isInView ? "running" : "paused",
         }}
       >
         {looped.map((item, index) => (
@@ -42,11 +78,15 @@ export function ImageAutoSlider({
             className="group block w-[312px] shrink-0 overflow-hidden rounded-xl border border-[#d7e2de] bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/10"
           >
             <div className="relative h-44 overflow-hidden">
-              <img
+              <Image
                 src={item.imageUrl}
                 alt={item.title}
+                fill
+                sizes="(max-width: 768px) 90vw, (max-width: 1280px) 40vw, 312px"
+                quality={68}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
               {item.category ? (
