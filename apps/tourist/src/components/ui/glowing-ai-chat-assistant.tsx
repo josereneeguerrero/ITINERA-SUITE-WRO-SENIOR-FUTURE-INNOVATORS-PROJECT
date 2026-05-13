@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Send, Info, Bot, X } from "lucide-react";
+import { useStreamingChat, type ChatContext } from "@/hooks/use-streaming-chat";
+import { ToolResultInline } from "@/components/ai/tool-result-inline";
 
 function ToolButton({
   label,
@@ -26,12 +28,20 @@ function ToolButton({
   );
 }
 
-export function FloatingAiAssistant() {
+export function FloatingAiAssistant({
+  context = {},
+  storageKey = "itinera-ai-floating",
+}: {
+  context?: ChatContext;
+  storageKey?: string;
+}) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [charCount, setCharCount] = useState(0);
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const { messages, isLoading, send } = useStreamingChat(context, { storageKey });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -39,18 +49,18 @@ export function FloatingAiAssistant() {
     setCharCount(value.length);
   };
 
-  const handleSend = () => {
-    if (message.trim()) {
-      console.log("Sending message:", message);
-      setMessage("");
-      setCharCount(0);
-    }
+  const handleSend = async () => {
+    const text = message.trim();
+    if (!text || isLoading) return;
+    setMessage("");
+    setCharCount(0);
+    await send(text);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -69,6 +79,12 @@ export function FloatingAiAssistant() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (isChatOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, isChatOpen]);
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -94,10 +110,10 @@ export function FloatingAiAssistant() {
       {isChatOpen && (
         <div
           ref={chatRef}
-          className="absolute bottom-20 right-0 w-max max-w-[500px] origin-bottom-right"
+          className="absolute bottom-20 right-0 w-[calc(100vw-2rem)] max-w-[500px] origin-bottom-right"
           style={{ animation: "popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" }}
         >
-          <div className="relative flex flex-col overflow-hidden rounded-3xl border border-zinc-500/50 bg-gradient-to-br from-zinc-800/80 to-zinc-900/90 shadow-2xl backdrop-blur-3xl">
+          <div className="relative flex max-h-[78vh] flex-col overflow-hidden rounded-3xl border border-zinc-500/50 bg-gradient-to-br from-zinc-800/80 to-zinc-900/90 shadow-2xl backdrop-blur-3xl">
             <div className="flex items-center justify-between px-6 pb-2 pt-4">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
@@ -108,7 +124,7 @@ export function FloatingAiAssistant() {
                   Modelo cultural
                 </span>
                 <span className="rounded-2xl border border-teal-400/20 bg-teal-500/10 px-2 py-1 text-xs font-medium text-teal-300">
-                  En línea
+                  En linea
                 </span>
                 <button
                   onClick={() => setIsChatOpen(false)}
@@ -120,15 +136,53 @@ export function FloatingAiAssistant() {
               </div>
             </div>
 
+            {messages.length > 0 && (
+              <div className="max-h-[310px] space-y-3 overflow-y-auto px-4 py-3">
+                {messages.map((chatMessage, index) => (
+                  <div
+                    key={`${chatMessage.role}-${index}`}
+                    className={`flex ${chatMessage.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[86%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
+                        chatMessage.role === "user"
+                          ? "bg-[#0D9488] text-white"
+                          : "border border-zinc-700/60 bg-zinc-950/45 text-zinc-100"
+                      }`}
+                    >
+                      {chatMessage.content ? (
+                        <p className="whitespace-pre-wrap">{chatMessage.content}</p>
+                      ) : (
+                        <p className="text-zinc-400">Pensando...</p>
+                      )}
+                      {chatMessage.toolResults?.length ? (
+                        <div className="mt-3 space-y-2">
+                          {chatMessage.toolResults.map((tool, toolIndex) => (
+                            <ToolResultInline
+                              key={`${tool.toolName}-${toolIndex}`}
+                              toolName={tool.toolName}
+                              result={tool.result}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+
             <div className="relative overflow-hidden">
               <textarea
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={4}
-                className="min-h-[120px] w-full resize-none border-none bg-transparent px-6 py-4 text-base font-normal leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-500"
-                placeholder="¿Qué te gustaría explorar hoy? Pide rutas, contexto histórico o recomendaciones culturales."
+                className="min-h-[120px] w-full resize-none border-none bg-transparent px-6 py-4 text-base font-normal leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
+                placeholder="Que te gustaria explorar hoy? Pide rutas, contexto historico o recomendaciones culturales."
                 maxLength={maxChars}
+                disabled={isLoading}
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               />
               <div
@@ -140,7 +194,7 @@ export function FloatingAiAssistant() {
             <div className="px-4 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ToolButton label="Comando por voz" className="border border-zinc-700/30 hover:text-teal-300 hover:border-teal-400/30">
+                  <ToolButton label="Comando por voz" className="border border-zinc-700/30 hover:border-teal-400/30 hover:text-teal-300">
                     <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
                   </ToolButton>
                 </div>
@@ -150,11 +204,14 @@ export function FloatingAiAssistant() {
                     <span>{charCount}</span>/<span className="text-zinc-400">{maxChars}</span>
                   </div>
                   <button
-                    onClick={handleSend}
-                    className="group relative rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-3 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95"
+                    onClick={() => void handleSend()}
+                    className="group relative rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-3 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
                     type="button"
+                    disabled={isLoading || !message.trim()}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.animation = "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite";
+                      if (!e.currentTarget.disabled) {
+                        e.currentTarget.style.animation = "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite";
+                      }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.animation = "none";
@@ -177,7 +234,7 @@ export function FloatingAiAssistant() {
                     <kbd className="rounded border border-zinc-600 bg-zinc-800 px-1.5 py-1 font-mono text-xs text-zinc-400 shadow-sm">
                       Shift + Enter
                     </kbd>{" "}
-                    para nueva línea
+                    para nueva linea
                   </span>
                 </div>
                 <div className="flex items-center gap-1">

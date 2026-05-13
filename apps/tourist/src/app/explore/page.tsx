@@ -27,7 +27,10 @@ export default async function ExplorePage({
       </section>
       <DashboardDockDemo isGuest={isGuest} />
       <div id="ia">
-        <FloatingAiAssistant />
+        <FloatingAiAssistant
+          context={{ page: "explore" }}
+          storageKey="itinera-ai-explore"
+        />
       </div>
     </main>
   );

@@ -10,7 +10,6 @@ import {
   Waves,
   type LucideIcon,
 } from "lucide-react";
-import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import {
   ImageAutoSlider,
@@ -206,9 +205,6 @@ export default async function DashboardPage({
       </section>
 
       <DashboardDockDemo isGuest={isGuest} />
-      <div id="ia">
-        <FloatingAiAssistant />
-      </div>
     </main>
   );
 }
