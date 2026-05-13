@@ -10,10 +10,8 @@ import {
   LocateFixed,
   MapPin,
   Route,
-  Search,
   Sparkles,
   User,
-  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ExploreMap } from "@/components/explore/explore-map";
@@ -21,6 +19,7 @@ import { PlaceDrawer } from "@/components/explore/place-drawer";
 import { useStreamingChat, type ChatContext, type UIActionsChunk } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 import { DashboardProvider, useDashboard, type RouteStop } from "@/components/dashboard/dashboard-context";
+import SuggestiveSearch from "@/components/ui/suggestive-search";
 
 type Place = {
   id: string;
@@ -137,6 +136,7 @@ function ExploreDashboardView({
   } = useDashboard();
 
   const [savedSlugs, setSavedSlugs] = useState<Set<string>>(new Set());
+  const [showQuickFilters, setShowQuickFilters] = useState(false);
 
   const filteredPlaces = useMemo(() => {
     const q = normalizeForSearch(query);
@@ -239,13 +239,6 @@ function ExploreDashboardView({
           <Link href="/" className="font-jakarta text-xl font-bold text-[#0D9488]">Itinera</Link>
           <p className="mt-0.5 font-inter text-[11px] text-[#94A3B8]">Dashboard Cultural</p>
         </div>
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-[#94A3B8]" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar lugares..." className="w-full bg-transparent font-inter text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8]" />
-            {query ? <button onClick={() => setQuery("")} className="text-[#94A3B8]"><X className="h-3.5 w-3.5" /></button> : null}
-          </div>
-        </div>
         <nav className="space-y-1 px-3">
           <Link href="/explore" className="flex items-center gap-3 rounded-xl px-3 py-2 font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><Compass className="h-4 w-4" />Explorar</Link>
           <button onClick={applyNearby} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><LocateFixed className="h-4 w-4" />Cerca de mí</button>
@@ -291,6 +284,42 @@ function ExploreDashboardView({
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-3">
+              <div className="pointer-events-auto w-full max-w-[640px]">
+                <SuggestiveSearch
+                  value={query}
+                  onValueChange={setQuery}
+                  onSubmit={(text) => {
+                    if (text.trim() && topMatch) setSelectedPlaceSlug(topMatch.slug);
+                  }}
+                  onTrailingClick={() => setShowQuickFilters((prev) => !prev)}
+                  suggestions={["Buscar destinos...", "Buscar por categoria...", "Buscar por region..."]}
+                  className="h-11"
+                  effect="fade"
+                />
+                {showQuickFilters ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_8px_22px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+                    <button onClick={() => setCategory("")} className="rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">Todas</button>
+                    {categories.slice(0, 4).map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategory(cat.slug)}
+                        className="rounded-full border px-3 py-1 font-inter text-xs font-semibold"
+                        style={{
+                          borderColor: category === cat.slug ? "#0D9488" : "#E2E8F0",
+                          color: category === cat.slug ? "#0F766E" : "#475569",
+                          backgroundColor: category === cat.slug ? "rgba(13,148,136,0.08)" : "white",
+                        }}
+                      >
+                        {getEs(cat.name_i18n, cat.slug)}
+                      </button>
+                    ))}
+                    <button onClick={applyNearby} className="rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-3 py-1 font-inter text-xs font-semibold text-[#0F766E]">Cerca de mi</button>
+                    <button onClick={clearFilters} className="rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">Limpiar</button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
             <div className="absolute inset-0">
               <ExploreMap
                 places={places as never}

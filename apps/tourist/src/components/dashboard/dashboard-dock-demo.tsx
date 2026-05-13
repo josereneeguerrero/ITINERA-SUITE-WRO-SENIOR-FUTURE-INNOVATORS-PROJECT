@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   Compass,
-  Search,
   Sparkles,
   Heart,
   Route,
@@ -35,7 +34,6 @@ export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
         items={[
           { icon: Home, label: "Inicio", active: pathname === "/dashboard", onClick: () => router.push("/dashboard") },
           { icon: Compass, label: "Explorar", active: pathname === "/explore", onClick: goExplore },
-          { icon: Search, label: "Buscar", onClick: goExplore },
           { icon: Sparkles, label: "IA", onClick: goExplore },
           { icon: Route, label: "Rutas", onClick: () => goProtected("/routes") },
           { icon: Heart, label: "Guardados", onClick: () => goProtected("/profile/saved") },
