@@ -16,6 +16,10 @@ import {
   type ImageAutoSliderItem,
 } from "@/components/ui/image-auto-slider";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import {
+  DashboardHomeMap,
+  type DashboardHomeMapPlace,
+} from "@/components/dashboard/dashboard-home-map";
 
 type Category = {
   id: string;
@@ -30,6 +34,8 @@ type Place = {
   name_i18n: Record<string, string> | null;
   description_i18n: Record<string, string> | null;
   aggregated_rating: number | null;
+  lat?: number | null;
+  lng?: number | null;
   place_categories:
     | {
         name_i18n: Record<string, string> | null;
@@ -44,10 +50,12 @@ type Place = {
     | null;
   regions:
     | {
+        id?: string | null;
         name_i18n: Record<string, string> | null;
         slug: string | null;
       }
     | Array<{
+        id?: string | null;
         name_i18n: Record<string, string> | null;
         slug: string | null;
       }>
@@ -113,7 +121,7 @@ export default async function DashboardPage({
     supabase
       .from("places")
       .select(
-        "id,slug,name_i18n,description_i18n,aggregated_rating,place_categories(name_i18n,icon_name,slug),regions(name_i18n,slug)"
+        "id,slug,name_i18n,description_i18n,aggregated_rating,lat,lng,place_categories(name_i18n,icon_name,slug),regions(id,name_i18n,slug)"
       )
       .eq("status", "published")
       .order("featured", { ascending: false })
@@ -122,7 +130,8 @@ export default async function DashboardPage({
   ]);
 
   const categories = ((categoriesData ?? []) as Category[]).slice(0, 4);
-  const shuffledPlaces = shuffle((placesData ?? []) as Place[]);
+  const places = (placesData ?? []) as Place[];
+  const shuffledPlaces = shuffle(places);
   const sliderItems: ImageAutoSliderItem[] = shuffledPlaces.slice(0, 12).map((place, index) => {
     const category = firstRelation(place.place_categories);
     const region = firstRelation(place.regions);
@@ -181,6 +190,8 @@ export default async function DashboardPage({
           })}
         </div>
       </section>
+
+      <DashboardHomeMap places={places as DashboardHomeMapPlace[]} isGuest={isGuest} />
 
       <section className="mx-auto mt-14 w-full max-w-6xl px-6 pb-36 md:px-10">
         <div className="mb-6 flex items-center justify-between gap-4">
