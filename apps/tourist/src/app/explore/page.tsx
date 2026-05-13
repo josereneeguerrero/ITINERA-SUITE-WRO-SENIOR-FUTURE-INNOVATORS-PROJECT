@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 
 export default async function ExplorePage({
   searchParams,
@@ -18,5 +19,9 @@ export default async function ExplorePage({
     redirect("/bienvenida?redirect=/explore");
   }
 
-  return <main className="min-h-screen w-full bg-white" />;
+  return (
+    <main className="min-h-screen w-full bg-white">
+      <FloatingAiAssistant />
+    </main>
+  );
 }
