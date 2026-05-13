@@ -1,0 +1,237 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   ITINERA TOURIST v2 — Design System
+   Landing: Plus Jakarta Sans + Inter, Light mode
+   Dashboard: Same tokens, sidebar layout
+   Primary: #0D9488 · Amber: #F59E0B · Dark: #0F172A
+   ============================================================ */
+
+@theme inline {
+  /* Fonts */
+  --font-jakarta: var(--font-jakarta);
+  --font-inter:   var(--font-inter);
+  --font-mono:    var(--font-mono);
+  --font-sans:    var(--font-inter);
+  --font-heading: var(--font-jakarta);
+
+  /* Brand */
+  --color-itinera-teal:        #0D9488;
+  --color-itinera-teal-hover:  #0f766e;
+  --color-itinera-teal-light:  rgba(13,148,136,0.08);
+  --color-itinera-teal-mid:    rgba(13,148,136,0.15);
+  --color-itinera-amber:       #F59E0B;
+  --color-itinera-amber-light: rgba(245,158,11,0.1);
+
+  /* Surfaces */
+  --color-itinera-bg:       #F8FAFC;
+  --color-itinera-surface:  #FFFFFF;
+  --color-itinera-dark:     #0F172A;
+  --color-itinera-dark-2:   #1E293B;
+
+  /* Borders */
+  --color-itinera-border:   #E2E8F0;
+  --color-itinera-border-2: #CBD5E1;
+
+  /* Text */
+  --color-itinera-text:     #0F172A;
+  --color-itinera-muted:    #64748B;
+  --color-itinera-subtle:   #94A3B8;
+
+  /* shadcn overrides */
+  --color-background:         #F8FAFC;
+  --color-foreground:         #0F172A;
+  --color-card:               #FFFFFF;
+  --color-card-foreground:    #0F172A;
+  --color-primary:            #0D9488;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary:          #F1F5F9;
+  --color-secondary-foreground: #0F172A;
+  --color-muted:              #F1F5F9;
+  --color-muted-foreground:   #64748B;
+  --color-border:             #E2E8F0;
+  --color-input:              #E2E8F0;
+  --color-ring:               #0D9488;
+
+  --radius-sm:  6px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+}
+
+:root {
+  --background:           #F8FAFC;
+  --foreground:           #0F172A;
+  --card:                 #FFFFFF;
+  --card-foreground:      #0F172A;
+  --popover:              #FFFFFF;
+  --popover-foreground:   #0F172A;
+  --primary:              #0D9488;
+  --primary-foreground:   #FFFFFF;
+  --secondary:            #F1F5F9;
+  --secondary-foreground: #0F172A;
+  --muted:                #F1F5F9;
+  --muted-foreground:     #64748B;
+  --accent:               rgba(13,148,136,0.08);
+  --accent-foreground:    #0D9488;
+  --destructive:          #EF4444;
+  --border:               #E2E8F0;
+  --input:                #E2E8F0;
+  --ring:                 #0D9488;
+  --radius:               0.75rem;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
+  html { font-family: var(--font-inter), system-ui, sans-serif; }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-jakarta), system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  /* Fonts */
+  .font-jakarta { font-family: var(--font-jakarta), system-ui, sans-serif; }
+  .font-inter   { font-family: var(--font-inter),   system-ui, sans-serif; }
+  .font-mono    { font-family: var(--font-mono),    monospace; }
+
+  /* Scrollbar hide */
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Teal CTA */
+  .btn-teal {
+    background-color: #0D9488;
+    color: #FFFFFF;
+    transition: background-color 0.15s ease;
+  }
+  .btn-teal:hover { background-color: #0f766e; }
+
+  /* Ghost teal */
+  .btn-ghost-teal {
+    border: 1px solid #0D9488;
+    color: #0D9488;
+    background: transparent;
+    transition: background-color 0.15s ease;
+  }
+  .btn-ghost-teal:hover { background-color: rgba(13,148,136,0.06); }
+
+  /* Card hover lift */
+  .card-hover {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card-hover:hover {
+    box-shadow: 0 12px 32px -4px rgba(0,0,0,0.1);
+    transform: translateY(-3px);
+  }
+
+  /* Badges */
+  .badge-teal {
+    background-color: rgba(13,148,136,0.08);
+    color: #0D9488;
+    border: 1px solid rgba(13,148,136,0.2);
+  }
+  .badge-amber {
+    background-color: rgba(245,158,11,0.1);
+    color: #92400E;
+    border: 1px solid rgba(245,158,11,0.25);
+  }
+
+  /* Dashboard sidebar nav */
+  .nav-item-active {
+    background-color: #F0FDF9;
+    color: #0D9488;
+    border-left: 3px solid #0D9488;
+    font-weight: 500;
+  }
+  .nav-item-inactive {
+    color: #64748B;
+    border-left: 3px solid transparent;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .nav-item-inactive:hover {
+    background-color: #F8FAFC;
+    color: #0F172A;
+  }
+
+  /* Card stack transforms */
+  .card-stack-back   { transform: rotate(-5deg) scale(0.93) translateY(8px); }
+  .card-stack-mid    { transform: rotate(-2deg) scale(0.97) translateY(4px); }
+  .card-stack-front  { transform: rotate(0deg)  scale(1)    translateY(0); }
+
+  /* Section contain for performance */
+  .section-contained { contain: layout style paint; }
+
+  /* Landing texture + entrance motion */
+  .itinera-topo {
+    background-image:
+      url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.045' stroke-width='1'%3E%3Cpath d='M10 28c18-18 42-18 60 0s36 18 50 4'/%3E%3Cpath d='M0 66c24-20 48-20 72 0s36 20 58-2'/%3E%3Cpath d='M8 100c22-16 44-16 66 0s34 16 54-2'/%3E%3Ccircle cx='22' cy='22' r='3' fill='%23ffffff' fill-opacity='0.05' stroke='none'/%3E%3Ccircle cx='92' cy='76' r='4' fill='%23ffffff' fill-opacity='0.045' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .itinera-reveal {
+    animation: itinera-reveal 620ms ease-out both;
+  }
+
+  @keyframes itinera-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* MapLibre attribution override */
+  .maplibregl-ctrl-top-left { top: 8px !important; left: 8px !important; }
+  .maplibregl-ctrl-attrib { font-size: 10px !important; }
+
+  /* MapLibre popup */
+  .maplibregl-popup-content {
+    padding: 0 !important;
+    border-radius: 12px !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.1) !important;
+    overflow: hidden;
+  }
+  .maplibregl-popup-tip { display: none !important; }
+  .maplibregl-popup-close-button {
+    color: white !important;
+    font-size: 18px !important;
+    padding: 4px 8px !important;
+    z-index: 10;
+  }
+
+  /* Hover tooltip */
+  .itinera-tooltip .maplibregl-popup-content {
+    padding: 0 !important;
+    border-radius: 10px !important;
+    pointer-events: none;
+  }
+  .itinera-tooltip .maplibregl-popup-tip {
+    border-top-color: white !important;
+    border-width: 6px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .itinera-reveal {
+    animation: none !important;
+  }
+}

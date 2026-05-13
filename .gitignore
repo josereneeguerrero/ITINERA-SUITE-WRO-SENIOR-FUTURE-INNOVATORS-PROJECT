@@ -1,0 +1,26 @@
+# Secrets — NEVER commit
+.env
+.env.local
+.env*.local
+*.secret
+supabase/.env
+
+# Supabase local dev
+supabase/.branches/
+supabase/.temp/
+
+# Node
+node_modules/
+.next/
+.expo/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.cursor/
+.vscode/settings.json
+*.log
