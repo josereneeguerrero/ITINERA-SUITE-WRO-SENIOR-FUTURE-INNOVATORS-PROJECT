@@ -12,6 +12,39 @@ interface AgentContext {
   placeName?: string; storyTitle?: string;
 }
 
+const REGION_ALIASES: Array<{ slug: string; terms: string[] }> = [
+  { slug: "copan", terms: ["copan", "copán"] },
+  { slug: "comayagua", terms: ["comayagua"] },
+  { slug: "san-pedro-sula", terms: ["san pedro sula", "sps"] },
+  { slug: "tegucigalpa", terms: ["tegucigalpa", "tegus"] },
+  { slug: "la-ceiba", terms: ["la ceiba"] },
+  { slug: "roatan", terms: ["roatan", "roatán"] },
+];
+
+function inferRegionFromText(text: string): string | null {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  for (const region of REGION_ALIASES) {
+    if (region.terms.some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")))) {
+      return region.slug;
+    }
+  }
+  return null;
+}
+
+function looksLikePlaceSearch(text: string): boolean {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return [
+    "que lugares",
+    "qué lugares",
+    "recomienda",
+    "recomendame",
+    "donde ir",
+    "qué ver",
+    "que ver",
+    "lugares para visitar",
+  ].some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")));
+}
+
 // ─── System prompt ───────────────────────────────────────────────────────────
 function buildSystem(ctx: AgentContext, dbData?: unknown): string {
   const ctxBlock = ctx.page
@@ -24,6 +57,7 @@ function buildSystem(ctx: AgentContext, dbData?: unknown): string {
   return `Eres Itinera IA, guía cultural apasionado de Honduras.
 
 PERSONALIDAD: Cálido y entusiasta base. Adaptable totalmente al usuario.
+Evita repetir introducciones; responde primero a la solicitud concreta del usuario.
 Nunca listes datos en seco — NARRA con emoción, contexto histórico y personalidad.
 Sé conciso pero impactante.
 
@@ -251,10 +285,25 @@ export async function POST(req: Request) {
         const lastUserMsg = messages.filter(m => m.role === "user").slice(-1)[0]?.content ?? "";
 
         // Step 1: Extract intent (fast, cheap model)
-        const { intent, params } = await extractIntent(lastUserMsg, context);
+        const extracted = await extractIntent(lastUserMsg, context);
+        let intent = extracted.intent;
+        const params = extracted.params;
+        const normalizedParams = { ...(params ?? {}) };
+        const recentUserContext = messages
+          .filter((m) => m.role === "user")
+          .slice(-4)
+          .map((m) => m.content)
+          .join(" ");
+        const inferredRegion = inferRegionFromText(`${recentUserContext} ${lastUserMsg}`);
+        if (intent === "general" && looksLikePlaceSearch(`${recentUserContext} ${lastUserMsg}`)) {
+          intent = "search_places";
+        }
+        if (!normalizedParams.region && inferredRegion) {
+          normalizedParams.region = inferredRegion;
+        }
 
         // Step 2: Fetch data from Supabase if needed
-        const dbData = await fetchData(intent, params, context);
+        const dbData = await fetchData(intent, normalizedParams, context);
 
         // Step 3: Generate response with data context
         const result = await generateText({
@@ -263,12 +312,12 @@ export async function POST(req: Request) {
           system: buildSystem(context, dbData),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           messages: messages as any,
-          temperature: 0.8,
+          temperature: 0.55,
         });
 
         if (result.text) emit({ type: "text-delta", textDelta: result.text });
         if (dbData)      emit({ type: "tool-result", toolName: intent, result: dbData });
-        emit({ type: "ui-actions", ...deriveUIActions(intent, params, dbData) });
+        emit({ type: "ui-actions", ...deriveUIActions(intent, normalizedParams, dbData) });
 
       } catch (err) {
         console.error("api/chat error", err);
