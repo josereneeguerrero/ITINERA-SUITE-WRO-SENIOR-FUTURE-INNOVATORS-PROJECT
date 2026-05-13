@@ -33,11 +33,17 @@ const BG_COLORS: Record<string, string> = {
 
 export function ExploreMap({
   places,
+  visibleSlugs,
   selectedPlace,
+  mapCenter,
+  mapZoom,
   onSelectPlace,
 }: {
   places: Place[];
+  visibleSlugs?: Set<string>;
   selectedPlace: Place | null;
+  mapCenter?: [number, number] | null;
+  mapZoom?: number | null;
   onSelectPlace: (place: Place | null) => void;
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -142,6 +148,8 @@ export function ExploreMap({
       const cat  = place.place_categories as { icon_name: string } | null;
       const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
       const bg   = BG_COLORS[place.slug] ?? "#0D9488";
+      const isSelected = selectedPlace?.slug === place.slug;
+      const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
 
       // Marker element
       // Wrapper: MapLibre owns this element's transform for positioning
@@ -157,13 +165,14 @@ export function ExploreMap({
         width: "40px",
         height: "40px",
         background: bg,
-        border: "3px solid white",
+        border: isSelected ? "3px solid #F59E0B" : "3px solid white",
         borderRadius: "50%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontSize: "18px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+        boxShadow: isSelected ? "0 4px 18px rgba(245,158,11,0.5)" : "0 2px 8px rgba(0,0,0,0.25)",
+        opacity: isVisible ? "1" : "0.35",
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       });
       el.textContent = icon;
@@ -218,7 +227,38 @@ export function ExploreMap({
       markers.current.push(marker);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, mapReady]);
+  }, [places, mapReady, selectedPlace, visibleSlugs]);
+
+  // Keep map synced with global viewport commands (nearby / IA)
+  useEffect(() => {
+    if (!map.current || !mapCenter) return;
+    map.current.flyTo({
+      center: mapCenter,
+      zoom: mapZoom ?? Math.max(map.current.getZoom(), 9),
+      duration: 900,
+    });
+  }, [mapCenter, mapZoom]);
+
+  // Ensure all pins start visible in the non-overlay area.
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const coords = places
+      .map((p) => (typeof p.lng === "number" && typeof p.lat === "number" ? [p.lng, p.lat] as [number, number] : null))
+      .filter((v): v is [number, number] => !!v);
+
+    if (coords.length < 2) return;
+
+    const bounds = coords.reduce(
+      (b, c) => b.extend(c),
+      new maplibregl.LngLatBounds(coords[0], coords[0])
+    );
+
+    map.current.fitBounds(bounds, {
+      padding: { top: 56, right: 56, left: 56, bottom: 320 },
+      maxZoom: 8.6,
+      duration: 0,
+    });
+  }, [mapReady, places]);
 
   // Fly to selected place (when triggered from list click)
   useEffect(() => {

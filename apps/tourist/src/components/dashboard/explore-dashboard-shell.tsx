@@ -112,6 +112,8 @@ function ExploreDashboardView({
     query,
     category,
     selectedPlaceSlug,
+    mapCenter,
+    mapZoom,
     activeRoute,
     aiState,
     setQuery,
@@ -140,8 +142,17 @@ function ExploreDashboardView({
   }, [places, query, category]);
 
   const topMatch = filteredPlaces[0] ?? null;
+  const visibleSlugs = useMemo(() => new Set(filteredPlaces.map((p) => p.slug)), [filteredPlaces]);
   const routeSlugs = useMemo(() => new Set((activeRoute?.stops ?? []).map((s) => s.slug)), [activeRoute]);
   const selectedPlace = useMemo(() => places.find((p) => p.slug === selectedPlaceSlug) ?? null, [places, selectedPlaceSlug]);
+  const fallbackHeritageSlug = useMemo(
+    () =>
+      heritageCategorySlug
+      ?? categories.find((c) => getEs(c.name_i18n, "").toLowerCase().includes("patrimonio"))?.slug
+      ?? categories.find((c) => c.slug.toLowerCase().includes("heritage"))?.slug
+      ?? "",
+    [heritageCategorySlug, categories]
+  );
 
   function applyNearby() {
     if (!navigator.geolocation) {
@@ -227,7 +238,7 @@ function ExploreDashboardView({
           <Link href="/explore" className="flex items-center gap-3 rounded-xl px-3 py-2 font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><Compass className="h-4 w-4" />Explorar</Link>
           <button onClick={applyNearby} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><LocateFixed className="h-4 w-4" />Cerca de mí</button>
           <Link href="/stories" className="flex items-center gap-3 rounded-xl px-3 py-2 font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><BookOpen className="h-4 w-4" />Historias</Link>
-          <button onClick={() => setCategory(heritageCategorySlug ?? "")} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><MapPin className="h-4 w-4" />Patrimonio</button>
+          <button onClick={() => setCategory(fallbackHeritageSlug)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><MapPin className="h-4 w-4" />Patrimonio</button>
           <Link href="/routes" className="flex items-center gap-3 rounded-xl px-3 py-2 font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><Route className="h-4 w-4" />Mi Ruta</Link>
           <Link href="/profile/saved" className="flex items-center gap-3 rounded-xl px-3 py-2 font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><Heart className="h-4 w-4" />Guardados</Link>
           <button onClick={() => document.getElementById("explore-ia-panel")?.scrollIntoView({ block: "start", behavior: "smooth" })} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-inter text-sm font-medium text-[#475569] hover:bg-[#F0FDF9] hover:text-[#0D9488]"><Sparkles className="h-4 w-4" />Itinera IA</button>
@@ -269,7 +280,14 @@ function ExploreDashboardView({
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
             <div className="absolute inset-0">
-              <ExploreMap places={(filteredPlaces.length ? filteredPlaces : places) as never} selectedPlace={selectedPlace as never} onSelectPlace={(p) => setSelectedPlaceSlug((p as Place | null)?.slug ?? null)} />
+              <ExploreMap
+                places={places as never}
+                visibleSlugs={visibleSlugs}
+                selectedPlace={selectedPlace as never}
+                mapCenter={mapCenter}
+                mapZoom={mapZoom}
+                onSelectPlace={(p) => setSelectedPlaceSlug((p as Place | null)?.slug ?? null)}
+              />
               <PlaceDrawer place={selectedPlace as never} onClose={() => setSelectedPlaceSlug(null)} onAddToRoute={() => selectedPlace && addToRoute(selectedPlace)} onSave={() => selectedPlace && toggleSave(selectedPlace)} />
             </div>
             <div className="absolute inset-x-0 bottom-0 z-10 max-h-[44%] overflow-y-auto border-t border-[#E2E8F0] bg-white/95 p-3 backdrop-blur-sm">
