@@ -22,8 +22,10 @@ export default async function DashboardPage({
 
   return (
     <main className="min-h-screen w-full bg-white">
-      <DashboardDockDemo />
-      <FloatingAiAssistant />
+      <DashboardDockDemo isGuest={isGuest} />
+      <div id="ia">
+        <FloatingAiAssistant />
+      </div>
     </main>
   );
 }

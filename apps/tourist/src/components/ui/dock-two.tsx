@@ -11,6 +11,7 @@ interface DockProps {
     icon: LucideIcon;
     label: string;
     onClick?: () => void;
+    active?: boolean;
   }[];
 }
 
@@ -18,6 +19,7 @@ interface DockIconButtonProps {
   icon: LucideIcon;
   label: string;
   onClick?: () => void;
+  active?: boolean;
   className?: string;
 }
 
@@ -34,7 +36,7 @@ const floatingAnimation = {
 };
 
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
-  ({ icon: Icon, label, onClick, className }, ref) => {
+  ({ icon: Icon, label, onClick, active, className }, ref) => {
     return (
       <motion.button
         ref={ref}
@@ -44,11 +46,12 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
         className={cn(
           "relative rounded-lg p-3 text-[#0F766E]",
           "transition-colors hover:bg-[#0D9488]/18",
+          active ? "bg-[#0D9488]/22" : "",
           className
         )}
         type="button"
       >
-        <Icon className="h-5 w-5 text-[#0F766E]" />
+        <Icon className={cn("h-5 w-5 text-[#0F766E]", active ? "text-[#065F46]" : "")} />
         <span
           className={cn(
             "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap",
