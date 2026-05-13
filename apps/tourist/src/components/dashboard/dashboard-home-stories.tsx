@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, BookOpen, Volume2 } from "lucide-react";
 
 export type DashboardHomeStory = {
@@ -28,7 +31,38 @@ function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function DashboardHomeStories({ story }: { story: DashboardHomeStory | null }) {
+export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[] }) {
+  const visibleStories = useMemo(() => stories.slice(0, 6), [stories]);
+  const initialIndex = useMemo(() => {
+    if (visibleStories.length <= 1) return 0;
+    return Math.floor(Math.random() * visibleStories.length);
+  }, [visibleStories.length]);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const story = visibleStories[activeIndex] ?? null;
+
+  useEffect(() => {
+    setActiveIndex(initialIndex);
+  }, [initialIndex]);
+
+  useEffect(() => {
+    if (visibleStories.length <= 1) return;
+    let transitionTimeout: number | undefined;
+
+    const interval = window.setInterval(() => {
+      setIsSwitching(true);
+      transitionTimeout = window.setTimeout(() => {
+        setActiveIndex((current) => (current + 1) % visibleStories.length);
+        setIsSwitching(false);
+      }, 260);
+    }, 7600);
+
+    return () => {
+      window.clearInterval(interval);
+      if (transitionTimeout) window.clearTimeout(transitionTimeout);
+    };
+  }, [visibleStories.length]);
+
   const region = firstRelation(story?.regions);
   const title = getText(story?.title_i18n, "Historia de Honduras");
   const summary = getText(
@@ -54,16 +88,21 @@ export function DashboardHomeStories({ story }: { story: DashboardHomeStory | nu
       {story ? (
         <Link
           href={`/stories/${story.slug}`}
-          className="group relative block min-h-[340px] overflow-hidden rounded-2xl border border-[#123f3a]/20 bg-[#0f172a] p-7 shadow-[0_18px_50px_rgba(15,23,42,0.16)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(13,148,136,0.18)] md:min-h-[380px] md:p-10"
+          className="story-gradient-card group relative block min-h-[340px] overflow-hidden rounded-2xl border border-[#123f3a]/20 bg-[#0f172a] p-7 shadow-[0_18px_50px_rgba(15,23,42,0.16)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(13,148,136,0.18)] md:min-h-[380px] md:p-10"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(13,148,136,0.35),transparent_34%),radial-gradient(circle_at_80%_10%,rgba(245,158,11,0.18),transparent_30%),linear-gradient(135deg,#0a2f2c_0%,#17211f_48%,#0f172a_100%)]" />
+          <div className="story-gradient-layer absolute inset-0" />
           <div className="absolute inset-0 opacity-[0.13] [background-image:linear-gradient(135deg,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:22px_22px]" />
           <BookOpen
             className="absolute right-6 top-6 h-28 w-28 text-white/10 transition-transform duration-300 group-hover:scale-105 md:right-10 md:top-10 md:h-36 md:w-36"
             aria-hidden="true"
           />
 
-          <div className="relative flex min-h-[286px] max-w-2xl flex-col justify-end md:min-h-[300px]">
+          <div
+            key={story.id}
+            className={`relative flex min-h-[286px] max-w-2xl flex-col justify-end transition-all duration-300 md:min-h-[300px] ${
+              isSwitching ? "translate-y-3 opacity-0" : "translate-y-0 opacity-100"
+            }`}
+          >
             <div className="mb-5 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-[#f59e0b]/35 bg-[#f59e0b]/15 px-3 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.18em] text-[#facc15]">
                 {regionName ? regionName : "Historia destacada"}
@@ -86,6 +125,19 @@ export function DashboardHomeStories({ story }: { story: DashboardHomeStory | nu
             <span className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm transition-transform duration-300 group-hover:translate-x-1">
               Leer historia <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </span>
+
+            {visibleStories.length > 1 && (
+              <div className="mt-6 flex items-center gap-2" aria-label="Historias destacadas en rotación">
+                {visibleStories.map((item, index) => (
+                  <span
+                    key={item.id}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      index === activeIndex ? "w-7 bg-white" : "w-1.5 bg-white/35"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </Link>
       ) : (
@@ -102,6 +154,64 @@ export function DashboardHomeStories({ story }: { story: DashboardHomeStory | nu
           </Link>
         </div>
       )}
+
+      <style jsx>{`
+        .story-gradient-layer {
+          background:
+            radial-gradient(circle at 12% 18%, rgba(13, 148, 136, 0.46), transparent 34%),
+            radial-gradient(circle at 78% 12%, rgba(245, 158, 11, 0.22), transparent 30%),
+            radial-gradient(circle at 84% 82%, rgba(37, 99, 235, 0.16), transparent 34%),
+            linear-gradient(135deg, #0a2f2c 0%, #17211f 48%, #0f172a 100%);
+          background-size: 140% 140%, 130% 130%, 160% 160%, 100% 100%;
+          animation: storyAurora 14s ease-in-out infinite alternate;
+        }
+
+        .story-gradient-card::after {
+          content: "";
+          position: absolute;
+          inset: -40%;
+          background: linear-gradient(
+            110deg,
+            transparent 20%,
+            rgba(255, 255, 255, 0.08) 42%,
+            transparent 62%
+          );
+          transform: translateX(-26%);
+          animation: storySheen 8s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        @keyframes storyAurora {
+          from {
+            background-position: 0% 30%, 100% 10%, 80% 80%, 50% 50%;
+          }
+          to {
+            background-position: 28% 44%, 72% 38%, 58% 62%, 50% 50%;
+          }
+        }
+
+        @keyframes storySheen {
+          0%,
+          46% {
+            transform: translateX(-32%) rotate(0deg);
+            opacity: 0;
+          }
+          64% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(32%) rotate(0deg);
+            opacity: 0;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .story-gradient-layer,
+          .story-gradient-card::after {
+            animation: none;
+          }
+        }
+      `}</style>
     </section>
   );
 }

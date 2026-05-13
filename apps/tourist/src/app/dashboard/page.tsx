@@ -166,7 +166,7 @@ export default async function DashboardPage({
 
   const categories = ((categoriesData ?? []) as Category[]).slice(0, 4);
   const places = (placesData ?? []) as Place[];
-  const featuredStory = shuffle((storiesData ?? []) as Story[])[0] ?? null;
+  const featuredStories = shuffle((storiesData ?? []) as Story[]);
   const shuffledPlaces = shuffle(places);
   const sliderItems: ImageAutoSliderItem[] = shuffledPlaces.slice(0, 12).map((place, index) => {
     const category = firstRelation(place.place_categories);
@@ -229,7 +229,7 @@ export default async function DashboardPage({
 
       <DashboardHomeMap places={places as DashboardHomeMapPlace[]} isGuest={isGuest} />
 
-      <DashboardHomeStories story={featuredStory as DashboardHomeStory | null} />
+      <DashboardHomeStories stories={featuredStories as DashboardHomeStory[]} />
 
       <section className="mx-auto mt-14 w-full max-w-6xl px-6 pb-36 md:px-10">
         <div className="mb-6 flex items-center justify-between gap-4">
