@@ -40,12 +40,13 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
     return (
       <motion.button
         ref={ref}
-        whileHover={{ scale: 1.1, y: -2 }}
+        whileHover={active ? undefined : { scale: 1.1, y: -2 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
         className={cn(
           "relative rounded-lg p-3 text-[#0F766E]",
-          "transition-colors hover:bg-[#0D9488]/18",
+          "transition-colors",
+          active ? "" : "hover:bg-[#0D9488]/18",
           className
         )}
         type="button"
