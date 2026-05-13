@@ -357,33 +357,47 @@ function ExploreAIPanel({
   });
 
   return (
-    <aside id="explore-ia-panel" className="flex w-[360px] shrink-0 flex-col border-l border-[#E2E8F0] bg-white">
+    <aside id="explore-ia-panel" className="flex w-[360px] shrink-0 flex-col border-l border-[#E2E8F0] bg-gradient-to-b from-white to-[#F8FAFC]">
       <div className="border-b border-[#E2E8F0] px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0D9488] text-white"><Sparkles className="h-4 w-4" /></div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0D9488] text-white shadow-[0_8px_24px_rgba(13,148,136,0.35)]"><Sparkles className="h-4 w-4" /></div>
           <div>
-            <p className="font-jakarta text-sm font-bold text-[#0F172A]">Itinera IA</p>
+            <p className="font-jakarta text-base font-bold text-[#0F172A]">Itinera IA</p>
             <p className="font-inter text-[11px] text-[#94A3B8]">Control del mapa en vivo</p>
           </div>
         </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="rounded-full border border-[#99F6E4] bg-[#ECFEFF] px-2 py-0.5 font-inter text-[10px] font-semibold text-[#0F766E]">Contextual</span>
+          <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 font-inter text-[10px] font-semibold text-[#1D4ED8]">Sesión activa</span>
+        </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <button onClick={() => { onQuickAction("contar_historia"); send("Cuéntame una historia breve del lugar más recomendado"); }} className="rounded-full border border-[#E2E8F0] px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569]">Contar historia</button>
-          <button onClick={() => { onQuickAction("agregar_ruta"); send("Recomiéndame una ruta de 3 paradas"); }} className="rounded-full border border-[#E2E8F0] px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569]">Agregar ruta</button>
-          <button onClick={() => { onQuickAction("ver_cercanos"); send("Muéstrame lugares cercanos"); }} className="rounded-full border border-[#E2E8F0] px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569]">Ver cercanos</button>
-          <button onClick={() => onQuickAction("limpiar")} className="rounded-full border border-[#E2E8F0] px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569]">Limpiar filtros</button>
+          <button onClick={() => { onQuickAction("contar_historia"); send("Cuéntame una historia breve del lugar más recomendado"); }} className="cursor-pointer rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569] transition-colors hover:bg-[#F8FAFC]">Contar historia</button>
+          <button onClick={() => { onQuickAction("agregar_ruta"); send("Recomiéndame una ruta de 3 paradas"); }} className="cursor-pointer rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569] transition-colors hover:bg-[#F8FAFC]">Agregar ruta</button>
+          <button onClick={() => { onQuickAction("ver_cercanos"); send("Muéstrame lugares cercanos"); }} className="cursor-pointer rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569] transition-colors hover:bg-[#F8FAFC]">Ver cercanos</button>
+          <button onClick={() => onQuickAction("limpiar")} className="cursor-pointer rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 font-inter text-[11px] font-semibold text-[#475569] transition-colors hover:bg-[#F8FAFC]">Limpiar filtros</button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
         <div className="space-y-2">
           {messages.map((m, i) => (
             <div key={i}>
-              {m.role === "user" ? <div className="ml-auto w-[90%] rounded-xl bg-[#0D9488] px-3 py-2"><p className="font-inter text-xs text-white">{m.content}</p></div> : <div className="w-[96%] space-y-2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-2"><p className="whitespace-pre-line font-inter text-xs text-[#0F172A]">{m.content}</p>{m.toolResults?.map((tr, idx) => <ToolResultInline key={idx} toolName={tr.toolName} result={tr.result} />)}</div>}
+              {m.role === "user" ? (
+                <div className="ml-auto w-[90%] rounded-2xl bg-gradient-to-r from-[#0D9488] to-[#0F766E] px-3 py-2 shadow-[0_8px_20px_rgba(13,148,136,0.28)]">
+                  <p className="font-inter text-xs text-white">{m.content}</p>
+                </div>
+              ) : (
+                <div className="w-[96%] space-y-2 rounded-2xl border border-[#E2E8F0] bg-white px-3 py-2 shadow-sm">
+                  <p className="whitespace-pre-line font-inter text-xs leading-5 text-[#0F172A]">{m.content}</p>
+                  {m.toolResults?.map((tr, idx) => <ToolResultInline key={idx} toolName={tr.toolName} result={tr.result} />)}
+                </div>
+              )}
             </div>
           ))}
           {isLoading ? <p className="font-inter text-xs text-[#94A3B8]">Pensando...</p> : null}
         </div>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); send(input); setInput(""); }} className="border-t border-[#E2E8F0] p-3">
+      <form onSubmit={(e) => { e.preventDefault(); send(input); setInput(""); }} className="border-t border-[#E2E8F0] bg-white p-3">
+        <label className="mb-1 block font-inter text-[11px] font-semibold text-[#64748B]">Mensaje para Itinera IA</label>
         <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Pregunta a Itinera IA..." className="w-full bg-transparent font-inter text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8]" />
           <button type="submit" disabled={!input.trim() || isLoading} className="rounded-lg bg-[#0D9488] px-2.5 py-1 font-inter text-xs font-semibold text-white disabled:opacity-50">Enviar</button>

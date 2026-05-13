@@ -25,7 +25,7 @@ function buildSystem(ctx: AgentContext, dbData?: unknown): string {
 
 PERSONALIDAD: Cálido y entusiasta base. Adaptable totalmente al usuario.
 Nunca listes datos en seco — NARRA con emoción, contexto histórico y personalidad.
-Usa emojis ocasionalmente. Sé conciso pero impactante.
+Sé conciso pero impactante.
 
 IDIOMA: Responde SIEMPRE en el mismo idioma que el usuario (español o inglés).
 
@@ -69,7 +69,21 @@ IMPORTANT: If the user mentions ANY city, region or travel in Honduras → searc
 
     const text = result.text.trim();
     const json = text.startsWith("{") ? text : text.match(/\{[\s\S]*\}/)?.[0] ?? "{}";
-    return JSON.parse(json);
+    const parsed = JSON.parse(json) as { intent?: string; params?: Record<string, string> };
+    const allowedIntents = new Set([
+      "search_places",
+      "get_story",
+      "recommend_route",
+      "get_place",
+      "explain_sponsor",
+      "get_nearby",
+      "general",
+    ]);
+    const intent = allowedIntents.has(parsed.intent ?? "") ? parsed.intent : "general";
+    return {
+      intent: intent as "search_places" | "get_story" | "recommend_route" | "get_place" | "explain_sponsor" | "get_nearby" | "general",
+      params: parsed.params ?? {},
+    };
   } catch {
     return { intent: "general", params: {} };
   }
@@ -78,6 +92,7 @@ IMPORTANT: If the user mentions ANY city, region or travel in Honduras → searc
 // ─── Data fetcher (step 2) ────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchData(intent: string, params: Record<string, string>, ctx: AgentContext): Promise<any> {
+  const safeParams = params ?? {};
   const db = getDB();
 
   if (intent === "search_places") {
@@ -85,13 +100,13 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
     let q: any = db.from("places")
       .select("slug,name_i18n,ai_summary_i18n,aggregated_rating,price_level,local_favorite,place_categories(name_i18n,slug),regions(name_i18n)")
       .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(4);
-    if (params.query) q = q.textSearch("search_vector", params.query, { type: "websearch", config: "spanish" });
-    if (params.region) {
-      const { data: r } = await db.from("regions").select("id").eq("slug", params.region).single();
+    if (safeParams.query) q = q.textSearch("search_vector", safeParams.query, { type: "websearch", config: "spanish" });
+    if (safeParams.region) {
+      const { data: r } = await db.from("regions").select("id").eq("slug", safeParams.region).single();
       if (r) q = q.eq("region_id", r.id);
     }
-    if (params.category) {
-      const { data: c } = await db.from("place_categories").select("id").eq("slug", params.category).single();
+    if (safeParams.category) {
+      const { data: c } = await db.from("place_categories").select("id").eq("slug", safeParams.category).single();
       if (c) q = q.eq("category_id", c.id);
     }
     const { data } = await q;
@@ -113,7 +128,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   }
 
   if (intent === "get_place") {
-    const slug = params.slug ?? ctx.placeSlug;
+    const slug = safeParams.slug ?? ctx.placeSlug;
     if (!slug) return null;
     const { data } = await db.from("places")
       .select("slug,name_i18n,ai_summary_i18n,ai_tips_i18n,aggregated_rating,price_level,phone,website,place_categories(name_i18n),regions(name_i18n)")
@@ -131,7 +146,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
     let q: any = db.from("stories")
       .select("slug,title_i18n,summary_i18n,body_markdown_i18n,audio_storage_path")
       .eq("status", "published").eq("moderation_status", "approved").limit(2);
-    if (params.query) q = q.textSearch("search_vector", params.query, { type: "websearch", config: "spanish" });
+    if (safeParams.query) q = q.textSearch("search_vector", safeParams.query, { type: "websearch", config: "spanish" });
     const { data } = await q;
     return {
       type: "stories",
@@ -141,7 +156,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   }
 
   if (intent === "recommend_route") {
-    const regionSlug = (params.region ?? "copan").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
+    const regionSlug = (safeParams.region ?? "copan").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
     const { data: reg } = await db.from("regions").select("id").eq("slug", regionSlug).single();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = db.from("places").select("slug,name_i18n,place_categories(name_i18n)").eq("status","published").order("aggregated_rating",{ascending:false}).limit(4);
@@ -149,7 +164,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
     const { data } = await q;
     return {
       type: "route",
-      region: params.region ?? "Honduras",
+      region: safeParams.region ?? "Honduras",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       stops: (data ?? []).map((p: any, i: number) => ({ order: i+1, timeOfDay: ["morning","morning","afternoon","evening"][i], slug: p.slug, name: p.name_i18n?.es, category: p.place_categories?.name_i18n?.es, url: `/places/${p.slug}` })),
     };
@@ -167,6 +182,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
 }
 
 function deriveUIActions(intent: string, params: Record<string, string>, dbData: unknown) {
+  const safeParams = params ?? {};
   const data = dbData as {
     places?: { slug?: string }[];
     place?: { slug?: string };
@@ -176,16 +192,16 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   const actions: Array<Record<string, unknown>> = [];
   const entities: Record<string, unknown> = {};
 
-  if (params.query) entities.query = params.query;
-  if (params.category) entities.category = params.category;
-  if (params.region) entities.region = params.region;
-  if (params.slug) entities.slug = params.slug;
+  if (safeParams.query) entities.query = safeParams.query;
+  if (safeParams.category) entities.category = safeParams.category;
+  if (safeParams.region) entities.region = safeParams.region;
+  if (safeParams.slug) entities.slug = safeParams.slug;
 
   if (intent === "search_places") {
     actions.push({
       type: "apply_filter",
-      query: params.query ?? "",
-      category: params.category ?? "",
+      query: safeParams.query ?? "",
+      category: safeParams.category ?? "",
     });
     if (data?.places?.[0]?.slug) {
       actions.push({ type: "select_place", slug: data.places[0].slug });
@@ -255,7 +271,8 @@ export async function POST(req: Request) {
         emit({ type: "ui-actions", ...deriveUIActions(intent, params, dbData) });
 
       } catch (err) {
-        emit({ type: "text-delta", textDelta: `⚠️ ${(err as Error)?.message ?? "Error"}` });
+        console.error("api/chat error", err);
+        emit({ type: "text-delta", textDelta: "Lo siento, tuve un problema temporal. Intenta de nuevo." });
       }
 
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
