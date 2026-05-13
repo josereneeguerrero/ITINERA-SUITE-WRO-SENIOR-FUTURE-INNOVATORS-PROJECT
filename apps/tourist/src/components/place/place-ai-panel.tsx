@@ -15,7 +15,7 @@ const PLACE_CHIPS = [
   "¿Qué me recomiendas ver aquí?",
   "Cuéntame la historia de este lugar",
   "¿Cuáles son los horarios?",
-  "¿Qué más hay cerca?",
+  "Dame consejos para visitarlo",
 ];
 
 export function PlaceAIPanel({ place }: { place: Place }) {
@@ -116,9 +116,11 @@ export function PlaceAIPanel({ place }: { place: Place }) {
                       </p>
                     </div>
                   )}
-                  {msg.toolResults?.map((tr, j) => (
-                    <ToolResultInline key={j} toolName={tr.toolName} result={tr.result} />
-                  ))}
+                  {msg.toolResults
+                    ?.filter((tr) => !["search_places", "get_place", "get_place_detail"].includes(tr.toolName))
+                    .map((tr, j) => (
+                      <ToolResultInline key={j} toolName={tr.toolName} result={tr.result} />
+                    ))}
                 </div>
               </div>
             )}
