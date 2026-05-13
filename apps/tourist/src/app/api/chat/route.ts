@@ -12,6 +12,18 @@ interface AgentContext {
   placeName?: string; storyTitle?: string;
 }
 
+type GazetteerEntry = {
+  slug: string;
+  terms: string[];
+  regionSlug?: string;
+};
+
+type Gazetteer = {
+  regions: GazetteerEntry[];
+  places: GazetteerEntry[];
+  categories: GazetteerEntry[];
+};
+
 const REGION_ALIASES: Array<{ slug: string; terms: string[] }> = [
   { slug: "copan", terms: ["copan", "copán"] },
   { slug: "comayagua", terms: ["comayagua"] },
@@ -20,6 +32,20 @@ const REGION_ALIASES: Array<{ slug: string; terms: string[] }> = [
   { slug: "la-ceiba", terms: ["la ceiba"] },
   { slug: "roatan", terms: ["roatan", "roatán"] },
 ];
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uniqueTerms(...values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter(Boolean).map((value) => normalizeText(value as string)).filter(Boolean)));
+}
 
 function inferRegionFromText(text: string): string | null {
   const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -60,10 +86,88 @@ function looksLikePlaceSearch(text: string): boolean {
     "qué ver",
     "que ver",
     "lugares para visitar",
+    "me indicas",
+    "indicame",
+    "como llegar",
+    "como llego",
+    "donde queda",
+    "ubicacion",
   ].some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")));
 }
 
 // ─── System prompt ───────────────────────────────────────────────────────────
+function inferEntryFromText(text: string, entries: GazetteerEntry[]) {
+  const normalized = normalizeText(text);
+  const matches = entries
+    .map((entry) => {
+      const matchedTerm = entry.terms
+        .filter((term) => term.length >= 3 && normalized.includes(term))
+        .sort((a, b) => b.length - a.length)[0];
+      return matchedTerm ? { entry, length: matchedTerm.length } : null;
+    })
+    .filter(Boolean) as Array<{ entry: GazetteerEntry; length: number }>;
+  return matches.sort((a, b) => b.length - a.length)[0]?.entry ?? null;
+}
+
+function cleanSearchQuery(query?: string, grounding?: { region?: string; category?: string; slug?: string }) {
+  if (!query) return "";
+  let normalized = normalizeText(query);
+  for (const token of [grounding?.region, grounding?.category, grounding?.slug]) {
+    if (token) normalized = normalized.replaceAll(normalizeText(token), " ");
+  }
+  normalized = normalized.replace(/\s+/g, " ").trim();
+  const genericTerms = [
+    "que lugares tiene",
+    "que lugares hay",
+    "que ver",
+    "donde ir",
+    "recomienda",
+    "recomendame",
+    "lugares",
+    "sitios",
+    "atracciones",
+    "me indicas",
+  ];
+  if (!normalized || genericTerms.some((term) => normalized === normalizeText(term) || normalized.includes(normalizeText(term)))) {
+    return "";
+  }
+  return query.trim();
+}
+
+function labelFromSlug(slug: string) {
+  return slug.replace(/-/g, " ");
+}
+
+async function buildGazetteer(): Promise<Gazetteer> {
+  const db = getDB();
+  const [regionsRes, placesRes, categoriesRes] = await Promise.all([
+    db.from("regions").select("slug,name_i18n"),
+    db.from("places").select("slug,name_i18n,regions(slug)").eq("status", "published"),
+    db.from("place_categories").select("slug,name_i18n"),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const regions = (regionsRes.data ?? []).map((region: any) => ({
+    slug: region.slug as string,
+    terms: uniqueTerms(region.slug, labelFromSlug(region.slug), region.name_i18n?.es, region.name_i18n?.en),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const places = (placesRes.data ?? []).map((place: any) => ({
+    slug: place.slug as string,
+    regionSlug: place.regions?.slug as string | undefined,
+    terms: uniqueTerms(place.slug, labelFromSlug(place.slug), place.name_i18n?.es, place.name_i18n?.en),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categories = (categoriesRes.data ?? []).map((category: any) => ({
+    slug: category.slug as string,
+    terms: uniqueTerms(category.slug, labelFromSlug(category.slug), category.name_i18n?.es, category.name_i18n?.en),
+  }));
+
+  return { regions, places, categories };
+}
+
 function buildSystem(ctx: AgentContext, dbData?: unknown): string {
   const ctxBlock = ctx.page
     ? `\nCONTEXTO: Página=${ctx.page}${ctx.placeName ? ` Lugar="${ctx.placeName}"` : ""}${ctx.storyTitle ? ` Historia="${ctx.storyTitle}"` : ""}`
@@ -148,11 +252,16 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   const db = getDB();
 
   if (intent === "search_places") {
+    const searchQuery = cleanSearchQuery(safeParams.query, {
+      region: safeParams.region,
+      category: safeParams.category,
+      slug: safeParams.slug,
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = db.from("places")
       .select("slug,name_i18n,ai_summary_i18n,aggregated_rating,price_level,local_favorite,place_categories(name_i18n,slug),regions(name_i18n)")
       .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(4);
-    if (safeParams.query) q = q.textSearch("search_vector", safeParams.query, { type: "websearch", config: "spanish" });
+    if (searchQuery) q = q.textSearch("search_vector", searchQuery, { type: "websearch", config: "spanish" });
     if (safeParams.region) {
       const normalizedRegion = inferRegionFromText(safeParams.region) ?? safeParams.region;
       const { data: r } = await db.from("regions").select("id").eq("slug", normalizedRegion).single();
@@ -254,7 +363,7 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   if (intent === "search_places") {
     actions.push({
       type: "apply_filter",
-      query: safeParams.query ?? "",
+      query: cleanSearchQuery(safeParams.query, safeParams) || (safeParams.region ? labelFromSlug(safeParams.region) : ""),
       category: safeParams.category ?? "",
     });
     if (data?.places?.[0]?.slug) {
@@ -314,18 +423,32 @@ export async function POST(req: Request) {
           .slice(-4)
           .map((m) => m.content)
           .join(" ");
-        const inferredRegion = inferRegionFromText(`${recentUserContext} ${lastUserMsg}`);
-        const inferredPlaceSlug = inferPlaceSlugFromText(`${recentUserContext} ${lastUserMsg}`);
-        if (intent === "general" && looksLikePlaceSearch(`${recentUserContext} ${lastUserMsg}`)) {
+        const groundingText = `${recentUserContext} ${lastUserMsg}`;
+        const gazetteer = await buildGazetteer();
+        const currentPlace = inferEntryFromText(lastUserMsg, gazetteer.places);
+        const currentRegion = inferEntryFromText(lastUserMsg, gazetteer.regions);
+        const groundedPlace = currentPlace ?? (currentRegion ? null : inferEntryFromText(groundingText, gazetteer.places));
+        const groundedRegion = currentRegion ?? inferEntryFromText(groundingText, gazetteer.regions);
+        const groundedCategory = inferEntryFromText(lastUserMsg, gazetteer.categories) ?? inferEntryFromText(groundingText, gazetteer.categories);
+        const inferredRegion = groundedRegion?.slug ?? inferRegionFromText(groundingText);
+        const asksForDirections = ["me indicas", "indicame", "como llegar", "como llego", "donde queda", "ubicacion"]
+          .some((term) => normalizeText(lastUserMsg).includes(term));
+        const inferredPlaceSlug = groundedPlace?.slug ?? (asksForDirections ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
+        if (intent === "general" && looksLikePlaceSearch(groundingText)) {
           intent = "search_places";
         }
         if (inferredPlaceSlug) {
           intent = "get_place";
           normalizedParams.slug = inferredPlaceSlug;
+          if (!normalizedParams.region && groundedPlace?.regionSlug) normalizedParams.region = groundedPlace.regionSlug;
         }
         if (!normalizedParams.region && inferredRegion) {
           normalizedParams.region = inferredRegion;
         }
+        if (!normalizedParams.category && groundedCategory?.slug) {
+          normalizedParams.category = groundedCategory.slug;
+        }
+        normalizedParams.query = cleanSearchQuery(normalizedParams.query, normalizedParams);
 
         // Step 2: Fetch data from Supabase if needed
         const dbData = await fetchData(intent, normalizedParams, context);

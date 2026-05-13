@@ -29,10 +29,12 @@ export function ToolResultInline({ toolName, result }: { toolName: string; resul
     );
   }
 
-  if ((toolName === "search_places" || toolName === "get_place_detail") && (Array.isArray(data.places) || data.slug)) {
+  if ((toolName === "search_places" || toolName === "get_place_detail" || toolName === "get_place") && (Array.isArray(data.places) || data.place || data.slug)) {
     const places = Array.isArray(data.places)
       ? data.places as { slug: string; name: string; rating: number; category?: string; url: string }[]
-      : [{ slug: data.slug as string, name: data.name as string, rating: data.rating as number, category: data.category as string, url: `/places/${data.slug}` }];
+      : data.place
+        ? [data.place as { slug: string; name: string; rating: number; category?: string; url: string }]
+        : [{ slug: data.slug as string, name: data.name as string, rating: data.rating as number, category: data.category as string, url: `/places/${data.slug}` }];
     return (
       <div className="space-y-1.5">
         {places.slice(0, 3).map((p) => (
@@ -45,7 +47,7 @@ export function ToolResultInline({ toolName, result }: { toolName: string; resul
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-jakarta font-semibold text-[11px] text-[#0F172A] truncate">{p.name}</p>
-              <p className="font-inter text-[10px]" style={{ color: "#0D9488" }}>
+              <p className="flex items-center gap-1 font-inter text-[10px]" style={{ color: "#0D9488" }}>
                 {p.category} · ★{Number(p.rating).toFixed(1)}
               </p>
             </div>

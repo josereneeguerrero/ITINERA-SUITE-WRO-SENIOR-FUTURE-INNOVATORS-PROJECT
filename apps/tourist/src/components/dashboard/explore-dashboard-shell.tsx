@@ -51,13 +51,24 @@ function getEs(value?: Record<string, string> | null, fallback = "") {
   return value?.es ?? value?.en ?? fallback;
 }
 
+function normalizeForSearch(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function scorePlace(place: Place, query: string, category: string) {
   let score = Number(place.aggregated_rating ?? 0);
-  const name = getEs(place.name_i18n, place.slug).toLowerCase();
-  const catName = getEs(place.place_categories?.name_i18n).toLowerCase();
-  const region = getEs(place.regions?.name_i18n).toLowerCase();
-  const q = query.trim().toLowerCase();
-  if (q && (name.includes(q) || catName.includes(q) || region.includes(q) || place.slug.includes(q))) score += 1.5;
+  const name = normalizeForSearch(getEs(place.name_i18n, place.slug));
+  const catName = normalizeForSearch(getEs(place.place_categories?.name_i18n));
+  const region = normalizeForSearch(getEs(place.regions?.name_i18n));
+  const slug = normalizeForSearch(place.slug);
+  const q = normalizeForSearch(query);
+  if (q && (name.includes(q) || catName.includes(q) || region.includes(q) || slug.includes(q))) score += 1.5;
   if (category && place.place_categories?.slug === category) score += 1.1;
   if (place.featured) score += 0.5;
   if (place.local_favorite) score += 0.3;
@@ -128,13 +139,14 @@ function ExploreDashboardView({
   const [savedSlugs, setSavedSlugs] = useState<Set<string>>(new Set());
 
   const filteredPlaces = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeForSearch(query);
     return places
       .filter((p) => {
-        const name = getEs(p.name_i18n, p.slug).toLowerCase();
-        const catName = getEs(p.place_categories?.name_i18n).toLowerCase();
-        const region = getEs(p.regions?.name_i18n).toLowerCase();
-        const matchesQuery = !q || name.includes(q) || catName.includes(q) || region.includes(q) || p.slug.includes(q);
+        const name = normalizeForSearch(getEs(p.name_i18n, p.slug));
+        const catName = normalizeForSearch(getEs(p.place_categories?.name_i18n));
+        const region = normalizeForSearch(getEs(p.regions?.name_i18n));
+        const slug = normalizeForSearch(p.slug);
+        const matchesQuery = !q || name.includes(q) || catName.includes(q) || region.includes(q) || slug.includes(q);
         const matchesCategory = !category || p.place_categories?.slug === category;
         return matchesQuery && matchesCategory;
       })
@@ -330,7 +342,11 @@ function ExploreDashboardView({
       </div>
 
       <ExploreAIPanel
-        context={{ page: "explore" }}
+        context={{
+          page: "explore",
+          placeSlug: selectedPlace?.slug,
+          placeName: selectedPlace ? getEs(selectedPlace.name_i18n, selectedPlace.slug) : undefined,
+        }}
         onApplyActions={applyUIActions}
         onQuickAction={(prompt) => {
           if (prompt === "ver_cercanos") applyNearby();
