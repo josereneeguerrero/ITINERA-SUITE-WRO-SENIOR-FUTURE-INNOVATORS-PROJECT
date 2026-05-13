@@ -158,6 +158,15 @@ const iconBySlug: Record<string, LucideIcon> = {
   beach: Waves,
 };
 
+const categoryColorBySlug: Record<string, string> = {
+  heritage: "#7C3AED", // Patrimonio
+  nature: "#16A34A", // Naturaleza
+  food: "#EAB308", // Gastronomia
+  adventure: "#2563EB", // Aventura
+  religious: "#DC2626", // Religioso
+  beach: "#0EA5E9", // Playa
+};
+
 function getText(value: Record<string, string> | null | undefined, fallback: string) {
   return value?.es ?? value?.en ?? fallback;
 }
@@ -225,7 +234,7 @@ export default async function DashboardPage({
 
   const [{ data: categoriesData }, { data: placesData }, { data: storiesData }] =
     await Promise.all([
-    supabase.from("place_categories").select("id,slug,name_i18n,icon_name").limit(6),
+    supabase.from("place_categories").select("id,slug,name_i18n,icon_name").limit(12),
     supabase
       .from("places")
       .select(
@@ -247,7 +256,7 @@ export default async function DashboardPage({
       .limit(12),
   ]);
 
-  const categories = ((categoriesData ?? []) as Category[]).slice(0, 4);
+  const categories = (categoriesData ?? []) as Category[];
   const places = ((placesData ?? []) as Place[]).map(withFallbackCoordinates);
   const featuredStories = shuffle((storiesData ?? []) as Story[]);
   const shuffledPlaces = shuffle(places);
@@ -314,21 +323,27 @@ export default async function DashboardPage({
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
           Explorar por categoría
         </h2>
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           {categories.map((category) => {
             const Icon = iconBySlug[category.slug] ?? Landmark;
+            const categoryColor = categoryColorBySlug[category.slug] ?? "#0D9488";
             return (
               <Link
                 key={category.id}
                 href={isGuest ? `/explore?guest=true&category=${category.slug}` : `/explore?category=${category.slug}`}
-                className="group flex min-h-28 flex-col items-center justify-center rounded-xl border border-[#dee4e1] bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#b8d7cf] hover:shadow-md"
+                className="group relative flex min-h-28 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                style={{ border: `1px solid ${categoryColor}44` }}
               >
-                <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f5f2] text-[#00685f] transition-colors group-hover:bg-[#def4ee]">
+                <span
+                  className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+                  style={{ backgroundColor: `${categoryColor}1F`, color: categoryColor }}
+                >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <span className="text-center font-inter text-sm font-semibold text-[#171d1c]">
                   {getText(category.name_i18n, category.slug)}
                 </span>
+                <span className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full" style={{ backgroundColor: `${categoryColor}A6` }} />
               </Link>
             );
           })}

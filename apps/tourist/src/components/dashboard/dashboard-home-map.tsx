@@ -95,8 +95,19 @@ function getCategoryPinColor(place: DashboardHomeMapPlace) {
   if (slug.includes("adventure") || slug.includes("aventura") || iconName === "zap" || iconName === "tent" || label.includes("aventura")) {
     return "#2563EB"; // Azul - aventura
   }
+  if (slug.includes("relig") || label.includes("relig")) {
+    return "#DC2626"; // Rojo - religioso
+  }
+  if (slug.includes("beach") || slug.includes("playa") || iconName === "waves" || label.includes("playa")) {
+    return "#0EA5E9"; // Celeste - playa
+  }
 
-  return "#0D9488"; // Default teal
+  // Fallback estable para categorias futuras
+  const palette = ["#0D9488", "#8B5CF6", "#F59E0B", "#22C55E", "#2563EB", "#EC4899"];
+  const seed = `${slug}|${iconName}|${label}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
 }
 
 function getCoords(places: DashboardHomeMapPlace[]): [number, number] {
