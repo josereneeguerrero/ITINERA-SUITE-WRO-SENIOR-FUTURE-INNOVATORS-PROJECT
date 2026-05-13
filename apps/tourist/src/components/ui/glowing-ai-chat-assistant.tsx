@@ -42,6 +42,7 @@ export function FloatingAiAssistant({
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const { messages, isLoading, send } = useStreamingChat(context, { storageKey });
+  const hasConversation = messages.length > 0;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -113,8 +114,8 @@ export function FloatingAiAssistant({
           className="absolute bottom-20 right-0 w-[calc(100vw-2rem)] max-w-[500px] origin-bottom-right"
           style={{ animation: "popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" }}
         >
-          <div className="relative flex max-h-[78vh] flex-col overflow-hidden rounded-3xl border border-zinc-500/50 bg-gradient-to-br from-zinc-800/80 to-zinc-900/90 shadow-2xl backdrop-blur-3xl">
-            <div className="flex items-center justify-between px-6 pb-2 pt-4">
+          <div className="relative flex h-[420px] max-h-[78vh] flex-col overflow-hidden rounded-3xl border border-zinc-500/50 bg-gradient-to-br from-zinc-800/80 to-zinc-900/90 shadow-2xl backdrop-blur-3xl">
+            <div className="shrink-0 flex items-center justify-between px-6 pb-2 pt-4">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
                 <span className="text-xs font-medium text-zinc-400">Itinera IA</span>
@@ -136,8 +137,9 @@ export function FloatingAiAssistant({
               </div>
             </div>
 
-            {messages.length > 0 && (
-              <div className="max-h-[310px] space-y-3 overflow-y-auto px-4 py-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {hasConversation ? (
+                <>
                 {messages.map((chatMessage, index) => (
                   <div
                     key={`${chatMessage.role}-${index}`}
@@ -170,17 +172,24 @@ export function FloatingAiAssistant({
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
-              </div>
-            )}
+                </>
+              ) : (
+                <div className="flex h-full items-center justify-center px-4 text-center">
+                  <p className="max-w-[320px] font-inter text-sm leading-6 text-zinc-400">
+                    Pide rutas, contexto historico o recomendaciones culturales de Honduras.
+                  </p>
+                </div>
+              )}
+            </div>
 
-            <div className="relative overflow-hidden">
+            <div className="relative shrink-0 overflow-hidden border-t border-zinc-800/50">
               <textarea
                 value={message}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                rows={4}
-                className="min-h-[120px] w-full resize-none border-none bg-transparent px-6 py-4 text-base font-normal leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
-                placeholder="Que te gustaria explorar hoy? Pide rutas, contexto historico o recomendaciones culturales."
+                rows={hasConversation ? 2 : 3}
+                className="max-h-[92px] min-h-[68px] w-full resize-none border-none bg-transparent px-6 py-3 text-sm font-normal leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
+                placeholder={hasConversation ? "Pregunta a Itinera IA..." : "Que te gustaria explorar hoy?"}
                 maxLength={maxChars}
                 disabled={isLoading}
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -191,7 +200,7 @@ export function FloatingAiAssistant({
               />
             </div>
 
-            <div className="px-4 pb-4">
+            <div className="shrink-0 px-4 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ToolButton label="Comando por voz" className="border border-zinc-700/30 hover:border-teal-400/30 hover:text-teal-300">
