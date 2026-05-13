@@ -3,29 +3,24 @@ import { createClient } from "@/lib/supabase/server";
 import {
   ArrowRight,
   Bot,
-  Church,
   Compass,
   Cpu,
   EyeOff,
   Globe2,
-  Landmark,
   Laptop,
   Lock,
   Map,
   MapPin,
   MessageSquareWarning,
-  Mountain,
   Navigation,
   Route,
   Search,
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Star,
-  Trees,
-  Waves,
   type LucideIcon,
 } from "lucide-react";
+import { ImageAutoSlider, type ImageAutoSliderItem } from "@/components/ui/image-auto-slider";
 
 type Place = {
   id: string;
@@ -77,11 +72,15 @@ const PROBLEM_CARDS: Array<{
   },
 ];
 
-const DESTINATION_GRADIENTS = [
-  "from-[#008378] via-[#0D9488] to-[#3B82F6]",
-  "from-[#2563EB] via-[#0EA5E9] to-[#8B5CF6]",
-  "from-[#10B981] via-[#0D9488] to-[#00685f]",
-  "from-[#7C3AED] via-[#8B5CF6] to-[#EC4899]",
+const UNSPLASH_IMAGE_POOL = [
+  "https://images.unsplash.com/photo-1518495973542-4542c06a5843?q=80&w=1974&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=2152&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1505142468610-359e7d316be0?q=80&w=2126&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1482881497185-d4a9ddbe4151?q=80&w=1965&auto=format&fit=crop",
+  "https://plus.unsplash.com/premium_photo-1673264933212-d78737f38e48?q=80&w=1974&auto=format&fit=crop",
+  "https://plus.unsplash.com/premium_photo-1711434824963-ca894373272e?q=80&w=2030&auto=format&fit=crop",
+  "https://plus.unsplash.com/premium_photo-1675705721263-0bbeec261c49?q=80&w=1940&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1524799526615-766a9833dec0?q=80&w=1935&auto=format&fit=crop",
 ];
 
 const FALLBACK_DESTINATIONS: Array<{
@@ -197,18 +196,6 @@ function LandingNav() {
           Itinera
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
-          <Link className="font-inter text-sm font-medium text-white/70 transition-colors hover:text-[#89f5e7]" href="/explore">
-            Explorar
-          </Link>
-          <Link className="font-inter text-sm font-medium text-white/70 transition-colors hover:text-[#89f5e7]" href="/stories">
-            Historias
-          </Link>
-          <Link className="font-inter text-sm font-medium text-white/70 transition-colors hover:text-[#89f5e7]" href="/routes">
-            Rutas
-          </Link>
-        </nav>
-
         <div className="flex items-center gap-2">
           <Link className="hidden font-inter text-sm font-semibold text-white/70 transition-colors hover:text-white sm:inline-flex" href="/login">
             Conectar
@@ -312,81 +299,13 @@ function MapPinLabel({ title, compact = false }: { title: string; compact?: bool
   );
 }
 
-function DestinationVisualIcon({
-  iconName,
-  categorySlug,
-}: {
-  iconName?: string | null;
-  categorySlug?: string | null;
-}) {
-  const key = iconName || categorySlug;
-
-  if (key === "church") return <Church className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-  if (key === "waves") return <Waves className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-  if (key === "leaf" || key === "nature") return <Trees className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-  if (key === "mountain") return <Mountain className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-  if (key === "landmark" || key === "culture") return <Landmark className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-
-  return <MapPin className="relative h-14 w-14 text-white/88 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />;
-}
-
-function DestinationCard({
-  place,
-  fallback,
-  index,
-}: {
-  place?: Place;
-  fallback: (typeof FALLBACK_DESTINATIONS)[number];
-  index: number;
-}) {
-  const category = firstRelation(place?.place_categories);
-  const iconName = place ? category?.icon_name : fallback.iconName;
-  const categorySlug = place ? category?.slug : fallback.iconName;
-  const name = place ? getText(place.name_i18n, place.slug) : fallback.name;
-  const description = place
-    ? getText(place.description_i18n, fallback.description)
-    : fallback.description;
-  const href = place ? `/places/${place.slug}` : fallback.href;
-  const categoryName = category ? getText(category.name_i18n, "") : "";
-
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-[330px] flex-col overflow-hidden rounded-xl border border-[#dee4e1] bg-white shadow-sm transition-shadow duration-200 hover:shadow-xl hover:shadow-slate-900/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00685f]"
-    >
-      <div className={`relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br ${DESTINATION_GRADIENTS[index % DESTINATION_GRADIENTS.length]}`}>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.28),transparent_32%),linear-gradient(135deg,rgba(0,0,0,0.08),rgba(0,0,0,0.2))]" />
-        <DestinationVisualIcon iconName={iconName} categorySlug={categorySlug} />
-        {categoryName ? (
-          <span className="absolute left-3 top-3 rounded-full bg-black/28 px-3 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.12em] text-white backdrop-blur">
-            {categoryName}
-          </span>
-        ) : null}
-        {place?.aggregated_rating ? (
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-black/32 px-2 py-1 backdrop-blur">
-            <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" aria-hidden="true" />
-            <span className="font-inter text-xs font-bold text-white">{Number(place.aggregated_rating).toFixed(1)}</span>
-          </div>
-        ) : null}
-      </div>
-      <div className="flex flex-1 flex-col justify-between p-6">
-        <div>
-          <h3 className="mb-2 font-jakarta text-xl font-bold text-[#171d1c]">{name}</h3>
-          <p className="line-clamp-3 font-inter text-sm leading-6 text-[#3d4947]">{description}</p>
-        </div>
-        <div className="mt-6 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 font-inter text-sm font-bold text-[#00685f]">
-            Explorar <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-          </span>
-          {typeof place?.review_count === "number" ? (
-            <span className="font-inter text-xs font-semibold text-[#6d7a77]">
-              {place.review_count > 0 ? formatCount(place.review_count, "resena", "resenas") : "Nuevo"}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </Link>
-  );
+function shuffle<T>(items: T[]) {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 export default async function HomePage() {
@@ -401,7 +320,7 @@ export default async function HomePage() {
       .eq("status", "published")
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
-      .limit(4),
+      .limit(20),
     supabase.from("places").select("id", { count: "exact", head: true }).eq("status", "published"),
     supabase
       .from("stories")
@@ -410,7 +329,35 @@ export default async function HomePage() {
       .eq("moderation_status", "approved"),
   ]);
 
-  const destinationPlaces = ((places ?? []) as Place[]).slice(0, 4);
+  const destinationPlaces = shuffle((places ?? []) as Place[]).slice(0, 12);
+  const sliderItems: ImageAutoSliderItem[] =
+    destinationPlaces.length > 0
+      ? destinationPlaces.map((place, index) => {
+          const category = firstRelation(place.place_categories);
+          return {
+            id: place.id,
+            title: getText(place.name_i18n, place.slug),
+            description: getText(place.description_i18n, "Destino cultural de Honduras."),
+            href: `/places/${place.slug}`,
+            imageUrl: UNSPLASH_IMAGE_POOL[index % UNSPLASH_IMAGE_POOL.length],
+            category: category ? getText(category.name_i18n, "") : undefined,
+            rating: typeof place.aggregated_rating === "number" ? Number(place.aggregated_rating) : null,
+            badge:
+              typeof place.review_count === "number"
+                ? place.review_count > 0
+                  ? formatCount(place.review_count, "resena", "resenas")
+                  : "Nuevo"
+                : "Nuevo",
+          };
+        })
+      : FALLBACK_DESTINATIONS.map((fallback, index) => ({
+          id: fallback.href,
+          title: fallback.name,
+          description: fallback.description,
+          href: fallback.href,
+          imageUrl: UNSPLASH_IMAGE_POOL[index % UNSPLASH_IMAGE_POOL.length],
+          badge: "Nuevo",
+        }));
   const metrics = [
     {
       icon: Map,
@@ -523,11 +470,7 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {FALLBACK_DESTINATIONS.map((fallback, index) => (
-              <DestinationCard key={destinationPlaces[index]?.id ?? fallback.href} place={destinationPlaces[index]} fallback={fallback} index={index} />
-            ))}
-          </div>
+          <ImageAutoSlider items={sliderItems} />
         </div>
       </section>
 

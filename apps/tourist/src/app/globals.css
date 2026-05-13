@@ -191,6 +191,15 @@
     }
   }
 
+  @keyframes itinera-auto-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
   /* MapLibre attribution override */
   .maplibregl-ctrl-top-left { top: 8px !important; left: 8px !important; }
   .maplibregl-ctrl-attrib { font-size: 10px !important; }
@@ -233,5 +242,10 @@
 
   .itinera-reveal {
     animation: none !important;
+  }
+
+  [style*="itinera-auto-scroll"] {
+    animation: none !important;
+    transform: none !important;
   }
 }
