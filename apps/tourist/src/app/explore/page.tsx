@@ -2,6 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ExploreDashboardShell } from "@/components/dashboard/explore-dashboard-shell";
 
+const FALLBACK_COORDS: Record<string, { lat: number; lng: number }> = {
+  "ruinas-copan": { lat: 14.8383, lng: -89.1422 },
+  "catedral-comayagua": { lat: 14.4607, lng: -87.6375 },
+  "parque-nacional-cusuco": { lat: 15.4833, lng: -88.231 },
+  "playa-west-bay-roatan": { lat: 16.3198, lng: -83.9669 },
+  "parque-nacional-la-tigra": { lat: 14.1167, lng: -87.0833 },
+};
+
 export default async function ExplorePage({
   searchParams,
 }: {
@@ -42,10 +50,11 @@ export default async function ExplorePage({
     (places ?? []).map(async (place) => {
       const { data: coords } = await supabase.rpc("get_place_coords", { p_id: place.id });
       const first = Array.isArray(coords) ? coords[0] : null;
+      const fallback = FALLBACK_COORDS[place.slug];
       return {
         ...place,
-        lat: typeof first?.lat === "number" ? first.lat : null,
-        lng: typeof first?.lng === "number" ? first.lng : null,
+        lat: typeof first?.lat === "number" ? first.lat : fallback?.lat ?? null,
+        lng: typeof first?.lng === "number" ? first.lng : fallback?.lng ?? null,
       };
     })
   );
