@@ -196,9 +196,11 @@ export function DashboardHomeMap({
 
       <div className="mt-6 grid gap-6 rounded-2xl border border-[#d7e2de] bg-[#eaf2ef] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_330px] lg:p-6">
         <div className="relative min-h-[300px] overflow-hidden rounded-xl border border-[#d7e2de] bg-white shadow-sm md:min-h-[360px]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-16 bg-gradient-to-b from-white/45 to-transparent" />
           <MapCanvas
             ref={mapRef}
             className="absolute inset-0"
+            theme="light"
             center={HONDURAS_CENTER}
             zoom={HONDURAS_ZOOM}
             maxZoom={10}
@@ -218,7 +220,9 @@ export function DashboardHomeMap({
               return (
                 <MapMarker key={place.id} longitude={lng} latitude={lat}>
                   <MarkerContent>
-                    <span className="block h-4 w-4 rounded-full border-2 border-white bg-[#00796f] shadow-[0_8px_20px_rgba(15,23,42,0.22)]" />
+                    <span className="relative block h-4 w-4 rounded-full border-2 border-white bg-[#00796f] shadow-[0_8px_20px_rgba(15,23,42,0.22)]">
+                      <span className="absolute -inset-1.5 -z-10 rounded-full border border-[#0d9488]/30 bg-[#0d9488]/12" />
+                    </span>
                   </MarkerContent>
                   <MarkerTooltip>
                     <div className="min-w-[140px] font-inter text-xs">
