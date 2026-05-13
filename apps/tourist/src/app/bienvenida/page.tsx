@@ -18,7 +18,7 @@ export default async function BienvenidaPage({
   searchParams: Promise<{ redirect?: string }>;
 }) {
   const params = await searchParams;
-  const redirect = params.redirect ?? "/explore";
+  const redirect = params.redirect ?? "/dashboard";
   const guestUrl = `${redirect}${redirect.includes("?") ? "&" : "?"}guest=true`;
 
   return (

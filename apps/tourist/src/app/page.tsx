@@ -202,7 +202,7 @@ function LandingNav() {
           </Link>
           <Link
             className="hidden min-h-10 items-center rounded-lg bg-[#00685f] px-5 py-2 font-inter text-sm font-bold text-white shadow-lg shadow-teal-950/30 transition-colors duration-200 hover:bg-[#008378] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#89f5e7] sm:inline-flex"
-            href="/bienvenida?redirect=/explore"
+            href="/bienvenida?redirect=/dashboard"
           >
             Empezar
           </Link>
@@ -394,7 +394,7 @@ export default async function HomePage() {
           </p>
           <Link
             className="mt-10 inline-flex min-h-14 items-center gap-2 rounded-lg bg-[#00685f] px-8 py-4 font-inter text-sm font-bold text-white shadow-xl shadow-teal-950/30 transition-all duration-200 hover:bg-[#008378] hover:shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#89f5e7]"
-            href="/bienvenida?redirect=/explore"
+            href="/bienvenida?redirect=/dashboard"
           >
             Empezar a explorar <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -465,7 +465,7 @@ export default async function HomePage() {
                   Destinos publicados desde la base real de Itinera, listos para explorar con contexto cultural.
                 </p>
               </div>
-              <Link className="inline-flex items-center gap-2 font-inter text-sm font-bold text-[#00685f] transition-opacity hover:opacity-80" href="/explore">
+              <Link className="inline-flex items-center gap-2 font-inter text-sm font-bold text-[#00685f] transition-opacity hover:opacity-80" href="/dashboard">
                 Ver mapa completo <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
@@ -509,7 +509,7 @@ export default async function HomePage() {
           </p>
           <Link
             className="mt-9 inline-flex min-h-14 items-center gap-2 rounded-lg bg-white px-8 py-4 font-inter text-sm font-bold text-[#00685f] shadow-xl transition-colors duration-200 hover:bg-[#f0f5f2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            href="/bienvenida?redirect=/explore"
+            href="/bienvenida?redirect=/dashboard"
           >
             Empezar ahora <Navigation className="h-4 w-4" aria-hidden="true" />
           </Link>

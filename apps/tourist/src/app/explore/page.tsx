@@ -1,27 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 
 export default async function ExplorePage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; category?: string; guest?: string }>;
 }) {
-  const { guest } = await searchParams;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const isGuest = !user && guest === "true";
-
-  if (!user && !isGuest) {
-    redirect("/bienvenida?redirect=/explore");
-  }
-
-  return (
-    <main className="min-h-screen w-full bg-white">
-      <FloatingAiAssistant />
-    </main>
-  );
+  const params = await searchParams;
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => typeof value === "string")
+  ).toString();
+  redirect(`/dashboard${query ? `?${query}` : ""}`);
 }

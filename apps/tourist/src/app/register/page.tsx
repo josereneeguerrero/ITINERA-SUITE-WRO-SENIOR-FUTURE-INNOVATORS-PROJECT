@@ -30,8 +30,8 @@ export default function RegisterPage() {
     () =>
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("redirect") ??
-          "/explore"
-        : "/explore",
+          "/dashboard"
+        : "/dashboard",
     []
   );
 
