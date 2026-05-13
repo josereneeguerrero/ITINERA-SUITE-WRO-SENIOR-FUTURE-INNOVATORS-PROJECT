@@ -17,11 +17,13 @@ export interface ChatContext {
 }
 
 export interface UIAction {
-  type: string;
+  type: "apply_filter" | "select_place" | "set_route" | "get_nearby" | "clear_route" | "center_map";
   slug?: string;
   query?: string;
   category?: string;
   title?: string;
+  center?: [number, number];
+  zoom?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   stops?: any[];
 }

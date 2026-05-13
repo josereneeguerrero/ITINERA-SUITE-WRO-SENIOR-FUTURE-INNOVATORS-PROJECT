@@ -38,11 +38,29 @@ export default async function ExplorePage({
       .order("sort_order"),
   ]);
 
+  const placesWithCoords = await Promise.all(
+    (places ?? []).map(async (place) => {
+      const { data: coords } = await supabase.rpc("get_place_coords", { p_id: place.id });
+      const first = Array.isArray(coords) ? coords[0] : null;
+      return {
+        ...place,
+        lat: typeof first?.lat === "number" ? first.lat : null,
+        lng: typeof first?.lng === "number" ? first.lng : null,
+      };
+    })
+  );
+
+  const heritageCategory = (categories ?? []).find((c) => c.slug === "heritage")
+    ?? (categories ?? []).find((c) => c.slug.toLowerCase().includes("patrimonio"))
+    ?? null;
+
   return (
     <ExploreDashboardShell
-      places={(places ?? []) as never}
+      places={placesWithCoords as never}
       categories={(categories ?? []) as never}
       isGuest={isGuest}
+      userId={user?.id ?? null}
+      heritageCategorySlug={heritageCategory?.slug ?? null}
       initialQuery={q}
       initialCategory={category}
     />

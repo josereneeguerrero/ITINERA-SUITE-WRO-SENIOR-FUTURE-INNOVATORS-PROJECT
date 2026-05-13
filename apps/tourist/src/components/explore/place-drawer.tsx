@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import {
   X, Star, MapPin, Volume2, Sparkles,
-  ArrowRight, Plus, Heart,
+  ArrowRight, Plus, Heart, Landmark, Leaf, UtensilsCrossed, Waves, Zap, Church, Accessibility,
 } from "lucide-react";
 
 interface Place {
@@ -22,9 +22,9 @@ interface Place {
   regions: { name_i18n: Record<string, string> } | null;
 }
 
-const ICON_MAP: Record<string, string> = {
-  landmark: "🏛️", leaf: "🌿", utensils: "🍽️",
-  waves: "🏖️", zap: "⚡", church: "⛪",
+const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
+  landmark: Landmark, leaf: Leaf, utensils: UtensilsCrossed,
+  waves: Waves, zap: Zap, church: Church,
 };
 
 const BG_COLORS: Record<string, string> = {
@@ -40,9 +40,11 @@ const PRICE = ["", "$", "$$", "$$$", "$$$$"];
 interface PlaceDrawerProps {
   place: Place | null;
   onClose: () => void;
+  onAddToRoute?: () => void;
+  onSave?: () => void;
 }
 
-export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
+export function PlaceDrawer({ place, onClose, onAddToRoute, onSave }: PlaceDrawerProps) {
   const [visible, setVisible] = useState(false);
   const [aiMessage, setAiMessage] = useState("");
 
@@ -66,7 +68,7 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
   const region  = place.regions as { name_i18n: Record<string,string> } | null;
   const catName = cat?.name_i18n?.es;
   const regName = region?.name_i18n?.es;
-  const icon    = ICON_MAP[cat?.icon_name ?? ""] ?? "📍";
+  const Icon = ICON_MAP[cat?.icon_name ?? ""] ?? MapPin;
   const bg      = BG_COLORS[place.slug] ?? "linear-gradient(135deg, #0D9488, #064E3B)";
 
   return (
@@ -98,7 +100,7 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
           className="relative h-44 shrink-0 flex items-center justify-center text-5xl"
           style={{ background: bg }}
         >
-          <span className="opacity-30 text-7xl">{icon}</span>
+          <Icon className="h-16 w-16 text-white/35" />
 
           {/* Close button */}
           <button
@@ -118,12 +120,12 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
           </button>
 
           {/* Category badge */}
-          {catName && (
+              {catName && (
             <div
               className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full font-inter font-medium text-xs text-white"
               style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
             >
-              {icon} {catName}
+              <span className="inline-flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" />{catName}</span>
             </div>
           )}
         </div>
@@ -159,10 +161,10 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
                   </span>
                 )}
                 {place.accessibility && (
-                  <span className="font-inter" style={{ color: "#0D9488" }}>♿</span>
+                  <span className="font-inter inline-flex items-center gap-1" style={{ color: "#0D9488" }}><Accessibility className="h-3.5 w-3.5" />Accesible</span>
                 )}
                 {place.local_favorite && (
-                  <span className="font-inter" style={{ color: "#F59E0B" }}>♥ Local</span>
+                  <span className="font-inter inline-flex items-center gap-1" style={{ color: "#F59E0B" }}><Heart className="h-3.5 w-3.5" />Local</span>
                 )}
               </div>
             </div>
@@ -199,6 +201,7 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
             {/* Quick actions */}
             <div className="grid grid-cols-2 gap-2">
               <button
+                onClick={onAddToRoute}
                 className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-inter font-medium text-xs transition-colors"
                 style={{
                   backgroundColor: "rgba(13,148,136,0.06)",
@@ -210,6 +213,7 @@ export function PlaceDrawer({ place, onClose }: PlaceDrawerProps) {
                 Agregar a ruta
               </button>
               <button
+                onClick={onSave}
                 className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-inter font-medium text-xs"
                 style={{ backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0", color: "#64748B" }}
               >

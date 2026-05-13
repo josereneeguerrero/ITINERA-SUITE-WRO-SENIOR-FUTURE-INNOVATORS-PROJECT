@@ -9,6 +9,8 @@ interface Place {
   name_i18n: Record<string, string>;
   aggregated_rating: number;
   review_count: number;
+  lat?: number | null;
+  lng?: number | null;
   place_categories: { name_i18n: Record<string, string>; icon_name: string } | null;
   regions: { name_i18n: Record<string, string> } | null;
 }
@@ -16,17 +18,9 @@ interface Place {
 const HONDURAS_CENTER: [number, number] = [-86.8, 15.2];
 const HONDURAS_ZOOM = 6.5;
 
-const PLACE_COORDS: Record<string, [number, number]> = {
-  "ruinas-copan":             [-89.1422, 14.8383],
-  "catedral-comayagua":       [-87.6375, 14.4607],
-  "parque-nacional-cusuco":   [-88.2310, 15.4833],
-  "playa-west-bay-roatan":    [-83.9669, 16.3198],
-  "parque-nacional-la-tigra": [-87.0833, 14.1167],
-};
-
 const ICON_MAP: Record<string, string> = {
-  landmark: "🏛️", leaf: "🌿", utensils: "🍽️",
-  waves: "🏖️", zap: "⚡", church: "⛪",
+  landmark: "L", leaf: "N", utensils: "G",
+  waves: "P", zap: "A", church: "C",
 };
 
 const BG_COLORS: Record<string, string> = {
@@ -55,7 +49,7 @@ export function ExploreMap({
   const buildTooltipHTML = useCallback((place: Place) => {
     const name   = place.name_i18n?.es ?? place.slug;
     const cat    = place.place_categories as { name_i18n: Record<string,string>; icon_name: string } | null;
-    const icon   = ICON_MAP[cat?.icon_name ?? ""] ?? "📍";
+    const icon   = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
     const catName = cat?.name_i18n?.es ?? "";
     const rating = Number(place.aggregated_rating).toFixed(1);
 
@@ -79,7 +73,7 @@ export function ExploreMap({
   const buildPopupHTML = useCallback((place: Place) => {
     const name = place.name_i18n?.es ?? place.slug;
     const cat  = place.place_categories as { name_i18n: Record<string,string>; icon_name: string } | null;
-    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "📍";
+    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
     const bg   = BG_COLORS[place.slug] ?? "#0D9488";
     const rating = Number(place.aggregated_rating).toFixed(1);
 
@@ -137,11 +131,13 @@ export function ExploreMap({
     markers.current = [];
 
     places.forEach((place) => {
-      const coords = PLACE_COORDS[place.slug];
+      const coords = typeof place.lng === "number" && typeof place.lat === "number"
+        ? [place.lng, place.lat] as [number, number]
+        : null;
       if (!coords) return;
 
       const cat  = place.place_categories as { icon_name: string } | null;
-      const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "📍";
+      const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
       const bg   = BG_COLORS[place.slug] ?? "#0D9488";
 
       // Marker element
@@ -224,7 +220,9 @@ export function ExploreMap({
   // Fly to selected place (when triggered from list click)
   useEffect(() => {
     if (!selectedPlace || !map.current) return;
-    const coords = PLACE_COORDS[selectedPlace.slug];
+    const coords = typeof selectedPlace.lng === "number" && typeof selectedPlace.lat === "number"
+      ? [selectedPlace.lng, selectedPlace.lat] as [number, number]
+      : null;
     if (!coords) return;
     map.current.flyTo({
       center: coords,
