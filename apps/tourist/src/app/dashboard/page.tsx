@@ -8,6 +8,7 @@ import {
   Tent,
   Church,
   Waves,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
@@ -24,6 +25,7 @@ import {
   DashboardHomeStories,
   type DashboardHomeStory,
 } from "@/components/dashboard/dashboard-home-stories";
+import { getCategoryColor, getCategoryKey } from "@/lib/category-theme";
 
 type Category = {
   id: string;
@@ -156,15 +158,8 @@ const iconBySlug: Record<string, LucideIcon> = {
   adventure: Tent,
   religious: Church,
   beach: Waves,
-};
-
-const categoryColorBySlug: Record<string, string> = {
-  heritage: "#7C3AED", // Patrimonio
-  nature: "#16A34A", // Naturaleza
-  food: "#EAB308", // Gastronomia
-  adventure: "#2563EB", // Aventura
-  religious: "#DC2626", // Religioso
-  beach: "#0EA5E9", // Playa
+  arts: Palette,
+  default: Landmark,
 };
 
 function getText(value: Record<string, string> | null | undefined, fallback: string) {
@@ -323,15 +318,25 @@ export default async function DashboardPage({
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
           Explorar por categoría
         </h2>
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
           {categories.map((category) => {
-            const Icon = iconBySlug[category.slug] ?? Landmark;
-            const categoryColor = categoryColorBySlug[category.slug] ?? "#0D9488";
+            const categoryLabel = getText(category.name_i18n, category.slug);
+            const categoryKey = getCategoryKey({
+              slug: category.slug,
+              iconName: category.icon_name,
+              label: categoryLabel,
+            });
+            const Icon = iconBySlug[categoryKey] ?? Landmark;
+            const categoryColor = getCategoryColor({
+              slug: category.slug,
+              iconName: category.icon_name,
+              label: categoryLabel,
+            });
             return (
               <Link
                 key={category.id}
                 href={isGuest ? `/explore?guest=true&category=${category.slug}` : `/explore?category=${category.slug}`}
-                className="group relative flex min-h-28 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                className="group relative flex min-h-28 min-w-[188px] shrink-0 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                 style={{ border: `1px solid ${categoryColor}44` }}
               >
                 <span
@@ -341,7 +346,7 @@ export default async function DashboardPage({
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <span className="text-center font-inter text-sm font-semibold text-[#171d1c]">
-                  {getText(category.name_i18n, category.slug)}
+                  {categoryLabel}
                 </span>
                 <span className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full" style={{ backgroundColor: `${categoryColor}A6` }} />
               </Link>

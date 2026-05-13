@@ -12,6 +12,7 @@ import {
   MarkerTooltip,
   type MapRef,
 } from "@/components/ui/map";
+import { getCategoryColor } from "@/lib/category-theme";
 
 type Relation<T> = T | T[] | null;
 
@@ -69,45 +70,13 @@ function getRegion(place: DashboardHomeMapPlace) {
   return firstRelation(place.regions);
 }
 
-function normalize(value: string | null | undefined) {
-  return (value ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
 function getCategoryPinColor(place: DashboardHomeMapPlace) {
   const category = firstRelation(place.place_categories);
-  const slug = normalize(category?.slug);
-  const iconName = normalize(category?.icon_name);
-  const label = normalize(getText(category?.name_i18n, ""));
-
-  if (slug.includes("heritage") || slug.includes("patrimonio") || iconName === "landmark" || label.includes("patrimonio")) {
-    return "#7C3AED"; // Morado - patrimonio cultural
-  }
-  if (slug.includes("nature") || slug.includes("naturaleza") || iconName === "leaf" || label.includes("naturaleza")) {
-    return "#16A34A"; // Verde - naturaleza
-  }
-  if (slug.includes("food") || slug.includes("gastronomia") || iconName === "utensils" || label.includes("gastronomia")) {
-    return "#EAB308"; // Amarillo - gastronomia
-  }
-  if (slug.includes("adventure") || slug.includes("aventura") || iconName === "zap" || iconName === "tent" || label.includes("aventura")) {
-    return "#2563EB"; // Azul - aventura
-  }
-  if (slug.includes("relig") || label.includes("relig")) {
-    return "#DC2626"; // Rojo - religioso
-  }
-  if (slug.includes("beach") || slug.includes("playa") || iconName === "waves" || label.includes("playa")) {
-    return "#0EA5E9"; // Celeste - playa
-  }
-
-  // Fallback estable para categorias futuras
-  const palette = ["#0D9488", "#8B5CF6", "#F59E0B", "#22C55E", "#2563EB", "#EC4899"];
-  const seed = `${slug}|${iconName}|${label}`;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return palette[hash % palette.length];
+  return getCategoryColor({
+    slug: category?.slug,
+    iconName: category?.icon_name,
+    label: getText(category?.name_i18n, ""),
+  });
 }
 
 function getCoords(places: DashboardHomeMapPlace[]): [number, number] {
