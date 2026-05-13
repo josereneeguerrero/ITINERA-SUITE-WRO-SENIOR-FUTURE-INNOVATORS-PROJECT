@@ -31,6 +31,24 @@ function inferRegionFromText(text: string): string | null {
   return null;
 }
 
+const PLACE_ALIASES: Array<{ slug: string; terms: string[] }> = [
+  { slug: "catedral-comayagua", terms: ["catedral de comayagua", "catedral comayagua"] },
+  { slug: "ruinas-copan", terms: ["ruinas de copan", "ruinas de copán", "copan ruins"] },
+  { slug: "playa-west-bay-roatan", terms: ["west bay", "playa west bay", "west bay roatan", "west bay roatán"] },
+  { slug: "parque-nacional-cusuco", terms: ["cusuco", "parque nacional cusuco"] },
+  { slug: "parque-nacional-la-tigra", terms: ["la tigra", "parque nacional la tigra"] },
+];
+
+function inferPlaceSlugFromText(text: string): string | null {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  for (const place of PLACE_ALIASES) {
+    if (place.terms.some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")))) {
+      return place.slug;
+    }
+  }
+  return null;
+}
+
 function looksLikePlaceSearch(text: string): boolean {
   const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   return [
@@ -136,8 +154,10 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
       .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(4);
     if (safeParams.query) q = q.textSearch("search_vector", safeParams.query, { type: "websearch", config: "spanish" });
     if (safeParams.region) {
-      const { data: r } = await db.from("regions").select("id").eq("slug", safeParams.region).single();
+      const normalizedRegion = inferRegionFromText(safeParams.region) ?? safeParams.region;
+      const { data: r } = await db.from("regions").select("id").eq("slug", normalizedRegion).single();
       if (r) q = q.eq("region_id", r.id);
+      else return { type: "places", places: [] };
     }
     if (safeParams.category) {
       const { data: c } = await db.from("place_categories").select("id").eq("slug", safeParams.category).single();
@@ -295,8 +315,13 @@ export async function POST(req: Request) {
           .map((m) => m.content)
           .join(" ");
         const inferredRegion = inferRegionFromText(`${recentUserContext} ${lastUserMsg}`);
+        const inferredPlaceSlug = inferPlaceSlugFromText(`${recentUserContext} ${lastUserMsg}`);
         if (intent === "general" && looksLikePlaceSearch(`${recentUserContext} ${lastUserMsg}`)) {
           intent = "search_places";
+        }
+        if (inferredPlaceSlug) {
+          intent = "get_place";
+          normalizedParams.slug = inferredPlaceSlug;
         }
         if (!normalizedParams.region && inferredRegion) {
           normalizedParams.region = inferredRegion;
