@@ -182,60 +182,45 @@ export function FloatingAiAssistant({
               )}
             </div>
 
-            <div className="relative shrink-0 overflow-hidden border-t border-zinc-800/50">
-              <textarea
-                value={message}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={hasConversation ? 2 : 3}
-                className="max-h-[92px] min-h-[68px] w-full resize-none border-none bg-transparent px-6 py-3 text-sm font-normal leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
-                placeholder={hasConversation ? "Pregunta a Itinera IA..." : "Que te gustaria explorar hoy?"}
-                maxLength={maxChars}
-                disabled={isLoading}
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              />
-              <div
-                className="pointer-events-none absolute inset-0"
-                style={{ background: "linear-gradient(to top, rgba(39,39,42,0.05), transparent)" }}
-              />
-            </div>
-
-            <div className="shrink-0 px-4 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ToolButton label="Comando por voz" className="border border-zinc-700/30 hover:border-teal-400/30 hover:text-teal-300">
-                    <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
-                  </ToolButton>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-xs font-medium text-zinc-500">
-                    <span>{charCount}</span>/<span className="text-zinc-400">{maxChars}</span>
-                  </div>
-                  <button
-                    onClick={() => void handleSend()}
-                    className="group relative rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-3 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
-                    type="button"
-                    disabled={isLoading || !message.trim()}
-                    onMouseEnter={(e) => {
-                      if (!e.currentTarget.disabled) {
-                        e.currentTarget.style.animation = "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.animation = "none";
-                    }}
-                  >
-                    <Send className="h-5 w-5 transition-all duration-300 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:rotate-12 group-hover:scale-110" />
-                    <div className="absolute inset-0 scale-110 rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] opacity-0 blur-lg transition-opacity duration-300 group-hover:opacity-50" />
-                    <div className="absolute inset-0 overflow-hidden rounded-xl">
-                      <div className="absolute inset-0 scale-0 rounded-xl bg-white/20 transition-transform duration-200 group-active:scale-100" />
-                    </div>
-                  </button>
-                </div>
+            <div className="shrink-0 border-t border-zinc-800/50 px-4 pb-4 pt-3">
+              <div className="flex min-h-12 items-end gap-2 rounded-2xl border border-zinc-700/40 bg-zinc-950/25 px-2.5 py-2">
+                <ToolButton label="Comando por voz" className="shrink-0 border border-zinc-700/30 p-2 hover:border-teal-400/30 hover:text-teal-300">
+                  <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
+                </ToolButton>
+                <textarea
+                  value={message}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  className="max-h-[76px] min-h-9 flex-1 resize-none border-none bg-transparent px-1 py-2 text-sm leading-5 text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
+                  placeholder="Pregunta a Itinera IA..."
+                  maxLength={maxChars}
+                  disabled={isLoading}
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                />
+                <span className="hidden shrink-0 pb-2 text-[11px] font-medium text-zinc-500 sm:inline">
+                  {charCount}/{maxChars}
+                </span>
+                <button
+                  onClick={() => void handleSend()}
+                  className="group relative shrink-0 rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-2.5 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
+                  type="button"
+                  disabled={isLoading || !message.trim()}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.animation = "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.animation = "none";
+                  }}
+                >
+                  <Send className="h-4.5 w-4.5 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:rotate-12 group-hover:scale-110" />
+                  <div className="absolute inset-0 scale-110 rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] opacity-0 blur-lg transition-opacity duration-300 group-hover:opacity-50" />
+                </button>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-6 border-t border-zinc-800/50 pt-3 text-xs text-zinc-500">
+              <div className="mt-2 flex items-center justify-between gap-6 text-xs text-zinc-500">
                 <div className="flex items-center gap-2">
                   <Info className="h-3 w-3" />
                   <span>
