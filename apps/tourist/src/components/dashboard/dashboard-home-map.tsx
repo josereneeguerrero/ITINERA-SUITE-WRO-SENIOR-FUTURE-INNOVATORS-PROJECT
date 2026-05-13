@@ -69,6 +69,36 @@ function getRegion(place: DashboardHomeMapPlace) {
   return firstRelation(place.regions);
 }
 
+function normalize(value: string | null | undefined) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function getCategoryPinColor(place: DashboardHomeMapPlace) {
+  const category = firstRelation(place.place_categories);
+  const slug = normalize(category?.slug);
+  const iconName = normalize(category?.icon_name);
+  const label = normalize(getText(category?.name_i18n, ""));
+
+  if (slug.includes("heritage") || slug.includes("patrimonio") || iconName === "landmark" || label.includes("patrimonio")) {
+    return "#7C3AED"; // Morado - patrimonio cultural
+  }
+  if (slug.includes("nature") || slug.includes("naturaleza") || iconName === "leaf" || label.includes("naturaleza")) {
+    return "#16A34A"; // Verde - naturaleza
+  }
+  if (slug.includes("food") || slug.includes("gastronomia") || iconName === "utensils" || label.includes("gastronomia")) {
+    return "#EAB308"; // Amarillo - gastronomia
+  }
+  if (slug.includes("adventure") || slug.includes("aventura") || iconName === "zap" || iconName === "tent" || label.includes("aventura")) {
+    return "#2563EB"; // Azul - aventura
+  }
+
+  return "#0D9488"; // Default teal
+}
+
 function getCoords(places: DashboardHomeMapPlace[]): [number, number] {
   const coords = places
     .filter((place) => typeof place.lat === "number" && typeof place.lng === "number")
@@ -217,11 +247,12 @@ export function DashboardHomeMap({
               const name = getText(place.name_i18n, place.slug);
               const category = firstRelation(place.place_categories);
               const categoryName = getText(category?.name_i18n, "Destino");
+              const pinColor = getCategoryPinColor(place);
               return (
                 <MapMarker key={place.id} longitude={lng} latitude={lat}>
                   <MarkerContent>
-                    <span className="relative block h-4 w-4 rounded-full border-2 border-white bg-[#00796f] shadow-[0_8px_20px_rgba(15,23,42,0.22)]">
-                      <span className="absolute -inset-1.5 -z-10 rounded-full border border-[#0d9488]/30 bg-[#0d9488]/12" />
+                    <span className="relative block h-4 w-4 rounded-full border-2 border-white shadow-[0_8px_20px_rgba(15,23,42,0.22)]" style={{ backgroundColor: pinColor }}>
+                      <span className="absolute -inset-1.5 -z-10 rounded-full border bg-white/25" style={{ borderColor: `${pinColor}66` }} />
                     </span>
                   </MarkerContent>
                   <MarkerTooltip>
