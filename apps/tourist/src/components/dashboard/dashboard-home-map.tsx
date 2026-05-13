@@ -38,6 +38,18 @@ type WeatherState =
 
 const HONDURAS_CENTER: [number, number] = [-86.8, 15.2];
 const HONDURAS_ZOOM = 6.2;
+const DASHBOARD_MAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
+};
 
 function getText(value: Record<string, string> | null | undefined, fallback: string) {
   return value?.es ?? value?.en ?? fallback;
@@ -86,6 +98,7 @@ export function DashboardHomeMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">("loading");
   const [activeRegion, setActiveRegion] = useState("");
   const [weather, setWeather] = useState<WeatherState>({
     status: "loading",
@@ -129,7 +142,7 @@ export function DashboardHomeMap({
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+      style: DASHBOARD_MAP_STYLE,
       center: HONDURAS_CENTER,
       zoom: HONDURAS_ZOOM,
       attributionControl: false,
@@ -140,6 +153,9 @@ export function DashboardHomeMap({
     map.scrollZoom.disable();
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
+
+    map.on("load", () => setMapStatus("ready"));
+    map.on("error", () => setMapStatus("error"));
     mapRef.current = map;
 
     return () => {
@@ -252,10 +268,20 @@ export function DashboardHomeMap({
       <div className="mt-6 grid gap-6 rounded-2xl border border-[#d7e2de] bg-[#eaf2ef] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_260px] lg:p-6">
         <div className="relative min-h-[300px] overflow-hidden rounded-xl border border-[#d7e2de] bg-white shadow-sm md:min-h-[360px]">
           <div ref={mapContainer} className="absolute inset-0" />
+          {mapStatus !== "ready" && (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(13,148,136,0.08),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.08),transparent_35%)]" />
+          )}
           {!placesWithCoords.length && (
             <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
               <p className="font-inter text-sm text-[#64748B]">
                 Aun no hay coordenadas disponibles para mostrar pins.
+              </p>
+            </div>
+          )}
+          {mapStatus === "error" && placesWithCoords.length > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+              <p className="font-inter text-sm text-[#64748B]">
+                No se pudo cargar el mapa base en este momento.
               </p>
             </div>
           )}
