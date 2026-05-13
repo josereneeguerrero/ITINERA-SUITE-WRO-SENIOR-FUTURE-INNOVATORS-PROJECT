@@ -158,7 +158,7 @@ export default async function DashboardPage({
         </AuroraBackground>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-6 md:px-10">
+      <section className="mx-auto mt-10 w-full max-w-6xl px-6 md:mt-12 md:px-10">
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
           Explorar por categoría
         </h2>
