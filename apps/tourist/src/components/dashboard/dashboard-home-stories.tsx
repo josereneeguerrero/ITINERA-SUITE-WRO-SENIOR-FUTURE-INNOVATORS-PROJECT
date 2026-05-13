@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, BookOpen, Volume2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 export type DashboardHomeStory = {
   id: string;
@@ -32,16 +33,13 @@ function firstRelation<T>(value: T | T[] | null | undefined) {
 }
 
 export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[] }) {
-  const ROTATION_MS = 7600;
-  const TRANSITION_MS = 320;
+  const ROTATION_MS = 5200;
   const visibleStories = useMemo(() => stories.slice(0, 6), [stories]);
   const initialIndex = useMemo(() => {
     if (visibleStories.length <= 1) return 0;
     return Math.floor(Math.random() * visibleStories.length);
   }, [visibleStories.length]);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
-  const [nextIndex, setNextIndex] = useState<number | null>(null);
-  const [isSwitching, setIsSwitching] = useState(false);
   const [progressKey, setProgressKey] = useState(0);
   const story = visibleStories[activeIndex] ?? null;
 
@@ -51,25 +49,16 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
 
   useEffect(() => {
     if (visibleStories.length <= 1) return;
-    let transitionTimeout: number | undefined;
 
     const interval = window.setInterval(() => {
-      const upcoming = (activeIndex + 1) % visibleStories.length;
-      setNextIndex(upcoming);
-      setIsSwitching(true);
-      transitionTimeout = window.setTimeout(() => {
-        setActiveIndex(upcoming);
-        setNextIndex(null);
-        setProgressKey((current) => current + 1);
-        setIsSwitching(false);
-      }, TRANSITION_MS);
+      setActiveIndex((current) => (current + 1) % visibleStories.length);
+      setProgressKey((current) => current + 1);
     }, ROTATION_MS);
 
     return () => {
       window.clearInterval(interval);
-      if (transitionTimeout) window.clearTimeout(transitionTimeout);
     };
-  }, [activeIndex, visibleStories.length]);
+  }, [visibleStories.length]);
 
   const region = firstRelation(story?.regions);
   const title = getText(story?.title_i18n, "Historia de Honduras");
@@ -106,50 +95,20 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
           />
 
           <div className="relative min-h-[286px] max-w-2xl overflow-hidden md:min-h-[300px]">
-            <div
-              key={`active-${story.id}-${activeIndex}`}
-              className={`absolute inset-0 flex min-h-[286px] max-w-2xl flex-col justify-end transition-all duration-300 md:min-h-[300px] ${
-                isSwitching ? "-translate-x-6 opacity-0" : "translate-x-0 opacity-100"
-              }`}
-            >
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-[#f59e0b]/35 bg-[#f59e0b]/15 px-3 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.18em] text-[#facc15]">
-                  {regionName ? regionName : "Historia destacada"}
-                </span>
-                {story.audio_storage_path && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-inter text-[10px] font-semibold text-white/75">
-                    <Volume2 className="h-3 w-3" aria-hidden="true" />
-                    Audio disponible
-                  </span>
-                )}
-              </div>
-
-              <h3 className="line-clamp-2 font-jakarta text-3xl font-bold leading-tight text-white md:text-5xl">
-                {title}
-              </h3>
-              <p className="mt-4 line-clamp-3 max-w-xl font-inter text-sm leading-7 text-white/72 md:text-base">
-                {summary}
-              </p>
-
-              <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm transition-transform duration-300 group-hover:translate-x-1">
-                Leer historia <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </span>
-            </div>
-            {nextIndex != null && visibleStories[nextIndex] && (
-              <div
-                key={`next-${visibleStories[nextIndex].id}-${nextIndex}`}
-                className={`absolute inset-0 flex min-h-[286px] max-w-2xl flex-col justify-end transition-all duration-300 md:min-h-[300px] ${
-                  isSwitching ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0"
-                }`}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={story.id}
+                className="absolute inset-0 flex min-h-[286px] max-w-2xl flex-col justify-end md:min-h-[300px]"
+                initial={{ opacity: 0, x: 42 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -42 }}
+                transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="mb-5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-[#f59e0b]/35 bg-[#f59e0b]/15 px-3 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.18em] text-[#facc15]">
-                    {getText(
-                      firstRelation(visibleStories[nextIndex].regions)?.name_i18n,
-                      "Historia destacada"
-                    )}
+                    {regionName ? regionName : "Historia destacada"}
                   </span>
-                  {visibleStories[nextIndex].audio_storage_path && (
+                  {story.audio_storage_path && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-inter text-[10px] font-semibold text-white/75">
                       <Volume2 className="h-3 w-3" aria-hidden="true" />
                       Audio disponible
@@ -158,20 +117,17 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
                 </div>
 
                 <h3 className="line-clamp-2 font-jakarta text-3xl font-bold leading-tight text-white md:text-5xl">
-                  {getText(visibleStories[nextIndex].title_i18n, "Historia de Honduras")}
+                  {title}
                 </h3>
                 <p className="mt-4 line-clamp-3 max-w-xl font-inter text-sm leading-7 text-white/72 md:text-base">
-                  {getText(
-                    visibleStories[nextIndex].summary_i18n,
-                    "Relatos culturales publicados por Itinera para descubrir Honduras con contexto local."
-                  )}
+                  {summary}
                 </p>
 
-                <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm">
+                <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm transition-transform duration-300 group-hover:translate-x-1">
                   Leer historia <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </span>
-              </div>
-            )}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
             {visibleStories.length > 1 && (
