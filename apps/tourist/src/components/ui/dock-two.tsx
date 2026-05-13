@@ -46,15 +46,21 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
         className={cn(
           "relative rounded-lg p-3 text-[#0F766E]",
           "transition-colors hover:bg-[#0D9488]/18",
-          active ? "bg-[#0D9488]/22" : "",
           className
         )}
         type="button"
       >
-        <Icon className={cn("h-5 w-5 text-[#0F766E]", active ? "text-[#065F46]" : "")} />
+        {active ? (
+          <motion.span
+            layoutId="dock-active-indicator"
+            className="absolute inset-0 rounded-lg bg-[#0D9488]/22"
+            transition={{ type: "spring", stiffness: 340, damping: 30, mass: 0.55 }}
+          />
+        ) : null}
+        <Icon className={cn("relative z-10 h-5 w-5 text-[#0F766E]", active ? "text-[#065F46]" : "")} />
         <span
           className={cn(
-            "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap",
+            "pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap",
             "rounded bg-[#0D9488] px-2 py-1 text-xs text-white",
             "opacity-0 transition-opacity group-hover:opacity-100"
           )}
