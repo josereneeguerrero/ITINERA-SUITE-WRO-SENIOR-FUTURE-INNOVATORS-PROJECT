@@ -1,17 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Paperclip,
-  Link as LinkIcon,
-  Code,
-  Mic,
-  Send,
-  Info,
-  Bot,
-  X,
-  Palette,
-} from "lucide-react";
+import { Mic, Send, Info, Bot, X } from "lucide-react";
 
 function ToolButton({
   label,
@@ -150,22 +140,7 @@ export function FloatingAiAssistant() {
             <div className="px-4 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 rounded-xl border border-zinc-700/50 bg-zinc-800/40 p-1">
-                    <ToolButton label="Adjuntar archivos">
-                      <Paperclip className="h-4 w-4 transition-all duration-300 group-hover:-rotate-12 group-hover:scale-125" />
-                    </ToolButton>
-                    <ToolButton label="Enlace web" className="hover:text-cyan-300">
-                      <LinkIcon className="h-4 w-4 transition-all duration-300 group-hover:rotate-12 group-hover:scale-125" />
-                    </ToolButton>
-                    <ToolButton label="Repositorio de código" className="hover:text-emerald-300">
-                      <Code className="h-4 w-4 transition-all duration-300 group-hover:-rotate-6 group-hover:scale-125" />
-                    </ToolButton>
-                    <ToolButton label="Archivo de diseño" className="hover:text-fuchsia-300">
-                      <Palette className="h-4 w-4 transition-all duration-300 group-hover:rotate-12 group-hover:scale-125" />
-                    </ToolButton>
-                  </div>
-
-                  <ToolButton label="Entrada por voz" className="border border-zinc-700/30 hover:text-teal-300 hover:border-teal-400/30">
+                  <ToolButton label="Comando por voz" className="border border-zinc-700/30 hover:text-teal-300 hover:border-teal-400/30">
                     <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
                   </ToolButton>
                 </div>
