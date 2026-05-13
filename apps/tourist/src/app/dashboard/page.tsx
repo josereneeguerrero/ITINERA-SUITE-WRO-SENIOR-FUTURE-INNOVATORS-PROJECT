@@ -66,6 +66,58 @@ type Place = {
     | null;
 };
 
+const FALLBACK_DESTINATIONS: Array<{
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  badge: string;
+  lat: number;
+  lng: number;
+}> = [
+  {
+    id: "fallback-copan",
+    slug: "ruinas-copan",
+    title: "Ruinas de Copan",
+    description: "Sitio arqueologico maya en el occidente de Honduras.",
+    category: "Patrimonio Cultural",
+    badge: "Copan",
+    lat: 14.84,
+    lng: -89.14,
+  },
+  {
+    id: "fallback-roatan",
+    slug: "playa-west-bay-roatan",
+    title: "Playa West Bay",
+    description: "Arena blanca y arrecifes en Islas de la Bahia.",
+    category: "Playa",
+    badge: "Islas de la Bahia",
+    lat: 16.279,
+    lng: -86.592,
+  },
+  {
+    id: "fallback-comayagua",
+    slug: "catedral-comayagua",
+    title: "Catedral de Comayagua",
+    description: "Centro historico colonial y patrimonio religioso.",
+    category: "Religioso",
+    badge: "Comayagua",
+    lat: 14.456,
+    lng: -87.637,
+  },
+  {
+    id: "fallback-tigra",
+    slug: "parque-nacional-la-tigra",
+    title: "Parque Nacional La Tigra",
+    description: "Bosque nublado y senderos cerca de Tegucigalpa.",
+    category: "Naturaleza",
+    badge: "Francisco Morazan",
+    lat: 14.153,
+    lng: -87.151,
+  },
+];
+
 type Story = {
   id: string;
   slug: string;
@@ -123,6 +175,37 @@ function shuffle<T>(items: T[]) {
   return copy;
 }
 
+const FALLBACK_COORDS_BY_SLUG: Record<string, { lat: number; lng: number }> = {
+  "ruinas-copan": { lat: 14.84, lng: -89.14 },
+  "playa-west-bay-roatan": { lat: 16.279, lng: -86.592 },
+  "catedral-comayagua": { lat: 14.456, lng: -87.637 },
+  "parque-nacional-la-tigra": { lat: 14.153, lng: -87.151 },
+};
+
+const FALLBACK_COORDS_BY_REGION: Record<string, { lat: number; lng: number }> = {
+  copan: { lat: 14.84, lng: -89.14 },
+  "islas-de-la-bahia": { lat: 16.3, lng: -86.55 },
+  comayagua: { lat: 14.456, lng: -87.637 },
+  "francisco-morazan": { lat: 14.072, lng: -87.192 },
+  cortes: { lat: 15.506, lng: -88.024 },
+};
+
+function withFallbackCoordinates(place: Place): Place {
+  if (typeof place.lat === "number" && typeof place.lng === "number") return place;
+
+  const region = firstRelation(place.regions);
+  const bySlug = FALLBACK_COORDS_BY_SLUG[place.slug];
+  const byRegion = region?.slug ? FALLBACK_COORDS_BY_REGION[region.slug] : undefined;
+  const fallback = bySlug ?? byRegion;
+  if (!fallback) return place;
+
+  return {
+    ...place,
+    lat: fallback.lat,
+    lng: fallback.lng,
+  };
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -165,24 +248,49 @@ export default async function DashboardPage({
   ]);
 
   const categories = ((categoriesData ?? []) as Category[]).slice(0, 4);
-  const places = (placesData ?? []) as Place[];
+  const places = ((placesData ?? []) as Place[]).map(withFallbackCoordinates);
   const featuredStories = shuffle((storiesData ?? []) as Story[]);
   const shuffledPlaces = shuffle(places);
-  const sliderItems: ImageAutoSliderItem[] = shuffledPlaces.slice(0, 12).map((place, index) => {
-    const category = firstRelation(place.place_categories);
-    const region = firstRelation(place.regions);
+  const sliderItems: ImageAutoSliderItem[] =
+    shuffledPlaces.length > 0
+      ? shuffledPlaces.slice(0, 12).map((place, index) => {
+          const category = firstRelation(place.place_categories);
+          const region = firstRelation(place.regions);
 
-    return {
-      id: place.id,
-      title: getText(place.name_i18n, place.slug),
-      description: getText(place.description_i18n, "Destino cultural de Honduras."),
-      href: `/places/${place.slug}`,
-      imageUrl: UNSPLASH_IMAGE_POOL[index % UNSPLASH_IMAGE_POOL.length],
-      category: category ? getText(category.name_i18n, "") : undefined,
-      rating: typeof place.aggregated_rating === "number" ? Number(place.aggregated_rating) : null,
-      badge: region ? getText(region.name_i18n, "Honduras") : "Honduras",
-    };
-  });
+          return {
+            id: place.id,
+            title: getText(place.name_i18n, place.slug),
+            description: getText(place.description_i18n, "Destino cultural de Honduras."),
+            href: `/places/${place.slug}`,
+            imageUrl: UNSPLASH_IMAGE_POOL[index % UNSPLASH_IMAGE_POOL.length],
+            category: category ? getText(category.name_i18n, "") : undefined,
+            rating: typeof place.aggregated_rating === "number" ? Number(place.aggregated_rating) : null,
+            badge: region ? getText(region.name_i18n, "Honduras") : "Honduras",
+          };
+        })
+      : FALLBACK_DESTINATIONS.map((fallback, index) => ({
+          id: fallback.id,
+          title: fallback.title,
+          description: fallback.description,
+          href: `/places/${fallback.slug}`,
+          imageUrl: UNSPLASH_IMAGE_POOL[index % UNSPLASH_IMAGE_POOL.length],
+          category: fallback.category,
+          badge: fallback.badge,
+        }));
+
+  const mapPlaces: DashboardHomeMapPlace[] =
+    places.length > 0
+      ? (places as DashboardHomeMapPlace[])
+      : FALLBACK_DESTINATIONS.map((item) => ({
+          id: item.id,
+          slug: item.slug,
+          name_i18n: { es: item.title },
+          aggregated_rating: null,
+          lat: item.lat,
+          lng: item.lng,
+          place_categories: { name_i18n: { es: item.category }, icon_name: null, slug: null },
+          regions: { id: null, slug: item.badge.toLowerCase().replace(/\s+/g, "-"), name_i18n: { es: item.badge } },
+        }));
 
   return (
     <main className="min-h-screen w-full bg-[#f0f5f2]">
@@ -227,7 +335,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <DashboardHomeMap places={places as DashboardHomeMapPlace[]} isGuest={isGuest} />
+      <DashboardHomeMap places={mapPlaces} isGuest={isGuest} />
 
       <DashboardHomeStories stories={featuredStories as DashboardHomeStory[]} />
 

@@ -88,7 +88,7 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
       {story ? (
         <Link
           href={`/stories/${story.slug}`}
-          className="story-gradient-card group relative block min-h-[340px] overflow-hidden rounded-2xl border border-[#123f3a]/20 bg-[#0f172a] p-7 shadow-[0_18px_50px_rgba(15,23,42,0.16)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(13,148,136,0.18)] md:min-h-[380px] md:p-10"
+          className="story-gradient-card group relative block h-[340px] overflow-hidden rounded-2xl border border-[#123f3a]/20 bg-[#0f172a] p-7 shadow-[0_18px_50px_rgba(15,23,42,0.16)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(13,148,136,0.18)] md:h-[380px] md:p-10"
         >
           <div className="story-gradient-layer absolute inset-0" />
           <div className="absolute inset-0 opacity-[0.13] [background-image:linear-gradient(135deg,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:22px_22px]" />
@@ -115,14 +115,14 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
               )}
             </div>
 
-            <h3 className="font-jakarta text-3xl font-bold leading-tight text-white md:text-5xl">
+            <h3 className="line-clamp-2 font-jakarta text-3xl font-bold leading-tight text-white md:text-5xl">
               {title}
             </h3>
-            <p className="mt-4 max-w-xl font-inter text-sm leading-7 text-white/72 md:text-base">
+            <p className="mt-4 line-clamp-3 max-w-xl font-inter text-sm leading-7 text-white/72 md:text-base">
               {summary}
             </p>
 
-            <span className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm transition-transform duration-300 group-hover:translate-x-1">
+            <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 font-inter text-sm font-bold text-[#00685f] shadow-sm transition-transform duration-300 group-hover:translate-x-1">
               Leer historia <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </span>
 
