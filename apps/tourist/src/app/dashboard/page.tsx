@@ -8,7 +8,6 @@ import {
   Tent,
   Church,
   Waves,
-  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
@@ -17,6 +16,7 @@ import {
   ImageAutoSlider,
   type ImageAutoSliderItem,
 } from "@/components/ui/image-auto-slider";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 
 type Category = {
   id: string;
@@ -142,7 +142,22 @@ export default async function DashboardPage({
 
   return (
     <main className="min-h-screen w-full bg-[#f0f5f2]">
-      <div className="h-24 md:h-28" />
+      <section className="mx-auto w-full max-w-6xl px-6 pt-8 md:px-10 md:pt-10">
+        <AuroraBackground className="h-[240px] rounded-2xl border border-[#d7e2de] md:h-[280px]">
+          <div className="relative flex max-w-3xl flex-col items-center px-6 text-center">
+            <p className="font-inter text-xs font-semibold uppercase tracking-[0.16em] text-[#00685f]">
+              Inicio
+            </p>
+            <h1 className="mt-3 font-jakarta text-3xl font-bold leading-tight text-[#0f172a] md:text-5xl">
+              Bienvenido a Itinera
+            </h1>
+            <p className="mt-4 font-inter text-sm leading-6 text-[#334155] md:text-base">
+              Tu punto de partida para descubrir lugares, historias y rutas culturales de Honduras.
+            </p>
+          </div>
+        </AuroraBackground>
+      </section>
+
       <section className="mx-auto w-full max-w-6xl px-6 md:px-10">
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
           Explorar por categoría

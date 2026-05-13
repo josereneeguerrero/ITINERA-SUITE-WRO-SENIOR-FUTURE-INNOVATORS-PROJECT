@@ -200,6 +200,15 @@
     }
   }
 
+  @keyframes aurora {
+    from {
+      background-position: 50% 50%, 50% 50%;
+    }
+    to {
+      background-position: 350% 50%, 350% 50%;
+    }
+  }
+
   /* MapLibre attribution override */
   .maplibregl-ctrl-top-left { top: 8px !important; left: 8px !important; }
   .maplibregl-ctrl-attrib { font-size: 10px !important; }
