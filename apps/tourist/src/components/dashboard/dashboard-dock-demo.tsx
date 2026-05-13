@@ -13,7 +13,7 @@ import {
 
 export function DashboardDockDemo() {
   return (
-    <div className="fixed bottom-0 left-1/2 z-[40] w-full -translate-x-1/2 px-4 pb-1">
+    <div className="fixed bottom-3 left-1/2 z-[40] w-full -translate-x-1/2 px-4">
       <Dock
         className="h-auto p-0"
         items={[
