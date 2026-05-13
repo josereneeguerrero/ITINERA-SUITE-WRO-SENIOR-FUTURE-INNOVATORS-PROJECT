@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
@@ -38,9 +39,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     const supabase = createClient();
-    const { error: registerError } = await supabase.auth.signUp({
+    const { data, error: registerError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -54,8 +56,15 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push(redirect);
+    if (!data.session) {
+      setSuccess("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.");
+      setLoading(false);
+      return;
+    }
+
+    router.replace(redirect);
     router.refresh();
+    setLoading(false);
   }
 
   return (
@@ -169,6 +178,11 @@ export default function RegisterPage() {
               {error ? (
                 <p className="rounded-lg border border-red-300/35 bg-red-500/10 px-3 py-2 font-inter text-xs text-red-200">
                   {error}
+                </p>
+              ) : null}
+              {success ? (
+                <p className="rounded-lg border border-emerald-300/35 bg-emerald-500/10 px-3 py-2 font-inter text-xs text-emerald-200">
+                  {success}
                 </p>
               ) : null}
 

@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
@@ -29,9 +30,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     const supabase = createClient();
-    const { error: loginError } = await supabase.auth.signInWithPassword({
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -42,8 +44,15 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(redirect);
+    if (!data.session) {
+      setSuccess("Inicio de sesión exitoso. Si no redirige, usa el botón de volver.");
+      setLoading(false);
+      return;
+    }
+
+    router.replace(redirect);
     router.refresh();
+    setLoading(false);
   }
 
   return (
@@ -139,6 +148,11 @@ export default function LoginPage() {
               {error ? (
                 <p className="rounded-lg border border-red-300/35 bg-red-500/10 px-3 py-2 font-inter text-xs text-red-200">
                   {error}
+                </p>
+              ) : null}
+              {success ? (
+                <p className="rounded-lg border border-emerald-300/35 bg-emerald-500/10 px-3 py-2 font-inter text-xs text-emerald-200">
+                  {success}
                 </p>
               ) : null}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
 
 interface Place {
@@ -44,6 +44,7 @@ export function ExploreMap({
   const map          = useRef<maplibregl.Map | null>(null);
   const markers    = useRef<maplibregl.Marker[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   // Build hover tooltip HTML (compact, no actions)
   const buildTooltipHTML = useCallback((place: Place) => {
@@ -110,6 +111,7 @@ export function ExploreMap({
 
     map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.current.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+    map.current.on("load", () => setMapReady(true));
 
     // Close drawer on map click (backdrop handled by drawer itself)
     map.current.on("click", () => {
@@ -117,6 +119,7 @@ export function ExploreMap({
     });
 
     return () => {
+      setMapReady(false);
       map.current?.remove();
       map.current = null;
     };
@@ -215,7 +218,7 @@ export function ExploreMap({
       markers.current.push(marker);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places]);
+  }, [places, mapReady]);
 
   // Fly to selected place (when triggered from list click)
   useEffect(() => {
