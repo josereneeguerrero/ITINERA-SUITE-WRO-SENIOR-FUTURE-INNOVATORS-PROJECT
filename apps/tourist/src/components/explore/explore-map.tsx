@@ -22,6 +22,24 @@ interface Place {
   regions: { name_i18n: Record<string, string> } | null;
 }
 
+type UserLocation = {
+  lng: number;
+  lat: number;
+  accuracy?: number;
+};
+
+type RouteMeta = {
+  distanceKm?: number;
+  durationMin?: number;
+  approximate?: boolean;
+};
+
+type RouteFeedback = {
+  kind: "added" | "exists";
+  placeSlug: string;
+  message: string;
+};
+
 const HONDURAS_CENTER: [number, number] = [-86.8, 15.2];
 const HONDURAS_ZOOM = 6.5;
 
@@ -34,6 +52,44 @@ const ICON_MAP: Record<string, string> = {
   church: "R",
 };
 
+function toRad(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceKm(from: [number, number], to: [number, number]) {
+  const [lng1, lat1] = from;
+  const [lng2, lat2] = to;
+  const r = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(value: number) {
+  return value < 1 ? `${Math.round(value * 1000)} m` : `${value.toFixed(1)} km`;
+}
+
+function makeAccuracyCircle(center: [number, number], radiusMeters: number) {
+  const [lng, lat] = center;
+  const points: [number, number][] = [];
+  const earthRadius = 6371000;
+  const latRad = toRad(lat);
+
+  for (let i = 0; i <= 64; i += 1) {
+    const angle = (i / 64) * Math.PI * 2;
+    const dx = radiusMeters * Math.cos(angle);
+    const dy = radiusMeters * Math.sin(angle);
+    const pointLat = lat + (dy / earthRadius) * (180 / Math.PI);
+    const pointLng = lng + (dx / (earthRadius * Math.cos(latRad))) * (180 / Math.PI);
+    points.push([pointLng, pointLat]);
+  }
+
+  return points;
+}
+
 export function ExploreMap({
   places,
   visibleSlugs,
@@ -42,6 +98,11 @@ export function ExploreMap({
   mapZoom,
   isSaved = false,
   routeStops = [],
+  routeGeometry,
+  routeMeta,
+  routeStopSlugs = [],
+  routeFeedback,
+  userLocation,
   recommendationReason,
   onSelectPlace,
   onToggleSave,
@@ -54,6 +115,11 @@ export function ExploreMap({
   mapZoom?: number | null;
   isSaved?: boolean;
   routeStops?: Array<{ slug: string }>;
+  routeGeometry?: [number, number][] | null;
+  routeMeta?: RouteMeta | null;
+  routeStopSlugs?: string[];
+  routeFeedback?: RouteFeedback | null;
+  userLocation?: UserLocation | null;
   recommendationReason?: string | null;
   onSelectPlace: (place: Place | null) => void;
   onToggleSave?: (place: Place) => void;
@@ -283,7 +349,16 @@ export function ExploreMap({
     if (map.current.getLayer(pointId)) map.current.removeLayer(pointId);
     if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
 
-    if (coords.length < 2) return;
+    const lineCoords = routeGeometry && routeGeometry.length >= 2 ? routeGeometry : coords;
+
+    if (coords.length < 2 || lineCoords.length < 2) return;
+
+    const linePaint: maplibregl.LineLayerSpecification["paint"] = {
+      "line-color": "#0D9488",
+      "line-width": 4,
+      "line-opacity": 0.8,
+    };
+    if (routeMeta?.approximate) linePaint["line-dasharray"] = [1.2, 1];
 
     map.current.addSource(sourceId, {
       type: "geojson",
@@ -292,7 +367,7 @@ export function ExploreMap({
         features: [
           {
             type: "Feature" as const,
-            geometry: { type: "LineString" as const, coordinates: coords },
+            geometry: { type: "LineString" as const, coordinates: lineCoords },
             properties: {},
           },
           ...coords.map((coord, index) => ({
@@ -309,11 +384,7 @@ export function ExploreMap({
       type: "line",
       source: sourceId,
       filter: ["==", ["geometry-type"], "LineString"],
-      paint: {
-        "line-color": "#0D9488",
-        "line-width": 4,
-        "line-opacity": 0.8,
-      },
+      paint: linePaint,
     });
 
     map.current.addLayer({
@@ -328,7 +399,81 @@ export function ExploreMap({
         "circle-radius": 6,
       },
     });
-  }, [mapReady, places, routeStops]);
+  }, [mapReady, places, routeStops, routeGeometry, routeMeta]);
+
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    const sourceId = "itinera-user-location-source";
+    const fillId = "itinera-user-location-accuracy";
+    const outlineId = "itinera-user-location-accuracy-outline";
+    const pointId = "itinera-user-location-point";
+
+    if (map.current.getLayer(pointId)) map.current.removeLayer(pointId);
+    if (map.current.getLayer(outlineId)) map.current.removeLayer(outlineId);
+    if (map.current.getLayer(fillId)) map.current.removeLayer(fillId);
+    if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+
+    if (!userLocation) return;
+
+    const center: [number, number] = [userLocation.lng, userLocation.lat];
+    const accuracy = Math.min(Math.max(userLocation.accuracy ?? 60, 25), 5000);
+
+    map.current.addSource(sourceId, {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature" as const,
+            geometry: { type: "Polygon" as const, coordinates: [makeAccuracyCircle(center, accuracy)] },
+            properties: { kind: "accuracy" },
+          },
+          {
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: center },
+            properties: { kind: "user" },
+          },
+        ],
+      },
+    });
+
+    map.current.addLayer({
+      id: fillId,
+      type: "fill",
+      source: sourceId,
+      filter: ["==", ["get", "kind"], "accuracy"],
+      paint: {
+        "fill-color": "#0EA5E9",
+        "fill-opacity": 0.13,
+      },
+    });
+
+    map.current.addLayer({
+      id: outlineId,
+      type: "line",
+      source: sourceId,
+      filter: ["==", ["get", "kind"], "accuracy"],
+      paint: {
+        "line-color": "#0EA5E9",
+        "line-width": 1,
+        "line-opacity": 0.38,
+      },
+    });
+
+    map.current.addLayer({
+      id: pointId,
+      type: "circle",
+      source: sourceId,
+      filter: ["==", ["get", "kind"], "user"],
+      paint: {
+        "circle-color": "#0D9488",
+        "circle-radius": 7,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 3,
+      },
+    });
+  }, [mapReady, userLocation]);
 
   useEffect(() => {
     if (!selectedPlace) {
@@ -359,6 +504,16 @@ export function ExploreMap({
     selectedColor
   );
   const price = selectedPlace?.price_level ? "$".repeat(selectedPlace.price_level) : "Gratis";
+  const selectedInRoute = selectedPlace ? routeStopSlugs.includes(selectedPlace.slug) : false;
+  const selectedRouteFeedback =
+    selectedPlace && routeFeedback?.placeSlug === selectedPlace.slug ? routeFeedback : null;
+  const selectedDistance =
+    selectedPlace &&
+    userLocation &&
+    typeof selectedPlace.lng === "number" &&
+    typeof selectedPlace.lat === "number"
+      ? distanceKm([userLocation.lng, userLocation.lat], [selectedPlace.lng, selectedPlace.lat])
+      : null;
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
@@ -420,6 +575,7 @@ export function ExploreMap({
               </span>
               <span>{selectedPlace.review_count ?? 0} resenas</span>
               <span>{price}</span>
+              {selectedDistance !== null ? <span>{formatDistance(selectedDistance)} de ti</span> : null}
               {selectedPlace.accessibility ? <span>Accesible</span> : null}
               {selectedPlace.local_favorite ? <span>Favorito local</span> : null}
             </div>
@@ -445,6 +601,17 @@ export function ExploreMap({
                 <span className="font-semibold">IA:</span> {recommendationReason}
               </div>
             ) : null}
+            {selectedRouteFeedback ? (
+              <div
+                className={`rounded-lg border px-2.5 py-2 font-inter text-[11px] font-semibold ${
+                  selectedRouteFeedback.kind === "added"
+                    ? "border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]"
+                    : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
+                }`}
+              >
+                {selectedRouteFeedback.message}
+              </div>
+            ) : null}
             <div className="h-px bg-[#E2E8F0]" />
             <a
               href={`/places/${selectedPlace.slug}`}
@@ -456,10 +623,14 @@ export function ExploreMap({
             <button
               type="button"
               onClick={() => selectedPlace && onAddToRoute?.(selectedPlace)}
-              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#0D9488] font-inter text-sm font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
+              className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border font-inter text-sm font-bold transition-colors ${
+                selectedInRoute
+                  ? "border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E] hover:bg-[#CCFBF1]"
+                  : "border-[#0D9488] text-[#0D9488] hover:bg-[#F0FDFA]"
+              }`}
             >
               <Navigation className="h-3.5 w-3.5" />
-              Agregar a ruta
+              {selectedInRoute ? "En ruta" : "Agregar a ruta"}
             </button>
           </div>
         </div>

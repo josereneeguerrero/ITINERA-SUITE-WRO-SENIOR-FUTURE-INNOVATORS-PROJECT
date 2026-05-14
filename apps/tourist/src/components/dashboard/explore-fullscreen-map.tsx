@@ -45,6 +45,24 @@ type ActiveRoute = {
   stops: RouteStop[];
 };
 
+type UserLocation = {
+  lng: number;
+  lat: number;
+  accuracy?: number;
+};
+
+type RouteMeta = {
+  distanceKm?: number;
+  durationMin?: number;
+  approximate?: boolean;
+};
+
+type RouteFeedback = {
+  kind: "added" | "exists";
+  placeSlug: string;
+  message: string;
+};
+
 type UIAction = {
   type: "apply_filter" | "select_place" | "set_route" | "get_nearby" | "clear_route" | "center_map";
   slug?: string;
@@ -213,6 +231,42 @@ function distanceKm(from: [number, number], to: [number, number]) {
   return r * c;
 }
 
+async function fetchOsrmRoute(coords: [number, number][]) {
+  const coordinateString = coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("OSRM route request failed");
+  const payload = (await response.json()) as {
+    routes?: Array<{
+      distance?: number;
+      duration?: number;
+      geometry?: { coordinates?: [number, number][] };
+    }>;
+  };
+  const route = payload.routes?.[0];
+  const coordinates = route?.geometry?.coordinates;
+  if (!route) throw new Error("OSRM route missing");
+  if (!coordinates?.length) throw new Error("OSRM route geometry missing");
+  return {
+    coordinates,
+    distanceKm: typeof route.distance === "number" ? route.distance / 1000 : undefined,
+    durationMin: typeof route.duration === "number" ? Math.round(route.duration / 60) : undefined,
+  };
+}
+
+function formatRouteMeta(meta: RouteMeta | null) {
+  if (!meta) return "";
+  const parts: string[] = [];
+  parts.push(meta.approximate ? "Ruta aproximada" : "Ruta por OSRM");
+  if (typeof meta.distanceKm === "number") parts.push(`${Math.round(meta.distanceKm)} km`);
+  if (typeof meta.durationMin === "number") {
+    const hours = Math.floor(meta.durationMin / 60);
+    const minutes = meta.durationMin % 60;
+    parts.push(hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`);
+  }
+  return parts.join(" · ");
+}
+
 function normalizeCategorySlug(value: string) {
   const normalized = normalize(value);
   if (normalized.includes("patrimonio") || normalized.includes("heritage")) return "patrimonio-cultural";
@@ -257,8 +311,11 @@ export function ExploreFullscreenMap({
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
+  const [routeFeedback, setRouteFeedback] = useState<RouteFeedback | null>(null);
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
+  const [routeMeta, setRouteMeta] = useState<RouteMeta | null>(null);
   const [aiHint, setAiHint] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
   const [aiChips, setAiChips] = useState<AiFilterChip[]>([]);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
@@ -287,7 +344,8 @@ export function ExploreFullscreenMap({
       if (!aCoords && !bCoords) return 0;
       if (!aCoords) return 1;
       if (!bCoords) return -1;
-      return distanceKm(userLocation, aCoords) - distanceKm(userLocation, bCoords);
+      const userCoords: [number, number] = [userLocation.lng, userLocation.lat];
+      return distanceKm(userCoords, aCoords) - distanceKm(userCoords, bCoords);
     });
   }, [places, query, activeCategory, userLocation]);
 
@@ -403,6 +461,55 @@ export function ExploreFullscreenMap({
   }, [activeRoute, routeStorageKey]);
 
   useEffect(() => {
+    if (!routeFeedback) return;
+    const timeout = window.setTimeout(() => setRouteFeedback(null), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [routeFeedback]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const coords =
+      activeRoute?.stops
+        .map((stop) => places.find((place) => place.slug === stop.slug))
+        .filter((place): place is Place => Boolean(place))
+        .map((place) =>
+          typeof place.lng === "number" && typeof place.lat === "number"
+            ? ([place.lng, place.lat] as [number, number])
+            : null
+        )
+        .filter((value): value is [number, number] => Boolean(value)) ?? [];
+
+    if (coords.length < 2) {
+      setRouteGeometry(null);
+      setRouteMeta(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetchOsrmRoute(coords)
+      .then((route) => {
+        if (cancelled) return;
+        setRouteGeometry(route.coordinates);
+        setRouteMeta({
+          distanceKm: route.distanceKm,
+          durationMin: route.durationMin,
+          approximate: false,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRouteGeometry(coords);
+        setRouteMeta({ approximate: true });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRoute, places]);
+
+  useEffect(() => {
     const onActions = (event: Event) => {
       const detail = (event as CustomEvent<UIActionsChunk>).detail;
       if (!detail?.actions?.length) return;
@@ -453,6 +560,7 @@ export function ExploreFullscreenMap({
         }
         if (action.type === "clear_route") {
           setActiveRoute(null);
+          setRouteFeedback(null);
         }
         if (action.type === "center_map" && action.center) {
           setMapCenter(action.center);
@@ -488,16 +596,33 @@ export function ExploreFullscreenMap({
   }
 
   function applyNearby() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setAiHint("Tu navegador no permite obtener ubicacion.");
+      window.setTimeout(() => setAiHint(null), 2600);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        const point: [number, number] = [coords.longitude, coords.latitude];
+        const point: UserLocation = {
+          lng: coords.longitude,
+          lat: coords.latitude,
+          accuracy: coords.accuracy,
+        };
+        const zoom = coords.accuracy <= 100 ? 13 : coords.accuracy <= 1000 ? 11.5 : 10.5;
         setUserLocation(point);
         setMapCenter([coords.longitude, coords.latitude]);
-        setMapZoom(11);
+        setMapZoom(zoom);
+        if (coords.accuracy > 1000) {
+          setAiHint("Ubicacion aproximada: ordenamos destinos cercanos con menor precision.");
+          window.setTimeout(() => setAiHint(null), 3200);
+        }
         setAiChips((prev) => upsertChip(prev, { key: "nearby", label: "Cerca de mí" }));
       },
-      () => undefined
+      () => {
+        setAiHint("No pudimos obtener tu ubicacion. Revisa permisos del navegador.");
+        window.setTimeout(() => setAiHint(null), 3200);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   }
 
@@ -543,6 +668,15 @@ export function ExploreFullscreenMap({
   }
 
   function addToRoute(place: Place) {
+    const alreadyInRoute = activeRoute?.stops.some((stop) => stop.slug === place.slug) ?? false;
+    setRouteFeedback({
+      kind: alreadyInRoute ? "exists" : "added",
+      placeSlug: place.slug,
+      message: alreadyInRoute ? "Ya esta en tu ruta" : "Agregado a tu ruta",
+    });
+
+    if (alreadyInRoute) return;
+
     setActiveRoute((prev) => {
       if (!prev) {
         return {
@@ -572,6 +706,11 @@ export function ExploreFullscreenMap({
           onAddToRoute={(place) => addToRoute(place as Place)}
           recommendationReason={aiRecommendationReason}
           routeStops={activeRoute?.stops ?? []}
+          routeGeometry={routeGeometry}
+          routeMeta={routeMeta}
+          routeStopSlugs={activeRoute?.stops.map((stop) => stop.slug) ?? []}
+          routeFeedback={routeFeedback}
+          userLocation={userLocation}
           onSelectPlace={(place) => {
             const nextSlug = (place as Place | null)?.slug ?? null;
             setSelectedPlaceSlug(nextSlug);
@@ -697,7 +836,7 @@ export function ExploreFullscreenMap({
                         });
                         const placeDistance =
                           userLocation && typeof place.lng === "number" && typeof place.lat === "number"
-                            ? distanceKm(userLocation, [place.lng, place.lat])
+                            ? distanceKm([userLocation.lng, userLocation.lat], [place.lng, place.lat])
                             : null;
 
                         return (
@@ -845,6 +984,9 @@ export function ExploreFullscreenMap({
               <div className="flex items-center gap-2 text-sm font-bold text-[#0F172A]">
                 <Locate className="h-4 w-4 text-[#0D9488]" />
                 {activeRoute.title}
+                <span className="rounded-full bg-[#E6FFFB] px-2 py-0.5 text-[10px] font-bold text-[#0D9488]">
+                  {activeRoute.stops.length} paradas
+                </span>
               </div>
               <button
                 type="button"
@@ -855,6 +997,11 @@ export function ExploreFullscreenMap({
                 <X className="h-4 w-4" />
               </button>
             </div>
+            {routeMeta ? (
+              <div className="mb-2 rounded-xl bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-semibold text-[#64748B]">
+                {formatRouteMeta(routeMeta)}
+              </div>
+            ) : null}
             <div className="space-y-1.5">
               {activeRoute.stops.slice(0, 4).map((stop) => (
                 <button
