@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Send, Info, Bot, X } from "lucide-react";
-import { useStreamingChat, type ChatContext } from "@/hooks/use-streaming-chat";
+import { useStreamingChat, type ChatContext, type UIActionsChunk } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 
 function ToolButton({
@@ -31,9 +31,11 @@ function ToolButton({
 export function FloatingAiAssistant({
   context = {},
   storageKey = "itinera-ai-floating",
+  onUIActions,
 }: {
   context?: ChatContext;
   storageKey?: string;
+  onUIActions?: (chunk: UIActionsChunk) => void;
 }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -41,7 +43,15 @@ export function FloatingAiAssistant({
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const { messages, isLoading, send } = useStreamingChat(context, { storageKey });
+  const { messages, isLoading, send } = useStreamingChat(context, {
+    storageKey,
+    onUIActions: (chunk) => {
+      onUIActions?.(chunk);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("itinera:ui-actions", { detail: chunk }));
+      }
+    },
+  });
   const hasConversation = messages.length > 0;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

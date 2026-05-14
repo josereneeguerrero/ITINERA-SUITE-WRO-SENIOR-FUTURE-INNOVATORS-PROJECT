@@ -206,7 +206,7 @@ export default async function ExplorePage({
 
   return (
     <main className="min-h-screen w-full bg-white">
-      <ExploreFullscreenMap places={finalPlaces} categories={categories} />
+      <ExploreFullscreenMap places={finalPlaces} categories={categories} isGuest={isGuest} userId={user?.id ?? null} />
       <DashboardDockDemo isGuest={isGuest} />
       <div id="ia">
         <FloatingAiAssistant context={{ page: "explore" }} storageKey="itinera-ai-explore" />

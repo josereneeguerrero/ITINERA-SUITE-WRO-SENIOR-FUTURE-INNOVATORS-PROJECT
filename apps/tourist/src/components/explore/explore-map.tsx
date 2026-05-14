@@ -40,14 +40,24 @@ export function ExploreMap({
   selectedPlace,
   mapCenter,
   mapZoom,
+  isSaved = false,
+  routeStops = [],
+  recommendationReason,
   onSelectPlace,
+  onToggleSave,
+  onAddToRoute,
 }: {
   places: Place[];
   visibleSlugs?: Set<string>;
   selectedPlace: Place | null;
   mapCenter?: [number, number] | null;
   mapZoom?: number | null;
+  isSaved?: boolean;
+  routeStops?: Array<{ slug: string }>;
+  recommendationReason?: string | null;
   onSelectPlace: (place: Place | null) => void;
+  onToggleSave?: (place: Place) => void;
+  onAddToRoute?: (place: Place) => void;
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -255,6 +265,72 @@ export function ExploreMap({
   }, [mapReady, fitAllPlaces]);
 
   useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const sourceId = "itinera-route-source";
+    const lineId = "itinera-route-line";
+    const pointId = "itinera-route-points";
+    const coords = routeStops
+      .map((stop) => places.find((place) => place.slug === stop.slug))
+      .filter((place): place is Place => Boolean(place))
+      .map((place) =>
+        typeof place.lng === "number" && typeof place.lat === "number"
+          ? ([place.lng, place.lat] as [number, number])
+          : null
+      )
+      .filter((value): value is [number, number] => Boolean(value));
+
+    if (map.current.getLayer(lineId)) map.current.removeLayer(lineId);
+    if (map.current.getLayer(pointId)) map.current.removeLayer(pointId);
+    if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+
+    if (coords.length < 2) return;
+
+    map.current.addSource(sourceId, {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature" as const,
+            geometry: { type: "LineString" as const, coordinates: coords },
+            properties: {},
+          },
+          ...coords.map((coord, index) => ({
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: coord },
+            properties: { order: index + 1 },
+          })),
+        ],
+      },
+    });
+
+    map.current.addLayer({
+      id: lineId,
+      type: "line",
+      source: sourceId,
+      filter: ["==", ["geometry-type"], "LineString"],
+      paint: {
+        "line-color": "#0D9488",
+        "line-width": 4,
+        "line-opacity": 0.8,
+      },
+    });
+
+    map.current.addLayer({
+      id: pointId,
+      type: "circle",
+      source: sourceId,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-color": "#ffffff",
+        "circle-stroke-color": "#0D9488",
+        "circle-stroke-width": 3,
+        "circle-radius": 6,
+      },
+    });
+  }, [mapReady, places, routeStops]);
+
+  useEffect(() => {
     if (!selectedPlace) {
       setCardVisible(false);
       return;
@@ -330,9 +406,10 @@ export function ExploreMap({
               <button
                 type="button"
                 aria-label="Guardar"
+                onClick={() => selectedPlace && onToggleSave?.(selectedPlace)}
                 className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
               >
-                <Bookmark className="h-4 w-4" />
+                <Bookmark className={`h-4 w-4 ${isSaved ? "fill-[#0D9488] text-[#0D9488]" : ""}`} />
               </button>
             </div>
 
@@ -363,6 +440,11 @@ export function ExploreMap({
                 {descriptionExpanded ? "Ver menos" : "Ver más"}
               </button>
             ) : null}
+            {recommendationReason ? (
+              <div className="rounded-lg border border-[#99F6E4] bg-[#ECFEFF] px-2.5 py-2 font-inter text-[11px] text-[#0F766E]">
+                <span className="font-semibold">IA:</span> {recommendationReason}
+              </div>
+            ) : null}
             <div className="h-px bg-[#E2E8F0]" />
             <a
               href={`/places/${selectedPlace.slug}`}
@@ -373,6 +455,7 @@ export function ExploreMap({
             </a>
             <button
               type="button"
+              onClick={() => selectedPlace && onAddToRoute?.(selectedPlace)}
               className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#0D9488] font-inter text-sm font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
             >
               <Navigation className="h-3.5 w-3.5" />
