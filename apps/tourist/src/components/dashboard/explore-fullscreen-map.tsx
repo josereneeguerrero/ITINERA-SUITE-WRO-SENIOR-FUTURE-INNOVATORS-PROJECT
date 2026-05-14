@@ -354,6 +354,7 @@ export function ExploreFullscreenMap({
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
   const [routeSegments, setRouteSegments] = useState<RouteSegment[] | null>(null);
   const [routeMeta, setRouteMeta] = useState<RouteMeta | null>(null);
+  const [routePanelExpanded, setRoutePanelExpanded] = useState(false);
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
@@ -439,6 +440,10 @@ export function ExploreFullscreenMap({
   }, [selectedPlace, showFilters, query]);
 
   const shouldShowSuggestionsPanel = uiMode === "searching";
+  const hasActiveRoute = Boolean(activeRoute?.stops.length);
+  const shouldCompactRoutePanel = hasActiveRoute && Boolean(selectedPlace) && !routePanelExpanded;
+  const shouldShowFullRoutePanel = hasActiveRoute && (!selectedPlace || routePanelExpanded);
+  const routeMetaLabel = formatRouteMeta(routeMeta);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -505,6 +510,10 @@ export function ExploreFullscreenMap({
     const timeout = window.setTimeout(() => setRouteFeedback(null), 2400);
     return () => window.clearTimeout(timeout);
   }, [routeFeedback]);
+
+  useEffect(() => {
+    if (selectedPlace) setRoutePanelExpanded(false);
+  }, [selectedPlace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -602,8 +611,7 @@ export function ExploreFullscreenMap({
           setAiRecommendationReason("Ruta sugerida por IA balanceando cercanía, categoría y valoración.");
         }
         if (action.type === "clear_route") {
-          setActiveRoute(null);
-          setRouteFeedback(null);
+          clearRoute();
         }
         if (action.type === "center_map" && action.center) {
           setMapCenter(action.center);
@@ -710,6 +718,12 @@ export function ExploreFullscreenMap({
     if (typeof window !== "undefined") window.localStorage.setItem(SAVED_PLACES_KEY, JSON.stringify(next));
   }
 
+  function clearRoute() {
+    setActiveRoute(null);
+    setRouteFeedback(null);
+    setRoutePanelExpanded(false);
+  }
+
   function addToRoute(place: Place) {
     const alreadyInRoute = activeRoute?.stops.some((stop) => stop.slug === place.slug) ?? false;
     setRouteFeedback({
@@ -761,6 +775,7 @@ export function ExploreFullscreenMap({
             if (nextSlug) {
               setShowFilters(false);
               setQuery("");
+              setRoutePanelExpanded(false);
             }
           }}
         />
@@ -1021,8 +1036,50 @@ export function ExploreFullscreenMap({
         </div>
       </div>
 
-      {activeRoute && activeRoute.stops.length > 0 ? (
-        <div className={`pointer-events-none absolute bottom-28 left-4 ${Z.routeCard} w-[min(360px,calc(100vw-1.5rem))] md:left-6`}>
+      {activeRoute && shouldCompactRoutePanel ? (
+        <div className={`pointer-events-none absolute bottom-28 left-1/2 ${Z.routeCard} w-[min(520px,calc(100vw-1.5rem))] -translate-x-1/2 px-2`}>
+          <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-2xl border border-[#99F6E4] bg-white/95 px-3 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Locate className="h-4 w-4 shrink-0 text-[#0D9488]" />
+                <span className="truncate text-sm font-bold text-[#0F172A]">{activeRoute.title}</span>
+                <span className="shrink-0 rounded-full bg-[#E6FFFB] px-2 py-0.5 text-[10px] font-bold text-[#0D9488]">
+                  {activeRoute.stops.length} paradas
+                </span>
+              </div>
+              {routeMetaLabel ? (
+                <p className="mt-0.5 truncate text-xs font-semibold text-[#64748B]">{routeMetaLabel}</p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRoutePanelExpanded(true)}
+                className="rounded-full bg-[#0D9488] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#0f766e]"
+              >
+                Ver ruta
+              </button>
+              <button
+                type="button"
+                onClick={clearRoute}
+                className="rounded-full p-1.5 text-[#64748B] transition-colors hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                aria-label="Limpiar ruta"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activeRoute && shouldShowFullRoutePanel ? (
+        <div
+          className={`pointer-events-none absolute ${Z.routeCard} w-[min(360px,calc(100vw-1.5rem))] ${
+            selectedPlace
+              ? "bottom-28 left-1/2 -translate-x-1/2"
+              : "bottom-28 left-4 md:left-6"
+          }`}
+        >
           <div className="pointer-events-auto rounded-2xl border border-[#D9E5E2] bg-white/95 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.15)] backdrop-blur-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-bold text-[#0F172A]">
@@ -1034,16 +1091,16 @@ export function ExploreFullscreenMap({
               </div>
               <button
                 type="button"
-                onClick={() => setActiveRoute(null)}
+                onClick={selectedPlace ? () => setRoutePanelExpanded(false) : clearRoute}
                 className="rounded-full p-1 text-[#64748B] transition-colors hover:bg-[#F1F5F9] hover:text-[#0F172A]"
-                aria-label="Limpiar ruta"
+                aria-label={selectedPlace ? "Compactar ruta" : "Limpiar ruta"}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            {routeMeta ? (
+            {routeMetaLabel ? (
               <div className="mb-2 rounded-xl bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-semibold text-[#64748B]">
-                {formatRouteMeta(routeMeta)}
+                {routeMetaLabel}
               </div>
             ) : null}
             <div className="space-y-1.5">
@@ -1053,7 +1110,10 @@ export function ExploreFullscreenMap({
                   type="button"
                   onClick={() => {
                     const place = places.find((item) => item.slug === stop.slug);
-                    if (place) selectPlaceFromSearch(place);
+                    if (place) {
+                      selectPlaceFromSearch(place);
+                      setRoutePanelExpanded(false);
+                    }
                   }}
                   className="flex w-full items-center gap-2 rounded-xl border border-[#E2E8F0] px-2.5 py-2 text-left transition-colors hover:bg-[#F8FAFC]"
                 >
