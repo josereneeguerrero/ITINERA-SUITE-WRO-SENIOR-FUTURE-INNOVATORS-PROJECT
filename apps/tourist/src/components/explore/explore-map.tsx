@@ -271,7 +271,11 @@ export function ExploreMap({
   const selectedDescription =
     selectedPlace?.ai_summary_i18n?.es ??
     selectedPlace?.description_i18n?.es ??
-    "Destino cultural de Honduras con historia, contexto local y puntos de interes para explorar.";
+    getPlaceShortDescription({
+      name: selectedPlace?.name_i18n?.es ?? selectedPlace?.slug ?? "Este destino",
+      category: selectedCategory?.name_i18n?.es ?? "Lugar cultural",
+      region: selectedPlace?.regions?.name_i18n?.es ?? "Honduras",
+    });
   const selectedImage = getPlaceImage(selectedPlace?.slug ?? "");
   const categoryFallbackImage = getCategoryFallbackImage(
     selectedCategory?.name_i18n?.es ?? "Destino",
@@ -414,4 +418,42 @@ function getCategoryFallbackImage(categoryLabel: string, color: string) {
   `.trim();
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function getPlaceShortDescription({
+  name,
+  category,
+  region,
+}: {
+  name: string;
+  category: string;
+  region: string;
+}) {
+  const normalized = category.toLowerCase();
+
+  if (normalized.includes("religioso")) {
+    return `${name} es un punto de valor historico y espiritual en ${region}, ideal para conocer tradiciones locales.`;
+  }
+
+  if (normalized.includes("patrimonio") || normalized.includes("muse")) {
+    return `${name} destaca por su legado cultural en ${region}, con detalles historicos que enriquecen la visita.`;
+  }
+
+  if (normalized.includes("naturaleza")) {
+    return `${name} ofrece una experiencia natural en ${region}, perfecta para explorar paisajes y biodiversidad.`;
+  }
+
+  if (normalized.includes("gastronom")) {
+    return `${name} conecta con los sabores de ${region}, ideal para descubrir cocina y tradiciones culinarias.`;
+  }
+
+  if (normalized.includes("aventura")) {
+    return `${name} es una opcion recomendada en ${region} para actividades al aire libre y experiencias activas.`;
+  }
+
+  if (normalized.includes("playa")) {
+    return `${name} es un destino costero en ${region} para disfrutar mar, descanso y actividades junto a la playa.`;
+  }
+
+  return `${name} es un lugar recomendado en ${region} para descubrir contexto local y cultura hondurena.`;
 }
