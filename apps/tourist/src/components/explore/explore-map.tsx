@@ -231,6 +231,7 @@ export function ExploreMap({
           offset: 24,
           closeButton: true,
           closeOnClick: false,
+          closeOnMove: false,
           className: "itinera-place-popup",
           anchor: "bottom",
         })
