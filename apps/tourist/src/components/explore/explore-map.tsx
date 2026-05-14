@@ -34,6 +34,11 @@ type RouteMeta = {
   approximate?: boolean;
 };
 
+type RouteSegment = {
+  coordinates: [number, number][];
+  approximate: boolean;
+};
+
 type RouteFeedback = {
   kind: "added" | "exists";
   placeSlug: string;
@@ -99,6 +104,7 @@ export function ExploreMap({
   isSaved = false,
   routeStops = [],
   routeGeometry,
+  routeSegments,
   routeMeta,
   routeStopSlugs = [],
   routeFeedback,
@@ -116,6 +122,7 @@ export function ExploreMap({
   isSaved?: boolean;
   routeStops?: Array<{ slug: string }>;
   routeGeometry?: [number, number][] | null;
+  routeSegments?: RouteSegment[] | null;
   routeMeta?: RouteMeta | null;
   routeStopSlugs?: string[];
   routeFeedback?: RouteFeedback | null;
@@ -333,7 +340,9 @@ export function ExploreMap({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const sourceId = "itinera-route-source";
-    const lineId = "itinera-route-line";
+    const legacyLineId = "itinera-route-line";
+    const solidLineId = "itinera-route-line-solid";
+    const approximateLineId = "itinera-route-line-approximate";
     const pointId = "itinera-route-points";
     const coords = routeStops
       .map((stop) => places.find((place) => place.slug === stop.slug))
@@ -345,31 +354,30 @@ export function ExploreMap({
       )
       .filter((value): value is [number, number] => Boolean(value));
 
-    if (map.current.getLayer(lineId)) map.current.removeLayer(lineId);
+    if (map.current.getLayer(legacyLineId)) map.current.removeLayer(legacyLineId);
+    if (map.current.getLayer(solidLineId)) map.current.removeLayer(solidLineId);
+    if (map.current.getLayer(approximateLineId)) map.current.removeLayer(approximateLineId);
     if (map.current.getLayer(pointId)) map.current.removeLayer(pointId);
     if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
 
     const lineCoords = routeGeometry && routeGeometry.length >= 2 ? routeGeometry : coords;
+    const lineSegments =
+      routeSegments && routeSegments.length > 0
+        ? routeSegments
+        : [{ coordinates: lineCoords, approximate: Boolean(routeMeta?.approximate) }];
 
-    if (coords.length < 2 || lineCoords.length < 2) return;
-
-    const linePaint: maplibregl.LineLayerSpecification["paint"] = {
-      "line-color": "#0D9488",
-      "line-width": 4,
-      "line-opacity": 0.8,
-    };
-    if (routeMeta?.approximate) linePaint["line-dasharray"] = [1.2, 1];
+    if (coords.length < 2 || lineCoords.length < 2 || lineSegments.length < 1) return;
 
     map.current.addSource(sourceId, {
       type: "geojson",
       data: {
         type: "FeatureCollection",
         features: [
-          {
+          ...lineSegments.map((segment) => ({
             type: "Feature" as const,
-            geometry: { type: "LineString" as const, coordinates: lineCoords },
-            properties: {},
-          },
+            geometry: { type: "LineString" as const, coordinates: segment.coordinates },
+            properties: { approximate: segment.approximate },
+          })),
           ...coords.map((coord, index) => ({
             type: "Feature" as const,
             geometry: { type: "Point" as const, coordinates: coord },
@@ -380,11 +388,28 @@ export function ExploreMap({
     });
 
     map.current.addLayer({
-      id: lineId,
+      id: solidLineId,
       type: "line",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "LineString"],
-      paint: linePaint,
+      filter: ["all", ["==", ["geometry-type"], "LineString"], ["!=", ["get", "approximate"], true]],
+      paint: {
+        "line-color": "#0D9488",
+        "line-width": 4,
+        "line-opacity": 0.85,
+      },
+    });
+
+    map.current.addLayer({
+      id: approximateLineId,
+      type: "line",
+      source: sourceId,
+      filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "approximate"], true]],
+      paint: {
+        "line-color": "#0D9488",
+        "line-width": 4,
+        "line-opacity": 0.75,
+        "line-dasharray": [1.2, 1],
+      },
     });
 
     map.current.addLayer({
@@ -399,7 +424,7 @@ export function ExploreMap({
         "circle-radius": 6,
       },
     });
-  }, [mapReady, places, routeStops, routeGeometry, routeMeta]);
+  }, [mapReady, places, routeStops, routeGeometry, routeSegments, routeMeta]);
 
   useEffect(() => {
     if (!map.current || !mapReady) return;

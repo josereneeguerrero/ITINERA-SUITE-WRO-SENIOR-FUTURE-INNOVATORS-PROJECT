@@ -57,6 +57,11 @@ type RouteMeta = {
   approximate?: boolean;
 };
 
+type RouteSegment = {
+  coordinates: [number, number][];
+  approximate: boolean;
+};
+
 type RouteFeedback = {
   kind: "added" | "exists";
   placeSlug: string;
@@ -254,6 +259,40 @@ async function fetchOsrmRoute(coords: [number, number][]) {
   };
 }
 
+async function buildSegmentedRoute(coords: [number, number][]) {
+  const segments = await Promise.all(
+    coords.slice(0, -1).map(async (start, index) => {
+      const end = coords[index + 1];
+      try {
+        const route = await fetchOsrmRoute([start, end]);
+        return {
+          segment: { coordinates: route.coordinates, approximate: false },
+          distanceKm: route.distanceKm,
+          durationMin: route.durationMin,
+        };
+      } catch {
+        return {
+          segment: { coordinates: [start, end], approximate: true },
+          distanceKm: distanceKm(start, end),
+          durationMin: undefined,
+        };
+      }
+    })
+  );
+
+  return {
+    segments: segments.map((item) => item.segment),
+    coordinates: segments.flatMap((item, index) =>
+      index === 0 ? item.segment.coordinates : item.segment.coordinates.slice(1)
+    ),
+    distanceKm: segments.reduce((sum, item) => sum + (item.distanceKm ?? 0), 0),
+    durationMin: segments.some((item) => typeof item.durationMin !== "number")
+      ? undefined
+      : segments.reduce((sum, item) => sum + (item.durationMin ?? 0), 0),
+    approximate: segments.some((item) => item.segment.approximate),
+  };
+}
+
 function formatRouteMeta(meta: RouteMeta | null) {
   if (!meta) return "";
   const parts: string[] = [];
@@ -313,6 +352,7 @@ export function ExploreFullscreenMap({
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
   const [routeFeedback, setRouteFeedback] = useState<RouteFeedback | null>(null);
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
+  const [routeSegments, setRouteSegments] = useState<RouteSegment[] | null>(null);
   const [routeMeta, setRouteMeta] = useState<RouteMeta | null>(null);
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -482,25 +522,28 @@ export function ExploreFullscreenMap({
 
     if (coords.length < 2) {
       setRouteGeometry(null);
+      setRouteSegments(null);
       setRouteMeta(null);
       return () => {
         cancelled = true;
       };
     }
 
-    fetchOsrmRoute(coords)
+    buildSegmentedRoute(coords)
       .then((route) => {
         if (cancelled) return;
         setRouteGeometry(route.coordinates);
+        setRouteSegments(route.segments);
         setRouteMeta({
           distanceKm: route.distanceKm,
           durationMin: route.durationMin,
-          approximate: false,
+          approximate: route.approximate,
         });
       })
       .catch(() => {
         if (cancelled) return;
         setRouteGeometry(coords);
+        setRouteSegments([{ coordinates: coords, approximate: true }]);
         setRouteMeta({ approximate: true });
       });
 
@@ -707,6 +750,7 @@ export function ExploreFullscreenMap({
           recommendationReason={aiRecommendationReason}
           routeStops={activeRoute?.stops ?? []}
           routeGeometry={routeGeometry}
+          routeSegments={routeSegments}
           routeMeta={routeMeta}
           routeStopSlugs={activeRoute?.stops.map((stop) => stop.slug) ?? []}
           routeFeedback={routeFeedback}
@@ -977,7 +1021,7 @@ export function ExploreFullscreenMap({
         </div>
       </div>
 
-      {activeRoute && activeRoute.stops.length > 0 && uiMode !== "placeSelected" ? (
+      {activeRoute && activeRoute.stops.length > 0 ? (
         <div className={`pointer-events-none absolute bottom-28 left-4 ${Z.routeCard} w-[min(360px,calc(100vw-1.5rem))] md:left-6`}>
           <div className="pointer-events-auto rounded-2xl border border-[#D9E5E2] bg-white/95 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.15)] backdrop-blur-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
