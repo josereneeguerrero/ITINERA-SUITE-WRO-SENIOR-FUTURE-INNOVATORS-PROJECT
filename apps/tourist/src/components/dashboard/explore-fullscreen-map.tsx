@@ -63,6 +63,11 @@ type RouteSegment = {
   approximate: boolean;
 };
 
+type RouteWaypoint = {
+  coordinates: [number, number];
+  regionSlug?: string;
+};
+
 type RouteFeedback = {
   kind: "added" | "exists";
   placeSlug: string;
@@ -109,6 +114,8 @@ type AiFilterChip = {
 const RECENT_SEARCHES_KEY = "itinera-explore-recent-searches";
 const SAVED_PLACES_KEY = "itinera-explore-saved-slugs";
 const ROUTE_KEY_PREFIX = "itinera-explore-active-route";
+const LA_CEIBA_FERRY_PORT: [number, number] = [-86.793, 15.781];
+const ISLAND_REGION_HINTS = ["islas-de-la-bahia", "islas de la bahia", "bay-islands", "bay islands"];
 
 function getEs(value?: Record<string, string> | null, fallback = "") {
   return value?.es ?? value?.en ?? fallback;
@@ -275,37 +282,87 @@ async function fetchOsrmRoute(coords: [number, number][]) {
   };
 }
 
-async function buildSegmentedRoute(coords: [number, number][]) {
+function isIslandWaypoint(waypoint: RouteWaypoint) {
+  const region = normalize(waypoint.regionSlug ?? "");
+  return ISLAND_REGION_HINTS.some((hint) => region.includes(normalize(hint)));
+}
+
+async function buildSingleSegment(start: RouteWaypoint, end: RouteWaypoint) {
+  try {
+    const route = await fetchOsrmRoute([start.coordinates, end.coordinates]);
+    return {
+      segments: [{ coordinates: route.coordinates, approximate: false }],
+      distanceKm: route.distanceKm,
+      durationMin: route.durationMin,
+    };
+  } catch {
+    const startIsIsland = isIslandWaypoint(start);
+    const endIsIsland = isIslandWaypoint(end);
+    if (startIsIsland === endIsIsland) {
+      return {
+        segments: [{ coordinates: [start.coordinates, end.coordinates], approximate: true }],
+        distanceKm: distanceKm(start.coordinates, end.coordinates),
+        durationMin: undefined,
+      };
+    }
+
+    const landStart = startIsIsland ? LA_CEIBA_FERRY_PORT : start.coordinates;
+    const landEnd = endIsIsland ? LA_CEIBA_FERRY_PORT : end.coordinates;
+    const orderedSegments: RouteSegment[] = [];
+    let landDistance = 0;
+    let landDuration = 0;
+
+    if (startIsIsland) {
+      orderedSegments.push({ coordinates: [start.coordinates, LA_CEIBA_FERRY_PORT], approximate: true });
+    }
+
+    try {
+      const landRoute = await fetchOsrmRoute([landStart, landEnd]);
+      orderedSegments.push({ coordinates: landRoute.coordinates, approximate: false });
+      landDistance = landRoute.distanceKm ?? 0;
+      landDuration = landRoute.durationMin ?? 0;
+    } catch {
+      orderedSegments.push({ coordinates: [landStart, landEnd], approximate: true });
+      landDistance = distanceKm(landStart, landEnd);
+    }
+
+    if (endIsIsland) {
+      orderedSegments.push({ coordinates: [LA_CEIBA_FERRY_PORT, end.coordinates], approximate: true });
+    }
+
+    const seaDistance = startIsIsland
+      ? distanceKm(start.coordinates, LA_CEIBA_FERRY_PORT)
+      : endIsIsland
+        ? distanceKm(LA_CEIBA_FERRY_PORT, end.coordinates)
+        : 0;
+
+    return {
+      segments: orderedSegments.filter((segment) => segment.coordinates.length >= 2),
+      distanceKm: landDistance + seaDistance,
+      durationMin: landDuration ? landDuration + Math.round((seaDistance / 35) * 60) : undefined,
+    };
+  }
+}
+
+async function buildSegmentedRoute(waypoints: RouteWaypoint[]) {
   const segments = await Promise.all(
-    coords.slice(0, -1).map(async (start, index) => {
-      const end = coords[index + 1];
-      try {
-        const route = await fetchOsrmRoute([start, end]);
-        return {
-          segment: { coordinates: route.coordinates, approximate: false },
-          distanceKm: route.distanceKm,
-          durationMin: route.durationMin,
-        };
-      } catch {
-        return {
-          segment: { coordinates: [start, end], approximate: true },
-          distanceKm: distanceKm(start, end),
-          durationMin: undefined,
-        };
-      }
+    waypoints.slice(0, -1).map(async (start, index) => {
+      const end = waypoints[index + 1];
+      return buildSingleSegment(start, end);
     })
   );
+  const routeSegments = segments.flatMap((item) => item.segments);
 
   return {
-    segments: segments.map((item) => item.segment),
-    coordinates: segments.flatMap((item, index) =>
-      index === 0 ? item.segment.coordinates : item.segment.coordinates.slice(1)
+    segments: routeSegments,
+    coordinates: routeSegments.flatMap((segment, index) =>
+      index === 0 ? segment.coordinates : segment.coordinates.slice(1)
     ),
     distanceKm: segments.reduce((sum, item) => sum + (item.distanceKm ?? 0), 0),
     durationMin: segments.some((item) => typeof item.durationMin !== "number")
       ? undefined
       : segments.reduce((sum, item) => sum + (item.durationMin ?? 0), 0),
-    approximate: segments.some((item) => item.segment.approximate),
+    approximate: routeSegments.some((segment) => segment.approximate),
   };
 }
 
@@ -554,16 +611,18 @@ export function ExploreFullscreenMap({
   useEffect(() => {
     let cancelled = false;
 
-    const coords =
+    const routePlaces =
       activeRoute?.stops
         .map((stop) => places.find((place) => place.slug === stop.slug))
-        .filter((place): place is Place => Boolean(place))
-        .map((place) =>
-          typeof place.lng === "number" && typeof place.lat === "number"
-            ? ([place.lng, place.lat] as [number, number])
-            : null
-        )
-        .filter((value): value is [number, number] => Boolean(value)) ?? [];
+        .filter((place): place is Place => Boolean(place)) ?? [];
+    const waypoints = routePlaces
+      .map<RouteWaypoint | null>((place) =>
+        typeof place.lng === "number" && typeof place.lat === "number"
+          ? { coordinates: [place.lng, place.lat], regionSlug: place.regions?.slug }
+          : null
+      )
+      .filter((value): value is RouteWaypoint => Boolean(value));
+    const coords = waypoints.map((waypoint) => waypoint.coordinates);
 
     if (coords.length < 2) {
       setRouteGeometry(null);
@@ -574,7 +633,7 @@ export function ExploreFullscreenMap({
       };
     }
 
-    buildSegmentedRoute(coords)
+    buildSegmentedRoute(waypoints)
       .then((route) => {
         if (cancelled) return;
         setRouteGeometry(route.coordinates);
