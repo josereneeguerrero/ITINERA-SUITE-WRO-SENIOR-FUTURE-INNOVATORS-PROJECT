@@ -68,6 +68,58 @@ const FALLBACK_COORDS_BY_REGION: Record<string, { lat: number; lng: number }> = 
   cortes: { lat: 15.506, lng: -88.024 },
 };
 
+const FALLBACK_PLACES: Array<{
+  slug: string;
+  name: string;
+  category: { name: string; icon_name: string; slug: string };
+  region: { name: string; slug: string };
+  lat: number;
+  lng: number;
+}> = [
+  {
+    slug: "ruinas-copan",
+    name: "Ruinas de Copan",
+    category: { name: "Patrimonio Cultural", icon_name: "landmark", slug: "patrimonio-cultural" },
+    region: { name: "Copan", slug: "copan" },
+    lat: 14.84,
+    lng: -89.14,
+  },
+  {
+    slug: "playa-west-bay-roatan",
+    name: "Playa West Bay",
+    category: { name: "Playa", icon_name: "waves", slug: "playa" },
+    region: { name: "Islas de la Bahia", slug: "islas-de-la-bahia" },
+    lat: 16.279,
+    lng: -86.592,
+  },
+  {
+    slug: "catedral-comayagua",
+    name: "Catedral de Comayagua",
+    category: { name: "Religioso", icon_name: "church", slug: "religioso" },
+    region: { name: "Comayagua", slug: "comayagua" },
+    lat: 14.456,
+    lng: -87.637,
+  },
+  {
+    slug: "parque-nacional-la-tigra",
+    name: "Parque Nacional La Tigra",
+    category: { name: "Naturaleza", icon_name: "leaf", slug: "naturaleza" },
+    region: { name: "Francisco Morazan", slug: "francisco-morazan" },
+    lat: 14.153,
+    lng: -87.151,
+  },
+];
+
+function normalizeKey(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_\s]+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+}
+
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -75,8 +127,10 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 
 function withFallbackCoordinates(place: ExplorePlace): ExplorePlace {
   if (typeof place.lat === "number" && typeof place.lng === "number") return place;
-  const bySlug = FALLBACK_COORDS_BY_SLUG[place.slug];
-  const byRegion = place.regions?.slug ? FALLBACK_COORDS_BY_REGION[place.regions.slug] : undefined;
+  const normalizedSlug = normalizeKey(place.slug);
+  const bySlug = FALLBACK_COORDS_BY_SLUG[normalizedSlug] ?? FALLBACK_COORDS_BY_SLUG[place.slug];
+  const regionSlug = place.regions?.slug ? normalizeKey(place.regions.slug) : "";
+  const byRegion = regionSlug ? FALLBACK_COORDS_BY_REGION[regionSlug] : undefined;
   const fallback = bySlug ?? byRegion;
   if (!fallback) return place;
   return { ...place, lat: fallback.lat, lng: fallback.lng };
@@ -121,10 +175,38 @@ export default async function ExplorePage({
     };
     return withFallbackCoordinates(normalized);
   });
+  const placesWithCoords = places.filter((item) => typeof item.lat === "number" && typeof item.lng === "number");
+  const finalPlaces: ExplorePlace[] =
+    placesWithCoords.length > 0
+      ? places
+      : FALLBACK_PLACES.map((item, index) => ({
+          id: `fallback-${index + 1}`,
+          slug: item.slug,
+          name_i18n: { es: item.name, en: item.name },
+          description_i18n: { es: "Destino cultural de Honduras.", en: "Cultural destination in Honduras." },
+          ai_summary_i18n: { es: "Destino recomendado para explorar.", en: "Recommended destination to explore." },
+          aggregated_rating: 4.6,
+          review_count: 0,
+          price_level: 1,
+          accessibility: true,
+          local_favorite: false,
+          featured: true,
+          lat: item.lat,
+          lng: item.lng,
+          place_categories: {
+            name_i18n: { es: item.category.name, en: item.category.name },
+            icon_name: item.category.icon_name,
+            slug: item.category.slug,
+          },
+          regions: {
+            name_i18n: { es: item.region.name, en: item.region.name },
+            slug: item.region.slug,
+          },
+        }));
 
   return (
     <main className="min-h-screen w-full bg-white">
-      <ExploreFullscreenMap places={places} categories={categories} />
+      <ExploreFullscreenMap places={finalPlaces} categories={categories} />
       <DashboardDockDemo isGuest={isGuest} />
       <div id="ia">
         <FloatingAiAssistant context={{ page: "explore" }} storageKey="itinera-ai-explore" />
@@ -132,4 +214,3 @@ export default async function ExplorePage({
     </main>
   );
 }
-
