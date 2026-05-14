@@ -57,6 +57,7 @@ export function ExploreMap({
   const selectedPlaceRef = useRef<Place | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [cardVisible, setCardVisible] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   useEffect(() => {
     selectedPlaceRef.current = selectedPlace;
@@ -258,6 +259,7 @@ export function ExploreMap({
       setCardVisible(false);
       return;
     }
+    setDescriptionExpanded(false);
   }, [selectedPlace]);
 
   const selectedCategory = selectedPlace?.place_categories;
@@ -270,7 +272,11 @@ export function ExploreMap({
     selectedPlace?.ai_summary_i18n?.es ??
     selectedPlace?.description_i18n?.es ??
     "Destino cultural de Honduras con historia, contexto local y puntos de interes para explorar.";
-  const selectedImages = getPlaceImages(selectedPlace?.slug ?? "");
+  const selectedImage = getPlaceImage(selectedPlace?.slug ?? "");
+  const categoryFallbackImage = getCategoryFallbackImage(
+    selectedCategory?.name_i18n?.es ?? "Destino",
+    selectedColor
+  );
   const price = selectedPlace?.price_level ? "$".repeat(selectedPlace.price_level) : "Gratis";
 
   return (
@@ -278,7 +284,7 @@ export function ExploreMap({
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
       {selectedPlace ? (
         <div
-          className="pointer-events-auto absolute left-4 top-20 z-20 w-[304px] overflow-hidden rounded-[10px] border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24"
+          className="pointer-events-auto absolute left-4 top-20 z-20 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[360px]"
           style={{
             opacity: cardVisible ? 1 : 0,
             transform: cardVisible ? "translateY(0)" : "translateY(8px)",
@@ -292,21 +298,21 @@ export function ExploreMap({
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="grid h-[124px] grid-cols-2 gap-1 bg-[#ECFDF5] p-2">
-            {selectedImages.map((src) => (
-              <img
-                key={src}
-                src={src}
-                alt=""
-                className="h-full w-full rounded-md object-cover"
-                loading="lazy"
-              />
-            ))}
+          <div className="h-[170px] w-full bg-[#ECFDF5] p-2 pb-0 sm:h-[184px] md:h-[196px]">
+            <img
+              src={selectedImage}
+              alt={selectedPlace.name_i18n?.es ?? selectedPlace.slug}
+              className="h-full w-full rounded-xl object-cover"
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.src = categoryFallbackImage;
+              }}
+            />
           </div>
-          <div className="space-y-3 p-4">
+          <div className="space-y-3 p-4 pt-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-jakarta text-[22px] font-bold leading-tight text-[#0F172A]">
+                <h3 className="font-jakarta text-[34px] font-bold leading-[1.1] tracking-[-0.01em] text-[#0F172A]">
                   {selectedPlace.name_i18n?.es ?? selectedPlace.slug}
                 </h3>
                 <div className="mt-2 flex items-center gap-1.5 font-inter text-[11px] font-semibold text-[#0D9488]">
@@ -336,20 +342,33 @@ export function ExploreMap({
               {selectedPlace.local_favorite ? <span>Favorito local</span> : null}
             </div>
 
-            <p className="line-clamp-[10] font-inter text-xs leading-5 text-[#334155]">
+            <p
+              className={`font-inter text-[13px] leading-6 text-[#334155] ${
+                descriptionExpanded ? "" : "line-clamp-5"
+              }`}
+            >
               {selectedDescription}
             </p>
+            {selectedDescription.length > 180 ? (
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded((value) => !value)}
+                className="text-xs font-semibold text-[#0D9488] transition-colors hover:text-[#0f766e]"
+              >
+                {descriptionExpanded ? "Ver menos" : "Ver más"}
+              </button>
+            ) : null}
             <div className="h-px bg-[#E2E8F0]" />
             <a
               href={`/places/${selectedPlace.slug}`}
-              className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#0D9488] font-inter text-xs font-bold text-white transition-colors hover:bg-[#0f766e]"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] font-inter text-sm font-bold text-white transition-colors hover:bg-[#0f766e]"
             >
               <Eye className="h-3.5 w-3.5" />
               Ver detalle
             </a>
             <button
               type="button"
-              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[#0D9488] font-inter text-xs font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
+              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#0D9488] font-inter text-sm font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
             >
               <Navigation className="h-3.5 w-3.5" />
               Agregar a ruta
@@ -361,26 +380,38 @@ export function ExploreMap({
   );
 }
 
-function getPlaceImages(slug: string) {
-  const pool: Record<string, [string, string]> = {
-    "ruinas-copan": [
-      "https://images.unsplash.com/photo-1512813195386-6cf811ad3542?q=80&w=640&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1564665750701-56d6d6ef5f8f?q=80&w=640&auto=format&fit=crop",
-    ],
-    "catedral-comayagua": [
-      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=640&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1518998053901-5348d3961a04?q=80&w=640&auto=format&fit=crop",
-    ],
-    "playa-west-bay-roatan": [
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=640&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?q=80&w=640&auto=format&fit=crop",
-    ],
+function getPlaceImage(slug: string) {
+  const pool: Record<string, string> = {
+    "ruinas-copan":
+      "https://images.unsplash.com/photo-1512813195386-6cf811ad3542?q=80&w=1200&auto=format&fit=crop",
+    "catedral-comayagua":
+      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=1200&auto=format&fit=crop",
+    "playa-west-bay-roatan":
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop",
   };
 
   return (
-    pool[slug] ?? [
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=640&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=640&auto=format&fit=crop",
-    ]
+    pool[slug] ??
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"
   );
+}
+
+function getCategoryFallbackImage(categoryLabel: string, color: string) {
+  const safeLabel = (categoryLabel || "Destino").toUpperCase().slice(0, 26);
+  const svg = `
+    <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='700' viewBox='0 0 1200 700'>
+      <defs>
+        <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+          <stop offset='0%' stop-color='${color}' stop-opacity='0.95'/>
+          <stop offset='100%' stop-color='#0f172a' stop-opacity='0.95'/>
+        </linearGradient>
+      </defs>
+      <rect width='1200' height='700' fill='url(#g)'/>
+      <circle cx='1000' cy='120' r='220' fill='white' fill-opacity='0.08'/>
+      <circle cx='180' cy='620' r='260' fill='white' fill-opacity='0.06'/>
+      <text x='70' y='620' fill='white' fill-opacity='0.92' font-family='Inter, Arial, sans-serif' font-size='78' font-weight='700'>${safeLabel}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
