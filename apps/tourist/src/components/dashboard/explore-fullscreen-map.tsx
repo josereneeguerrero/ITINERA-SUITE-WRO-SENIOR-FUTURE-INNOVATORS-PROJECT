@@ -64,6 +64,7 @@ type UIActionsChunk = {
 
 const RECENT_SEARCHES_KEY = "itinera-explore-recent-searches";
 const SAVED_PLACES_KEY = "itinera-explore-saved-slugs";
+const ROUTE_KEY_PREFIX = "itinera-explore-active-route";
 
 function getEs(value?: Record<string, string> | null, fallback = "") {
   return value?.es ?? value?.en ?? fallback;
@@ -79,22 +80,65 @@ function normalize(value: string) {
     .trim();
 }
 
+function levenshtein(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const matrix = Array.from({ length: b.length + 1 }, () => Array(a.length + 1).fill(0));
+  for (let i = 0; i <= b.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= a.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i += 1) {
+    for (let j = 1; j <= a.length; j += 1) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function expandSynonyms(term: string) {
+  const normalized = normalize(term);
+  const buckets: Array<{ seeds: string[]; aliases: string[] }> = [
+    { seeds: ["copan", "copan ruinas"], aliases: ["ruinas", "maya", "arqueologia"] },
+    { seeds: ["roatan", "west bay", "playa"], aliases: ["islas de la bahia", "mar", "costa"] },
+    { seeds: ["comayagua", "catedral"], aliases: ["reloj arabe", "iglesia", "religioso"] },
+    { seeds: ["la tigra", "cusuco", "naturaleza"], aliases: ["bosque", "parque", "sendero"] },
+  ];
+  const extra = buckets.find((bucket) => bucket.seeds.some((seed) => normalized.includes(seed)));
+  return extra ? [normalized, ...extra.aliases] : [normalized];
+}
+
+function getPreviewImage(slug: string) {
+  const pool: Record<string, string> = {
+    "ruinas-copan": "https://images.unsplash.com/photo-1512813195386-6cf811ad3542?q=80&w=640&auto=format&fit=crop",
+    "playa-west-bay-roatan": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=640&auto=format&fit=crop",
+    "catedral-comayagua": "https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=640&auto=format&fit=crop",
+    "parque-nacional-la-tigra": "https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=640&auto=format&fit=crop",
+  };
+  return pool[slug] ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=640&auto=format&fit=crop";
+}
+
 function scorePlace(place: Place, query: string) {
   const q = normalize(query);
   if (!q) return 0;
 
+  const terms = expandSynonyms(query);
   const name = normalize(getEs(place.name_i18n, place.slug));
   const category = normalize(getEs(place.place_categories?.name_i18n, ""));
   const region = normalize(getEs(place.regions?.name_i18n, ""));
   const slug = normalize(place.slug);
 
   let score = 0;
-  if (name === q) score += 100;
-  if (name.startsWith(q)) score += 60;
-  if (name.includes(q)) score += 40;
-  if (slug.includes(q)) score += 30;
-  if (category.includes(q)) score += 20;
-  if (region.includes(q)) score += 15;
+  for (const term of terms) {
+    if (name === term) score += 100;
+    if (name.startsWith(term)) score += 60;
+    if (name.includes(term)) score += 40;
+    if (slug.includes(term)) score += 30;
+    if (category.includes(term)) score += 20;
+    if (region.includes(term)) score += 15;
+    const d = levenshtein(name.slice(0, term.length + 2), term);
+    if (d <= 2) score += 12 - d * 3;
+  }
   score += Number(place.aggregated_rating ?? 0);
   return score;
 }
@@ -151,14 +195,21 @@ export function ExploreFullscreenMap({
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
+  const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
 
   const filteredPlaces = useMemo(() => {
     const q = normalize(query);
+    const terms = expandSynonyms(q);
     const base = places.filter((place) => {
       const name = normalize(getEs(place.name_i18n, place.slug));
       const category = normalize(getEs(place.place_categories?.name_i18n, ""));
       const region = normalize(getEs(place.regions?.name_i18n, ""));
-      const matchesQuery = !q || name.includes(q) || category.includes(q) || region.includes(q);
+      const matchesQuery =
+        !q ||
+        terms.some((term) => {
+          const fuzzy = levenshtein(name.slice(0, term.length + 2), term) <= 2;
+          return name.includes(term) || category.includes(term) || region.includes(term) || fuzzy;
+        });
       const matchesCategory = !activeCategory || place.place_categories?.slug === activeCategory;
       return matchesQuery && matchesCategory;
     });
@@ -228,6 +279,27 @@ export function ExploreFullscreenMap({
         setSavedSlugs(slugs);
       });
   }, [isGuest, userId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(routeStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as ActiveRoute;
+      if (parsed?.stops?.length) setActiveRoute(parsed);
+    } catch {
+      // no-op
+    }
+  }, [routeStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!activeRoute || !activeRoute.stops.length) {
+      window.localStorage.removeItem(routeStorageKey);
+      return;
+    }
+    window.localStorage.setItem(routeStorageKey, JSON.stringify(activeRoute));
+  }, [activeRoute, routeStorageKey]);
 
   useEffect(() => {
     const onActions = (event: Event) => {
@@ -357,6 +429,8 @@ export function ExploreFullscreenMap({
     });
   }
 
+  const previewPlace = selectedPlace ?? searchSuggestions[0] ?? null;
+
   return (
     <section className="relative min-h-screen w-full overflow-hidden bg-[#E5E7EB]">
       <div className="absolute inset-0">
@@ -393,6 +467,43 @@ export function ExploreFullscreenMap({
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm">
               <Sparkles className="h-3.5 w-3.5" />
               {aiHint}
+            </div>
+          ) : null}
+
+          {previewPlace ? (
+            <div className="mt-2 max-w-[380px] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+              <div className="flex gap-3 p-2.5">
+                <img
+                  src={getPreviewImage(previewPlace.slug)}
+                  alt={getEs(previewPlace.name_i18n, previewPlace.slug)}
+                  className="h-16 w-16 rounded-xl object-cover"
+                  loading="lazy"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-jakarta text-sm font-bold text-[#0F172A]">
+                    {getEs(previewPlace.name_i18n, previewPlace.slug)}
+                  </p>
+                  <p className="mt-0.5 truncate font-inter text-xs text-[#64748B]">
+                    {getEs(previewPlace.place_categories?.name_i18n, "Lugar")} - {getEs(previewPlace.regions?.name_i18n, "Honduras")}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => selectPlaceFromSearch(previewPlace)}
+                      className="rounded-lg bg-[#0D9488] px-2.5 py-1 font-inter text-xs font-semibold text-white"
+                    >
+                      Abrir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addToRoute(previewPlace)}
+                      className="rounded-lg border border-[#99F6E4] bg-[#F0FDFA] px-2.5 py-1 font-inter text-xs font-semibold text-[#0F766E]"
+                    >
+                      En ruta
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
 
