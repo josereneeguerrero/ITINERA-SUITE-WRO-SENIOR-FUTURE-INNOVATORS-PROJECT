@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import { Eye, MapPin, X } from "lucide-react";
+import { Bookmark, Eye, Navigation, Star, X } from "lucide-react";
 import { getCategoryColor } from "@/lib/category-theme";
 
 interface Place {
@@ -13,6 +13,9 @@ interface Place {
   ai_summary_i18n?: Record<string, string>;
   aggregated_rating: number;
   review_count: number;
+  price_level?: number;
+  accessibility?: boolean;
+  local_favorite?: boolean;
   lat?: number | null;
   lng?: number | null;
   place_categories: { name_i18n: Record<string, string>; icon_name: string; slug?: string } | null;
@@ -50,10 +53,14 @@ export function ExploreMap({
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
-  const hadSelectionRef = useRef(false);
   const suppressMapClickUntilRef = useRef(0);
+  const selectedPlaceRef = useRef<Place | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [cardVisible, setCardVisible] = useState(false);
+
+  useEffect(() => {
+    selectedPlaceRef.current = selectedPlace;
+  }, [selectedPlace]);
 
   const fitAllPlaces = useCallback((duration = 700) => {
     if (!map.current) return;
@@ -127,7 +134,7 @@ export function ExploreMap({
       if (Date.now() < suppressMapClickUntilRef.current) return;
       tooltipRef.current?.remove();
       tooltipRef.current = null;
-      if (selectedPlace) closeSelectedPlace();
+      if (selectedPlaceRef.current) closeSelectedPlace();
     });
 
     return () => {
@@ -136,7 +143,7 @@ export function ExploreMap({
       map.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPlace]);
+  }, []);
 
   useEffect(() => {
     if (!map.current) return;
@@ -219,7 +226,7 @@ export function ExploreMap({
           map.current?.flyTo({
             center: coords,
             zoom: Math.max(map.current.getZoom(), 12),
-            offset: [160, 0],
+            offset: [180, 12],
             duration: 760,
           });
         }, 140);
@@ -251,7 +258,6 @@ export function ExploreMap({
       setCardVisible(false);
       return;
     }
-    hadSelectionRef.current = true;
   }, [selectedPlace]);
 
   const selectedCategory = selectedPlace?.place_categories;
@@ -265,13 +271,14 @@ export function ExploreMap({
     selectedPlace?.description_i18n?.es ??
     "Destino cultural de Honduras con historia, contexto local y puntos de interes para explorar.";
   const selectedImages = getPlaceImages(selectedPlace?.slug ?? "");
+  const price = selectedPlace?.price_level ? "$".repeat(selectedPlace.price_level) : "Gratis";
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
       {selectedPlace ? (
         <div
-          className="pointer-events-auto absolute left-4 top-20 z-20 w-[282px] overflow-hidden rounded-[10px] border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24"
+          className="pointer-events-auto absolute left-4 top-20 z-20 w-[304px] overflow-hidden rounded-[10px] border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24"
           style={{
             opacity: cardVisible ? 1 : 0,
             transform: cardVisible ? "translateY(0)" : "translateY(8px)",
@@ -285,7 +292,7 @@ export function ExploreMap({
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="grid h-[108px] grid-cols-2 gap-1 bg-[#ECFDF5] p-2">
+          <div className="grid h-[124px] grid-cols-2 gap-1 bg-[#ECFDF5] p-2">
             {selectedImages.map((src) => (
               <img
                 key={src}
@@ -299,7 +306,7 @@ export function ExploreMap({
           <div className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-jakarta text-xl font-bold leading-tight text-[#0F172A]">
+                <h3 className="font-jakarta text-[22px] font-bold leading-tight text-[#0F172A]">
                   {selectedPlace.name_i18n?.es ?? selectedPlace.slug}
                 </h3>
                 <div className="mt-2 flex items-center gap-1.5 font-inter text-[11px] font-semibold text-[#0D9488]">
@@ -309,11 +316,27 @@ export function ExploreMap({
                   <span>{selectedPlace.regions?.name_i18n?.es ?? "Honduras"}</span>
                 </div>
               </div>
-              <span className="mt-1 font-inter text-xs font-semibold text-[#64748B]">
+              <button
+                type="button"
+                aria-label="Guardar"
+                className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+              >
+                <Bookmark className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 font-inter text-[11px] text-[#64748B]">
+              <span className="inline-flex items-center gap-1 font-semibold text-[#0F172A]">
+                <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
                 {Number(selectedPlace.aggregated_rating).toFixed(1)}
               </span>
+              <span>{selectedPlace.review_count ?? 0} resenas</span>
+              <span>{price}</span>
+              {selectedPlace.accessibility ? <span>Accesible</span> : null}
+              {selectedPlace.local_favorite ? <span>Favorito local</span> : null}
             </div>
-            <p className="line-clamp-[8] font-inter text-xs leading-5 text-[#334155]">
+
+            <p className="line-clamp-[10] font-inter text-xs leading-5 text-[#334155]">
               {selectedDescription}
             </p>
             <div className="h-px bg-[#E2E8F0]" />
@@ -328,7 +351,7 @@ export function ExploreMap({
               type="button"
               className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[#0D9488] font-inter text-xs font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
             >
-              <MapPin className="h-3.5 w-3.5" />
+              <Navigation className="h-3.5 w-3.5" />
               Agregar a ruta
             </button>
           </div>
