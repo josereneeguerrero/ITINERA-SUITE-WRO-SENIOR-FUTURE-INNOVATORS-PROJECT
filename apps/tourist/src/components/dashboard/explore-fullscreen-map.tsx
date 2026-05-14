@@ -62,6 +62,11 @@ type UIActionsChunk = {
   entities?: Record<string, unknown>;
 };
 
+type AiFilterChip = {
+  key: "query" | "category" | "nearby";
+  label: string;
+};
+
 const RECENT_SEARCHES_KEY = "itinera-explore-recent-searches";
 const SAVED_PLACES_KEY = "itinera-explore-saved-slugs";
 const ROUTE_KEY_PREFIX = "itinera-explore-active-route";
@@ -121,7 +126,6 @@ function getPreviewImage(slug: string) {
 function scorePlace(place: Place, query: string) {
   const q = normalize(query);
   if (!q) return 0;
-
   const terms = expandSynonyms(query);
   const name = normalize(getEs(place.name_i18n, place.slug));
   const category = normalize(getEs(place.place_categories?.name_i18n, ""));
@@ -172,6 +176,12 @@ function normalizeCategorySlug(value: string) {
   return "";
 }
 
+function upsertChip(chips: AiFilterChip[], chip: AiFilterChip) {
+  const next = chips.filter((item) => item.key !== chip.key);
+  next.push(chip);
+  return next;
+}
+
 export function ExploreFullscreenMap({
   places,
   categories,
@@ -195,6 +205,7 @@ export function ExploreFullscreenMap({
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
+  const [aiChips, setAiChips] = useState<AiFilterChip[]>([]);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
 
   const filteredPlaces = useMemo(() => {
@@ -239,7 +250,34 @@ export function ExploreFullscreenMap({
       .slice(0, 7)
       .map((item) => item.place);
   }, [places, query]);
-  const showSearchPanel = query.trim().length > 0 && searchSuggestions.length > 0;
+
+  const categorySuggestions = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return [];
+    return categories
+      .filter((cat) => normalize(getEs(cat.name_i18n, cat.slug)).includes(q))
+      .slice(0, 4);
+  }, [categories, query]);
+
+  const regionSuggestions = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return [] as Array<{ slug: string; label: string }>;
+    const set = new Set<string>();
+    const rows: Array<{ slug: string; label: string }> = [];
+    for (const place of places) {
+      const slug = place.regions?.slug ?? "";
+      const label = getEs(place.regions?.name_i18n, "Honduras");
+      if (!slug || set.has(slug)) continue;
+      if (normalize(label).includes(q)) {
+        rows.push({ slug, label });
+        set.add(slug);
+      }
+      if (rows.length >= 4) break;
+    }
+    return rows;
+  }, [places, query]);
+
+  const shouldShowSuggestionsPanel = query.trim().length > 0 || recentSearches.length > 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -315,6 +353,16 @@ export function ExploreFullscreenMap({
             const slug = normalizeCategorySlug(action.category);
             if (slug) setActiveCategory(slug);
           }
+          setAiChips((prev) => {
+            let next = [...prev];
+            if (typeof action.query === "string" && action.query.trim()) {
+              next = upsertChip(next, { key: "query", label: `Búsqueda: ${action.query}` });
+            }
+            if (typeof action.category === "string" && action.category.trim()) {
+              next = upsertChip(next, { key: "category", label: `Categoría: ${action.category}` });
+            }
+            return next;
+          });
           setAiRecommendationReason("IA filtró destinos según tu intención y contexto.");
         }
         if (action.type === "select_place" && action.slug) {
@@ -349,6 +397,7 @@ export function ExploreFullscreenMap({
         }
         if (action.type === "get_nearby") {
           applyNearby();
+          setAiChips((prev) => upsertChip(prev, { key: "nearby", label: "Cerca de mí" }));
         }
       });
     };
@@ -371,6 +420,7 @@ export function ExploreFullscreenMap({
     setMapCenter(null);
     setMapZoom(null);
     setUserLocation(null);
+    setAiChips([]);
   }
 
   function applyNearby() {
@@ -381,9 +431,21 @@ export function ExploreFullscreenMap({
         setUserLocation(point);
         setMapCenter([coords.longitude, coords.latitude]);
         setMapZoom(11);
+        setAiChips((prev) => upsertChip(prev, { key: "nearby", label: "Cerca de mí" }));
       },
       () => undefined
     );
+  }
+
+  function removeAiChip(key: AiFilterChip["key"]) {
+    setAiChips((prev) => prev.filter((chip) => chip.key !== key));
+    if (key === "query") setQuery("");
+    if (key === "category") setActiveCategory("");
+    if (key === "nearby") {
+      setUserLocation(null);
+      setMapCenter(null);
+      setMapZoom(null);
+    }
   }
 
   function selectPlaceFromSearch(place: Place) {
@@ -460,13 +522,30 @@ export function ExploreFullscreenMap({
               if (first) selectPlaceFromSearch(first);
             }}
             onTrailingClick={() => setShowFilters((prev) => !prev)}
-            suggestions={["Buscar destinos...", "Buscar por categoria...", "Buscar por region..."]}
+            suggestions={["Buscar destinos...", "Buscar por categoría...", "Buscar por región..."]}
             effect="fade"
           />
+
           {aiHint ? (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm">
               <Sparkles className="h-3.5 w-3.5" />
               {aiHint}
+            </div>
+          ) : null}
+
+          {aiChips.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {aiChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => removeAiChip(chip.key)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm transition-colors hover:bg-[#F0FDFA]"
+                >
+                  {chip.label}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ))}
             </div>
           ) : null}
 
@@ -507,57 +586,134 @@ export function ExploreFullscreenMap({
             </div>
           ) : null}
 
-          {showSearchPanel ? (
+          {shouldShowSuggestionsPanel ? (
             <div className="mt-2 overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
-              <div className="border-b border-[#E2E8F0] px-4 py-2 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
-                Sugerencias
-              </div>
-              <div className="max-h-[360px] overflow-y-auto p-2">
-                {searchSuggestions.map((place) => {
-                  const category = place.place_categories;
-                  const color = getCategoryColor({
-                    slug: category?.slug ?? "",
-                    iconName: category?.icon_name ?? "",
-                    label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
-                  });
+              <div className="max-h-[380px] overflow-y-auto p-2">
+                {recentSearches.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                      Recientes
+                    </div>
+                    <div className="mb-2 space-y-1">
+                      {recentSearches.slice(0, 4).map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setQuery(item)}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                        >
+                          <Search className="h-3.5 w-3.5 text-[#94A3B8]" />
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
 
-                  const placeDistance =
-                    userLocation && typeof place.lng === "number" && typeof place.lat === "number"
-                      ? distanceKm(userLocation, [place.lng, place.lat])
-                      : null;
-                  return (
-                    <button
-                      key={place.id}
-                      type="button"
-                      onClick={() => selectPlaceFromSearch(place)}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[#F8FAFC]"
-                    >
-                      <span
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
-                        style={{ backgroundColor: color }}
-                      >
-                        <MapPin className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-jakarta text-sm font-bold text-[#0F172A]">
-                          {getEs(place.name_i18n, place.slug)}
-                        </span>
-                        <span className="mt-0.5 block truncate font-inter text-xs text-[#64748B]">
-                          {getEs(category?.name_i18n, "Lugar")} - {getEs(place.regions?.name_i18n, "Honduras")}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 font-inter text-xs font-semibold text-[#64748B]">
-                        <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
-                        {Number(place.aggregated_rating).toFixed(1)}
-                      </span>
-                      {placeDistance !== null ? (
-                        <span className="shrink-0 font-inter text-[11px] font-semibold text-[#0D9488]">
-                          {placeDistance < 1 ? `${Math.round(placeDistance * 1000)} m` : `${placeDistance.toFixed(1)} km`}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+                {searchSuggestions.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                      Destinos
+                    </div>
+                    <div className="mb-2 space-y-1">
+                      {searchSuggestions.map((place) => {
+                        const category = place.place_categories;
+                        const color = getCategoryColor({
+                          slug: category?.slug ?? "",
+                          iconName: category?.icon_name ?? "",
+                          label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
+                        });
+                        const placeDistance =
+                          userLocation && typeof place.lng === "number" && typeof place.lat === "number"
+                            ? distanceKm(userLocation, [place.lng, place.lat])
+                            : null;
+
+                        return (
+                          <button
+                            key={place.id}
+                            type="button"
+                            onClick={() => selectPlaceFromSearch(place)}
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[#F8FAFC]"
+                          >
+                            <span
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
+                              style={{ backgroundColor: color }}
+                            >
+                              <MapPin className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-jakarta text-sm font-bold text-[#0F172A]">
+                                {getEs(place.name_i18n, place.slug)}
+                              </span>
+                              <span className="mt-0.5 block truncate font-inter text-xs text-[#64748B]">
+                                {getEs(category?.name_i18n, "Lugar")} - {getEs(place.regions?.name_i18n, "Honduras")}
+                              </span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 font-inter text-xs font-semibold text-[#64748B]">
+                              <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
+                              {Number(place.aggregated_rating).toFixed(1)}
+                            </span>
+                            {placeDistance !== null ? (
+                              <span className="shrink-0 font-inter text-[11px] font-semibold text-[#0D9488]">
+                                {placeDistance < 1 ? `${Math.round(placeDistance * 1000)} m` : `${placeDistance.toFixed(1)} km`}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
+
+                {categorySuggestions.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                      Categorías
+                    </div>
+                    <div className="mb-2 flex flex-wrap gap-2 px-2 pb-1">
+                      {categorySuggestions.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveCategory(cat.slug);
+                            setQuery(getEs(cat.name_i18n, cat.slug));
+                          }}
+                          className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                        >
+                          {getEs(cat.name_i18n, cat.slug)}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+
+                {regionSuggestions.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                      Regiones
+                    </div>
+                    <div className="flex flex-wrap gap-2 px-2 pb-1">
+                      {regionSuggestions.map((region) => (
+                        <button
+                          key={region.slug}
+                          type="button"
+                          onClick={() => {
+                            setQuery(region.label);
+                            const regionPlace = places.find((item) => item.regions?.slug === region.slug);
+                            if (regionPlace && typeof regionPlace.lng === "number" && typeof regionPlace.lat === "number") {
+                              setMapCenter([regionPlace.lng, regionPlace.lat]);
+                              setMapZoom(9.6);
+                            }
+                          }}
+                          className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                        >
+                          {region.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
           ) : query.trim().length > 0 ? (
@@ -565,25 +721,6 @@ export function ExploreFullscreenMap({
               <div className="flex items-center gap-3 font-inter text-sm text-[#64748B]">
                 <Search className="h-4 w-4" />
                 No encontramos destinos parecidos.
-              </div>
-            </div>
-          ) : recentSearches.length > 0 ? (
-            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur-md">
-              <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
-                Busquedas recientes
-              </div>
-              <div className="space-y-1">
-                {recentSearches.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setQuery(item)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-[#334155] transition-colors hover:bg-[#F8FAFC]"
-                  >
-                    <Search className="h-3.5 w-3.5 text-[#94A3B8]" />
-                    {item}
-                  </button>
-                ))}
               </div>
             </div>
           ) : null}
@@ -615,7 +752,7 @@ export function ExploreFullscreenMap({
                   onClick={applyNearby}
                   className="rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-3 py-1 font-inter text-xs font-semibold text-[#0F766E]"
                 >
-                  Cerca de mi
+                  Cerca de mí
                 </button>
                 <button
                   onClick={clearFilters}
@@ -628,6 +765,7 @@ export function ExploreFullscreenMap({
           ) : null}
         </div>
       </div>
+
       {activeRoute && activeRoute.stops.length > 0 ? (
         <div className="pointer-events-none absolute bottom-28 left-4 z-20 w-[min(360px,calc(100vw-1.5rem))] md:left-6">
           <div className="pointer-events-auto rounded-2xl border border-[#D9E5E2] bg-white/95 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.15)] backdrop-blur-sm">
@@ -666,7 +804,6 @@ export function ExploreFullscreenMap({
           </div>
         </div>
       ) : null}
-
     </section>
   );
 }
