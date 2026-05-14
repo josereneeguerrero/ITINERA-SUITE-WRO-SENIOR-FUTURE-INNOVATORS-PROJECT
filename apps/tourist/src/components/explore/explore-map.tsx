@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
+import { getCategoryColor } from "@/lib/category-theme";
 
 interface Place {
   id: string;
@@ -11,7 +12,7 @@ interface Place {
   review_count: number;
   lat?: number | null;
   lng?: number | null;
-  place_categories: { name_i18n: Record<string, string>; icon_name: string } | null;
+  place_categories: { name_i18n: Record<string, string>; icon_name: string; slug?: string } | null;
   regions: { name_i18n: Record<string, string> } | null;
 }
 
@@ -21,14 +22,6 @@ const HONDURAS_ZOOM = 6.5;
 const ICON_MAP: Record<string, string> = {
   landmark: "L", leaf: "N", utensils: "G",
   waves: "P", zap: "A", church: "C",
-};
-
-const BG_COLORS: Record<string, string> = {
-  "ruinas-copan": "#0D9488",
-  "catedral-comayagua": "#7C3AED",
-  "parque-nacional-cusuco": "#059669",
-  "playa-west-bay-roatan": "#0369A1",
-  "parque-nacional-la-tigra": "#065F46",
 };
 
 export function ExploreMap({
@@ -79,9 +72,13 @@ export function ExploreMap({
   // Build click popup HTML (compact, no actions)
   const buildPopupHTML = useCallback((place: Place) => {
     const name = place.name_i18n?.es ?? place.slug;
-    const cat  = place.place_categories as { name_i18n: Record<string,string>; icon_name: string } | null;
+    const cat  = place.place_categories as { name_i18n: Record<string,string>; icon_name: string; slug?: string } | null;
     const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-    const bg   = BG_COLORS[place.slug] ?? "#0D9488";
+    const bg   = getCategoryColor({
+      slug: cat?.slug ?? "",
+      iconName: cat?.icon_name ?? "",
+      label: cat?.name_i18n?.es ?? cat?.name_i18n?.en ?? "",
+    });
     const rating = Number(place.aggregated_rating).toFixed(1);
 
     return `
@@ -147,7 +144,11 @@ export function ExploreMap({
 
       const cat  = place.place_categories as { icon_name: string } | null;
       const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-      const bg   = BG_COLORS[place.slug] ?? "#0D9488";
+      const bg   = getCategoryColor({
+        slug: (place.place_categories as { slug?: string } | null)?.slug ?? "",
+        iconName: cat?.icon_name ?? "",
+        label: (place.place_categories as { name_i18n?: Record<string, string> } | null)?.name_i18n?.es ?? "",
+      });
       const isSelected = selectedPlace?.slug === place.slug;
       const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
 
