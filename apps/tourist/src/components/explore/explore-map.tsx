@@ -47,10 +47,15 @@ export function ExploreMap({
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
-  const selectedPopupRef = useRef<maplibregl.Popup | null>(null);
   const hadSelectionRef = useRef(false);
   const suppressMapClickUntilRef = useRef(0);
+  const selectedPlaceRef = useRef<Place | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [selectedScreenPoint, setSelectedScreenPoint] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    selectedPlaceRef.current = selectedPlace;
+  }, [selectedPlace]);
 
   const buildTooltipHTML = useCallback((place: Place) => {
     const name = place.name_i18n?.es ?? place.slug;
@@ -73,32 +78,18 @@ export function ExploreMap({
       </div>`;
   }, []);
 
-  const buildPopupHTML = useCallback((place: Place) => {
-    const name = place.name_i18n?.es ?? place.slug;
-    const cat = place.place_categories;
-    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-    const bg = getCategoryColor({
-      slug: cat?.slug ?? "",
-      iconName: cat?.icon_name ?? "",
-      label: cat?.name_i18n?.es ?? cat?.name_i18n?.en ?? "",
-    });
-    const rating = Number(place.aggregated_rating).toFixed(1);
-    return `
-      <div style="width:262px;border-radius:16px;overflow:hidden;font-family:Inter,sans-serif;box-shadow:0 8px 28px rgba(15,23,42,0.2);">
-        <div style="height:78px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:1.9rem;color:white;">
-          ${icon}
-        </div>
-        <div style="padding:12px;background:white;">
-          <p style="font-weight:700;font-size:16px;line-height:1.2;color:#0F172A;margin:0 0 6px;">${name}</p>
-          <div style="display:flex;align-items:center;gap:5px;margin-bottom:10px;">
-            <span style="color:#FBBF24;font-size:12px;">★</span>
-            <span style="font-size:12px;font-weight:600;color:#0F172A;">${rating}</span>
-          </div>
-          <a href="/places/${place.slug}" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:34px;border-radius:10px;background:#0D9488;color:white;text-decoration:none;font-size:12px;font-weight:700;">
-            Ver detalle
-          </a>
-        </div>
-      </div>`;
+  const updateSelectedScreenPoint = useCallback(() => {
+    const currentPlace = selectedPlaceRef.current;
+    if (!map.current || !currentPlace) {
+      setSelectedScreenPoint(null);
+      return;
+    }
+    if (typeof currentPlace.lng !== "number" || typeof currentPlace.lat !== "number") {
+      setSelectedScreenPoint(null);
+      return;
+    }
+    const point = map.current.project([currentPlace.lng, currentPlace.lat]);
+    setSelectedScreenPoint({ x: point.x, y: point.y });
   }, []);
 
   const fitAllPlaces = useCallback(() => {
@@ -142,17 +133,17 @@ export function ExploreMap({
       if (Date.now() < suppressMapClickUntilRef.current) return;
       tooltipRef.current?.remove();
       tooltipRef.current = null;
-      selectedPopupRef.current?.remove();
-      selectedPopupRef.current = null;
       onSelectPlace(null);
     });
+    map.current.on("move", updateSelectedScreenPoint);
+    map.current.on("zoom", updateSelectedScreenPoint);
 
     return () => {
       setMapReady(false);
       map.current?.remove();
       map.current = null;
     };
-  }, [onSelectPlace]);
+  }, [onSelectPlace, updateSelectedScreenPoint]);
 
   useEffect(() => {
     if (!map.current) return;
@@ -223,23 +214,9 @@ export function ExploreMap({
         suppressMapClickUntilRef.current = Date.now() + 350;
         tooltipRef.current?.remove();
         tooltipRef.current = null;
-        selectedPopupRef.current?.remove();
-        selectedPopupRef.current = null;
         onSelectPlace(place);
-
-        selectedPopupRef.current = new maplibregl.Popup({
-          offset: 24,
-          closeButton: true,
-          closeOnClick: false,
-          closeOnMove: false,
-          className: "itinera-place-popup",
-          anchor: "bottom",
-        })
-          .setLngLat(coords)
-          .setHTML(buildPopupHTML(place))
-          .addTo(map.current!);
-
-        selectedPopupRef.current.on("close", () => onSelectPlace(null));
+        const point = map.current!.project(coords);
+        setSelectedScreenPoint({ x: point.x, y: point.y });
 
         map.current?.flyTo({
           center: coords,
@@ -252,7 +229,7 @@ export function ExploreMap({
       const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" }).setLngLat(coords).addTo(map.current!);
       markers.current.push(marker);
     });
-  }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, buildPopupHTML, onSelectPlace]);
+  }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, onSelectPlace]);
 
   useEffect(() => {
     if (!map.current || !mapCenter) return;
@@ -278,14 +255,71 @@ export function ExploreMap({
     if (selectedPlace) return;
     if (!hadSelectionRef.current) return;
     hadSelectionRef.current = false;
-    selectedPopupRef.current?.remove();
-    selectedPopupRef.current = null;
+    setSelectedScreenPoint(null);
     fitAllPlaces();
   }, [selectedPlace, fitAllPlaces]);
+
+  useEffect(() => {
+    updateSelectedScreenPoint();
+  }, [selectedPlace, updateSelectedScreenPoint]);
+
+  const selectedCategory = selectedPlace?.place_categories;
+  const selectedColor = getCategoryColor({
+    slug: selectedCategory?.slug ?? "",
+    iconName: selectedCategory?.icon_name ?? "",
+    label: selectedCategory?.name_i18n?.es ?? selectedCategory?.name_i18n?.en ?? "",
+  });
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
+      {selectedPlace && selectedScreenPoint ? (
+        <div
+          className="pointer-events-auto absolute z-20 w-[268px] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_14px_40px_rgba(15,23,42,0.22)]"
+          style={{
+            left: selectedScreenPoint.x,
+            top: selectedScreenPoint.y,
+            transform: "translate(-50%, calc(-100% - 30px))",
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => onSelectPlace(null)}
+            className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 font-inter text-sm font-bold text-white backdrop-blur-sm"
+          >
+            x
+          </button>
+          <div
+            className="flex h-[78px] items-center justify-center font-jakarta text-3xl font-bold text-white"
+            style={{ backgroundColor: selectedColor }}
+          >
+            {ICON_MAP[selectedCategory?.icon_name ?? ""] ?? "M"}
+          </div>
+          <div className="space-y-2 p-3">
+            <div>
+              <h3 className="font-jakarta text-base font-bold leading-tight text-[#0F172A]">
+                {selectedPlace.name_i18n?.es ?? selectedPlace.slug}
+              </h3>
+              <div className="mt-1 flex items-center gap-2 font-inter text-xs">
+                <span className="font-semibold text-[#0D9488]">
+                  {selectedCategory?.name_i18n?.es ?? "Lugar"}
+                </span>
+                <span className="text-[#F59E0B]">★</span>
+                <span className="font-semibold text-[#475569]">
+                  {Number(selectedPlace.aggregated_rating).toFixed(1)}
+                </span>
+              </div>
+            </div>
+            <a
+              href={`/places/${selectedPlace.slug}`}
+              className="flex h-9 items-center justify-center rounded-lg bg-[#0D9488] font-inter text-xs font-bold text-white transition-colors hover:bg-[#0f766e]"
+            >
+              Ver detalle
+            </a>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
-import { PlaceDrawer } from "@/components/explore/place-drawer";
 
 type Place = {
   id: string;
@@ -164,13 +163,6 @@ export function ExploreFullscreenMap({
         </div>
       </div>
 
-      <PlaceDrawer
-        place={selectedPlace as never}
-        onClose={() => setSelectedPlaceSlug(null)}
-        onAddToRoute={() => undefined}
-        onSave={() => undefined}
-      />
     </section>
   );
 }
-
