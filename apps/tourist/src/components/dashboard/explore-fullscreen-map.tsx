@@ -182,6 +182,12 @@ function upsertChip(chips: AiFilterChip[], chip: AiFilterChip) {
   return next;
 }
 
+const Z = {
+  mapCard: "z-30",
+  routeCard: "z-40",
+  searchLayer: "z-50",
+};
+
 export function ExploreFullscreenMap({
   places,
   categories,
@@ -277,7 +283,14 @@ export function ExploreFullscreenMap({
     return rows;
   }, [places, query]);
 
-  const shouldShowSuggestionsPanel = !selectedPlace && query.trim().length > 0;
+  const uiMode = useMemo<"idle" | "searching" | "filters" | "placeSelected">(() => {
+    if (selectedPlace) return "placeSelected";
+    if (showFilters) return "filters";
+    if (query.trim().length > 0) return "searching";
+    return "idle";
+  }, [selectedPlace, showFilters, query]);
+
+  const shouldShowSuggestionsPanel = uiMode === "searching";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -493,10 +506,7 @@ export function ExploreFullscreenMap({
     });
   }
 
-  const previewPlace =
-    !selectedPlace && !shouldShowSuggestionsPanel && query.trim().length > 0
-      ? searchSuggestions[0] ?? null
-      : null;
+  const previewPlace = uiMode === "idle" && query.trim().length > 0 ? searchSuggestions[0] ?? null : null;
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden bg-[#E5E7EB]">
@@ -523,7 +533,7 @@ export function ExploreFullscreenMap({
         />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-6 z-20 flex justify-center px-4">
+      <div className={`pointer-events-none absolute inset-x-0 top-6 ${Z.searchLayer} flex justify-center px-4`}>
         <div className="pointer-events-auto w-full max-w-[820px]">
           <SuggestiveSearch
             value={query}
@@ -538,14 +548,14 @@ export function ExploreFullscreenMap({
             effect="fade"
           />
 
-          {aiHint ? (
+          {aiHint && uiMode !== "placeSelected" ? (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm">
               <Sparkles className="h-3.5 w-3.5" />
               {aiHint}
             </div>
           ) : null}
 
-          {aiChips.length > 0 ? (
+          {aiChips.length > 0 && uiMode !== "placeSelected" ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {aiChips.map((chip) => (
                 <button
@@ -562,7 +572,7 @@ export function ExploreFullscreenMap({
           ) : null}
 
           {previewPlace ? (
-            <div className="mt-2 max-w-[380px] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+            <div className="mt-2 max-w-[380px] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur-sm transition-all duration-200">
               <div className="flex gap-3 p-2.5">
                 <img
                   src={getPreviewImage(previewPlace.slug)}
@@ -737,8 +747,8 @@ export function ExploreFullscreenMap({
             </div>
           ) : null}
 
-          {showFilters && !selectedPlace ? (
-            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+          {uiMode === "filters" ? (
+            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm transition-all duration-200">
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setActiveCategory("")}
@@ -778,8 +788,8 @@ export function ExploreFullscreenMap({
         </div>
       </div>
 
-      {activeRoute && activeRoute.stops.length > 0 ? (
-        <div className="pointer-events-none absolute bottom-28 left-4 z-20 w-[min(360px,calc(100vw-1.5rem))] md:left-6">
+      {activeRoute && activeRoute.stops.length > 0 && uiMode !== "placeSelected" ? (
+        <div className={`pointer-events-none absolute bottom-28 left-4 ${Z.routeCard} w-[min(360px,calc(100vw-1.5rem))] md:left-6`}>
           <div className="pointer-events-auto rounded-2xl border border-[#D9E5E2] bg-white/95 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.15)] backdrop-blur-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-bold text-[#0F172A]">
