@@ -138,6 +138,18 @@ function labelFromSlug(slug: string) {
   return slug.replace(/-/g, " ");
 }
 
+function normalizeCategoryParam(value?: string) {
+  const normalized = normalizeText(value ?? "");
+  if (normalized.includes("heritage") || normalized.includes("patrimonio")) return "patrimonio-cultural";
+  if (normalized.includes("nature") || normalized.includes("naturaleza")) return "naturaleza";
+  if (normalized.includes("food") || normalized.includes("gastronomia")) return "gastronomia";
+  if (normalized.includes("adventure") || normalized.includes("aventura")) return "aventura";
+  if (normalized.includes("beach") || normalized.includes("playa")) return "playa";
+  if (normalized.includes("relig")) return "religioso";
+  if (normalized.includes("museum") || normalized.includes("museo") || normalized.includes("arte")) return "arte-y-museos";
+  return value ?? "";
+}
+
 async function buildGazetteer(): Promise<Gazetteer> {
   const db = getDB();
   const [regionsRes, placesRes, categoriesRes] = await Promise.all([
@@ -176,22 +188,18 @@ function buildSystem(ctx: AgentContext, dbData?: unknown): string {
     ? `\n\nDATA DEL SISTEMA (ÚSALA para responder con detalle):\n${JSON.stringify(dbData, null, 2)}`
     : "";
 
-  return `Eres Itinera IA, guía cultural apasionado de Honduras.
+  return `Eres Itinera IA, guía cultural de Honduras.
 
-PERSONALIDAD: Cálido y entusiasta base. Adaptable totalmente al usuario.
+PERSONALIDAD: Cálido, atento y directo. Adaptable totalmente al usuario.
 Evita repetir introducciones; responde primero a la solicitud concreta del usuario.
-Nunca listes datos en seco — NARRA con emoción, contexto histórico y personalidad.
-Sé conciso pero impactante.
+En /explore, si la UI ya abre destino, aplica filtro o crea ruta, responde en 1-2 frases máximo.
+No repitas saludos ni cierres largos. No uses listas largas salvo que el usuario las pida.
 
 IDIOMA: Responde SIEMPRE en el mismo idioma que el usuario (español o inglés).
 
 CRÍTICO: SOLO menciona lugares que estén en la DATA DEL SISTEMA. NUNCA inventes lugares, negocios o atracciones. Si no tienes data de una región, dilo honestamente y sugiere explorar el mapa.
 
 Si CONTEXTO indica Pagina=place, responde como guia del lugar actual: no recomiendes listas de otros destinos ni devuelvas "lugares que tiene"; esa exploracion pertenece al mapa /dashboard.
-
-Ejemplos:
-❌ "Cusuco: categoría Naturaleza, 4.7 estrellas"
-✅ "¡Cusuco es una joya escondida! Bosques nubosos a 30 min de San Pedro Sula, hogar del quetzal 🌿"
 
 Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}`;
 }
@@ -271,7 +279,8 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
       else return { type: "places", places: [] };
     }
     if (safeParams.category) {
-      const { data: c } = await db.from("place_categories").select("id").eq("slug", safeParams.category).single();
+      const categorySlug = normalizeCategoryParam(safeParams.category);
+      const { data: c } = await db.from("place_categories").select("id").eq("slug", categorySlug).single();
       if (c) q = q.eq("category_id", c.id);
     }
     const { data } = await q;
@@ -359,7 +368,7 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   const entities: Record<string, unknown> = {};
 
   if (safeParams.query) entities.query = safeParams.query;
-  if (safeParams.category) entities.category = safeParams.category;
+  if (safeParams.category) entities.category = normalizeCategoryParam(safeParams.category);
   if (safeParams.region) entities.region = safeParams.region;
   if (safeParams.slug) entities.slug = safeParams.slug;
 
@@ -376,7 +385,7 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
     actions.push({
       type: "apply_filter",
       query: cleanSearchQuery(safeParams.query, safeParams) || (safeParams.region ? labelFromSlug(safeParams.region) : ""),
-      category: safeParams.category ?? "",
+      category: normalizeCategoryParam(safeParams.category) ?? "",
       region: safeParams.region ?? "",
       minRating: ratingMatch ? Number(ratingMatch[1]) : undefined,
       savedOnly: ["guardados", "favoritos"].some((term) => normalizedMessage.includes(term)) || undefined,
@@ -414,6 +423,37 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   }
 
   return { intent, entities, actions };
+}
+
+function buildExploreActionText(intent: string, dbData: unknown, actions: Array<Record<string, unknown>>) {
+  if (!actions.length) return "";
+  const data = dbData as {
+    places?: Array<{ name?: string; region?: string }>;
+    place?: { name?: string; region?: string };
+    stops?: Array<{ name?: string }>;
+  } | null;
+  const actionTypes = new Set(actions.map((action) => action.type));
+
+  if (actionTypes.has("clear_route")) return "Listo, limpié la ruta del mapa.";
+  if (actionTypes.has("clear_filters")) return "Listo, quité los filtros y dejé el mapa limpio.";
+  if (actionTypes.has("get_nearby")) return "Voy a usar tu ubicación para ordenar los destinos cercanos.";
+  if (actionTypes.has("set_route")) {
+    const count = data?.stops?.length ?? 0;
+    return count > 0 ? `Listo, armé una ruta con ${count} paradas reales.` : "No encontré suficientes paradas reales para esa ruta.";
+  }
+  if (actionTypes.has("add_route_stop")) return "Listo, agregué ese lugar a tu ruta.";
+  if (actionTypes.has("remove_route_stop")) return "Listo, quité esa parada de tu ruta.";
+  if (actionTypes.has("select_place")) {
+    const name = data?.place?.name ?? data?.places?.[0]?.name;
+    return name ? `Abrí ${name} en el mapa.` : "Abrí el destino más relevante en el mapa.";
+  }
+  if (intent === "search_places") {
+    const count = data?.places?.length ?? 0;
+    if (count === 0) return "No encontré destinos reales con esa búsqueda. Prueba con otra región o categoría.";
+    return `Encontré ${count} destino${count === 1 ? "" : "s"} y enfoqué el más relevante.`;
+  }
+
+  return "";
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -477,19 +517,26 @@ export async function POST(req: Request) {
         // Step 2: Fetch data from Supabase if needed
         const dbData = await fetchData(intent, normalizedParams, context);
 
-        // Step 3: Generate response with data context
-        const result = await generateText({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          model: (getGroq() as any)("llama-3.3-70b-versatile"),
-          system: buildSystem(context, dbData),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          messages: messages as any,
-          temperature: 0.55,
-        });
+        const uiActions = deriveUIActions(intent, normalizedParams, dbData, lastUserMsg);
+        const exploreActionText = context.page === "explore" ? buildExploreActionText(intent, dbData, uiActions.actions) : "";
 
-        if (result.text) emit({ type: "text-delta", textDelta: result.text });
+        if (exploreActionText) {
+          emit({ type: "text-delta", textDelta: exploreActionText });
+        } else {
+          // Step 3: Generate response with data context
+          const result = await generateText({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            model: (getGroq() as any)("llama-3.3-70b-versatile"),
+            system: buildSystem(context, dbData),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            messages: messages as any,
+            temperature: 0.45,
+          });
+
+          if (result.text) emit({ type: "text-delta", textDelta: result.text });
+        }
         if (dbData)      emit({ type: "tool-result", toolName: intent, result: dbData });
-        emit({ type: "ui-actions", ...deriveUIActions(intent, normalizedParams, dbData, lastUserMsg) });
+        emit({ type: "ui-actions", ...uiActions });
 
       } catch (err) {
         console.error("api/chat error", err);

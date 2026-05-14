@@ -56,6 +56,8 @@ type RouteMeta = {
   durationMin?: number;
   approximate?: boolean;
   mixed?: boolean;
+  roadSegments?: number;
+  approximateSegments?: number;
 };
 
 type RouteSegment = {
@@ -369,12 +371,22 @@ async function buildSegmentedRoute(waypoints: RouteWaypoint[]) {
 function formatRouteMeta(meta: RouteMeta | null) {
   if (!meta) return "";
   const parts: string[] = [];
-  parts.push(meta.mixed ? "Ruta mixta" : meta.approximate ? "Ruta aproximada" : "Ruta por OSRM");
+  parts.push(meta.mixed ? "Ruta mixta" : meta.approximate ? "Ruta aproximada" : "Ruta por carretera");
   if (typeof meta.distanceKm === "number") parts.push(`${Math.round(meta.distanceKm)} km`);
   if (typeof meta.durationMin === "number") {
     const hours = Math.floor(meta.durationMin / 60);
     const minutes = meta.durationMin % 60;
     parts.push(hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`);
+  }
+  return parts.join(" · ");
+}
+
+function formatRouteSegments(meta: RouteMeta | null) {
+  if (!meta) return "";
+  const parts: string[] = [];
+  if (meta.roadSegments) parts.push(`${meta.roadSegments} tramo${meta.roadSegments === 1 ? "" : "s"} por carretera`);
+  if (meta.approximateSegments) {
+    parts.push(`${meta.approximateSegments} tramo${meta.approximateSegments === 1 ? "" : "s"} aproximado${meta.approximateSegments === 1 ? "" : "s"}`);
   }
   return parts.join(" · ");
 }
@@ -395,6 +407,18 @@ function upsertChip(chips: AiFilterChip[], chip: AiFilterChip) {
   const next = chips.filter((item) => item.key !== chip.key);
   next.push(chip);
   return next;
+}
+
+function getAiHintFromActions(detail: UIActionsChunk) {
+  const types = new Set(detail.actions.map((action) => action.type));
+  if (types.has("set_route")) return "IA creó una ruta con destinos reales.";
+  if (types.has("add_route_stop")) return "IA agregó una parada a tu ruta.";
+  if (types.has("remove_route_stop")) return "IA quitó una parada de tu ruta.";
+  if (types.has("select_place")) return "IA abrió el destino en el mapa.";
+  if (types.has("get_nearby")) return "IA activó Cerca de mí.";
+  if (types.has("apply_filter")) return "IA aplicó filtros al mapa.";
+  if (types.has("clear_route") || types.has("clear_filters")) return "IA limpió la vista.";
+  return `IA aplicó ${detail.intent.replaceAll("_", " ")}.`;
 }
 
 const Z = {
@@ -477,9 +501,10 @@ export function ExploreFullscreenMap({
   const searchSuggestions = useMemo(() => {
     const q = normalize(query);
     if (q.length < 1) return [];
+    const minimumScore = q.length >= 5 ? 32 : 20;
     return places
       .map((place) => ({ place, score: scorePlace(place, query) }))
-      .filter((item) => item.score >= 20 && isStrictlyRelevant(item.place, query))
+      .filter((item) => item.score >= minimumScore && isStrictlyRelevant(item.place, query))
       .sort((a, b) => b.score - a.score)
       .slice(0, 7)
       .map((item) => item.place);
@@ -510,6 +535,16 @@ export function ExploreFullscreenMap({
     }
     return rows;
   }, [places, query]);
+  const recentSearchMatches = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return [];
+    return recentSearches.filter((item) => normalize(item).includes(q)).slice(0, 4);
+  }, [query, recentSearches]);
+  const hasSearchResults =
+    recentSearchMatches.length > 0 ||
+    searchSuggestions.length > 0 ||
+    categorySuggestions.length > 0 ||
+    regionSuggestions.length > 0;
 
   const uiMode = useMemo<"idle" | "searching" | "filters" | "placeSelected">(() => {
     if (selectedPlace) return "placeSelected";
@@ -518,11 +553,12 @@ export function ExploreFullscreenMap({
     return "idle";
   }, [selectedPlace, showFilters, query]);
 
-  const shouldShowSuggestionsPanel = uiMode === "searching";
+  const shouldShowSuggestionsPanel = uiMode === "searching" && hasSearchResults;
   const hasActiveRoute = Boolean(activeRoute?.stops.length);
   const shouldCompactRoutePanel = hasActiveRoute && Boolean(selectedPlace) && !routePanelExpanded;
   const shouldShowFullRoutePanel = hasActiveRoute && (!selectedPlace || routePanelExpanded);
   const routeMetaLabel = formatRouteMeta(routeMeta);
+  const routeSegmentsLabel = formatRouteSegments(routeMeta);
   const regionFilterOptions = useMemo(() => {
     const set = new Set<string>();
     return places
@@ -537,6 +573,29 @@ export function ExploreFullscreenMap({
       })
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [places]);
+  const activeChips = useMemo(() => {
+    const chips: AiFilterChip[] = [...aiChips];
+    if (query.trim()) chips.push({ key: "query", label: `Búsqueda: ${query.trim()}` });
+    if (activeCategory) {
+      const category = categories.find((item) => item.slug === activeCategory);
+      chips.push({ key: "category", label: getEs(category?.name_i18n, activeCategory) });
+    }
+    if (activeRegion) {
+      const region = regionFilterOptions.find((item) => item.slug === activeRegion);
+      chips.push({ key: "region", label: region?.label ?? activeRegion });
+    }
+    if (minRating) chips.push({ key: "rating", label: `${minRating}+ estrellas` });
+    if (savedOnly) chips.push({ key: "saved", label: "Guardados" });
+    if (userLocation) chips.push({ key: "nearby", label: "Cerca de mí" });
+
+    const seen = new Set<string>();
+    return chips.filter((chip) => {
+      const id = `${chip.key}:${chip.label}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [activeCategory, activeRegion, aiChips, categories, minRating, query, regionFilterOptions, savedOnly, userLocation]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -643,13 +702,15 @@ export function ExploreFullscreenMap({
           durationMin: route.durationMin,
           approximate: route.approximate,
           mixed: route.approximate && route.segments.some((segment) => !segment.approximate),
+          roadSegments: route.segments.filter((segment) => !segment.approximate).length,
+          approximateSegments: route.segments.filter((segment) => segment.approximate).length,
         });
       })
       .catch(() => {
         if (cancelled) return;
         setRouteGeometry(coords);
         setRouteSegments([{ coordinates: coords, approximate: true }]);
-        setRouteMeta({ approximate: true });
+        setRouteMeta({ approximate: true, approximateSegments: 1 });
       });
 
     return () => {
@@ -661,7 +722,7 @@ export function ExploreFullscreenMap({
     const onActions = (event: Event) => {
       const detail = (event as CustomEvent<UIActionsChunk>).detail;
       if (!detail?.actions?.length) return;
-      setAiHint(`IA aplicada: ${detail.intent.replaceAll("_", " ")}`);
+      setAiHint(getAiHintFromActions(detail));
       window.setTimeout(() => setAiHint(null), 2600);
 
       detail.actions.forEach((action) => {
@@ -699,7 +760,7 @@ export function ExploreFullscreenMap({
             }
             return next;
           });
-          setAiRecommendationReason("IA filtró destinos según tu intención y contexto.");
+          setAiRecommendationReason("Filtro aplicado por IA.");
         }
         if (action.type === "select_place" && action.slug) {
           const place = places.find((item) => item.slug === action.slug);
@@ -711,7 +772,7 @@ export function ExploreFullscreenMap({
             setMapCenter([place.lng, place.lat]);
             setMapZoom(12);
           }
-          setAiRecommendationReason("IA priorizó este lugar por coincidencia semántica con tu búsqueda.");
+          setAiRecommendationReason("Destino abierto por IA.");
         }
         if (action.type === "set_route" && Array.isArray(action.stops)) {
           setActiveRoute({
@@ -725,7 +786,7 @@ export function ExploreFullscreenMap({
             setMapCenter([firstPlace.lng, firstPlace.lat]);
             setMapZoom(10.8);
           }
-          setAiRecommendationReason("Ruta sugerida por IA balanceando cercanía, categoría y valoración.");
+          setAiRecommendationReason("Ruta creada por IA con destinos reales.");
         }
         if (action.type === "add_route_stop" && action.slug) {
           const place = places.find((item) => item.slug === action.slug);
@@ -974,11 +1035,11 @@ export function ExploreFullscreenMap({
             </div>
           ) : null}
 
-          {aiChips.length > 0 && uiMode !== "placeSelected" ? (
+          {activeChips.length > 0 && uiMode !== "placeSelected" ? (
             <div className="mt-2 flex flex-wrap gap-2">
-              {aiChips.map((chip) => (
+              {activeChips.map((chip) => (
                 <button
-                  key={chip.key}
+                  key={`${chip.key}-${chip.label}`}
                   type="button"
                   onClick={() => removeAiChip(chip.key)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm transition-colors hover:bg-[#F0FDFA]"
@@ -1030,13 +1091,13 @@ export function ExploreFullscreenMap({
           {shouldShowSuggestionsPanel ? (
             <div className="mt-2 overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
               <div className="max-h-[380px] overflow-y-auto p-2">
-                {recentSearches.length > 0 ? (
+                {recentSearchMatches.length > 0 ? (
                   <>
                     <div className="px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
                       Recientes
                     </div>
                     <div className="mb-2 space-y-1">
-                      {recentSearches.slice(0, 4).map((item) => (
+                      {recentSearchMatches.map((item) => (
                         <button
                           key={item}
                           type="button"
@@ -1119,6 +1180,7 @@ export function ExploreFullscreenMap({
                           onClick={() => {
                             setActiveCategory(cat.slug);
                             setQuery(getEs(cat.name_i18n, cat.slug));
+                            setAiChips((prev) => upsertChip(prev, { key: "category", label: getEs(cat.name_i18n, cat.slug) }));
                           }}
                           className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
                         >
@@ -1141,6 +1203,8 @@ export function ExploreFullscreenMap({
                           type="button"
                           onClick={() => {
                             setQuery(region.label);
+                            setActiveRegion(region.slug);
+                            setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
                             const regionPlace = places.find((item) => item.regions?.slug === region.slug);
                             if (regionPlace && typeof regionPlace.lng === "number" && typeof regionPlace.lat === "number") {
                               setMapCenter([regionPlace.lng, regionPlace.lat]);
@@ -1167,84 +1231,140 @@ export function ExploreFullscreenMap({
           ) : null}
 
           {uiMode === "filters" ? (
-            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm transition-all duration-200">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setActiveCategory("")}
-                  className="rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]"
-                >
-                  Todas
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.slug)}
-                    className="rounded-full border px-3 py-1 font-inter text-xs font-semibold"
-                    style={{
-                      borderColor: activeCategory === cat.slug ? "#0D9488" : "#E2E8F0",
-                      color: activeCategory === cat.slug ? "#0F766E" : "#475569",
-                      backgroundColor: activeCategory === cat.slug ? "rgba(13,148,136,0.08)" : "white",
-                    }}
-                  >
-                    {getEs(cat.name_i18n, cat.slug)}
-                  </button>
-                ))}
-                <button
-                  onClick={applyNearby}
-                  className="rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-3 py-1 font-inter text-xs font-semibold text-[#0F766E]"
-                >
-                  Cerca de mí
-                </button>
-                <button
-                  onClick={clearFilters}
-                  className="rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]"
-                >
-                  Limpiar
-                </button>
-                {regionFilterOptions.map((region) => (
-                  <button
-                    key={region.slug}
-                    type="button"
-                    onClick={() => {
-                      setActiveRegion(region.slug);
-                      setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
-                    }}
-                    className="rounded-full border px-3 py-1 font-inter text-xs font-semibold"
-                    style={{
-                      borderColor: activeRegion === region.slug ? "#0D9488" : "#E2E8F0",
-                      color: activeRegion === region.slug ? "#0F766E" : "#475569",
-                      backgroundColor: activeRegion === region.slug ? "rgba(13,148,136,0.08)" : "white",
-                    }}
-                  >
-                    {region.label}
-                  </button>
-                ))}
-                {[4, 4.5].map((rating) => (
-                  <button
-                    key={rating}
-                    type="button"
-                    onClick={() => {
-                      setMinRating(rating);
-                      setAiChips((prev) => upsertChip(prev, { key: "rating", label: `${rating}+ estrellas` }));
-                    }}
-                    className="inline-flex items-center gap-1 rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-3 py-1 font-inter text-xs font-semibold text-[#B45309]"
-                  >
-                    <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
-                    {rating}+
-                  </button>
-                ))}
+            <div className="mt-2 space-y-3 rounded-2xl border border-[#D9E5E2] bg-white/95 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm transition-all duration-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-inter text-[10px] font-bold uppercase tracking-[0.16em] text-[#64748B]">Filtros</p>
+                  <p className="mt-0.5 font-inter text-xs text-[#64748B]">Ajusta lo visible en el mapa.</p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = !savedOnly;
-                    setSavedOnly(next);
-                    setAiChips((prev) => (next ? upsertChip(prev, { key: "saved", label: "Guardados" }) : prev.filter((chip) => chip.key !== "saved")));
-                  }}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]"
+                  onClick={clearFilters}
+                  className="rounded-full border border-[#D9E5E2] px-3 py-1.5 font-inter text-xs font-bold text-[#0F766E] transition-colors hover:bg-[#F0FDFA]"
                 >
-                  <Bookmark className="h-3.5 w-3.5" />
-                  Guardados
+                  Limpiar todo
                 </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">Categoría</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategory("")}
+                    className="rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                    style={{
+                      borderColor: activeCategory ? "#E2E8F0" : "#0D9488",
+                      color: activeCategory ? "#475569" : "#0F766E",
+                      backgroundColor: activeCategory ? "white" : "rgba(13,148,136,0.08)",
+                    }}
+                  >
+                    Todas
+                  </button>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setActiveCategory(cat.slug)}
+                      className="rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                      style={{
+                        borderColor: activeCategory === cat.slug ? "#0D9488" : "#E2E8F0",
+                        color: activeCategory === cat.slug ? "#0F766E" : "#475569",
+                        backgroundColor: activeCategory === cat.slug ? "rgba(13,148,136,0.08)" : "white",
+                      }}
+                    >
+                      {getEs(cat.name_i18n, cat.slug)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {regionFilterOptions.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">Región</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveRegion("")}
+                      className="rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                      style={{
+                        borderColor: activeRegion ? "#E2E8F0" : "#0D9488",
+                        color: activeRegion ? "#475569" : "#0F766E",
+                        backgroundColor: activeRegion ? "white" : "rgba(13,148,136,0.08)",
+                      }}
+                    >
+                      Todas
+                    </button>
+                    {regionFilterOptions.map((region) => (
+                      <button
+                        key={region.slug}
+                        type="button"
+                        onClick={() => {
+                          setActiveRegion(region.slug);
+                          setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
+                        }}
+                        className="rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                        style={{
+                          borderColor: activeRegion === region.slug ? "#0D9488" : "#E2E8F0",
+                          color: activeRegion === region.slug ? "#0F766E" : "#475569",
+                          backgroundColor: activeRegion === region.slug ? "rgba(13,148,136,0.08)" : "white",
+                        }}
+                      >
+                        {region.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <p className="font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">Preferencias</p>
+                <div className="flex flex-wrap gap-2">
+                  {[4, 4.5].map((rating) => (
+                    <button
+                      key={rating}
+                      type="button"
+                      onClick={() => {
+                        setMinRating(rating);
+                        setAiChips((prev) => upsertChip(prev, { key: "rating", label: `${rating}+ estrellas` }));
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                      style={{
+                        borderColor: minRating === rating ? "#F59E0B" : "#FDE68A",
+                        backgroundColor: minRating === rating ? "#FEF3C7" : "#FFFBEB",
+                        color: "#92400E",
+                      }}
+                    >
+                      <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
+                      {rating}+
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !savedOnly;
+                      setSavedOnly(next);
+                      setAiChips((prev) => (next ? upsertChip(prev, { key: "saved", label: "Guardados" }) : prev.filter((chip) => chip.key !== "saved")));
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
+                    style={{
+                      borderColor: savedOnly ? "#0D9488" : "#E2E8F0",
+                      backgroundColor: savedOnly ? "rgba(13,148,136,0.08)" : "white",
+                      color: savedOnly ? "#0F766E" : "#475569",
+                    }}
+                  >
+                    <Bookmark className="h-3.5 w-3.5" />
+                    Guardados
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyNearby}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-3 py-1.5 font-inter text-xs font-semibold text-[#0F766E]"
+                  >
+                    <Locate className="h-3.5 w-3.5" />
+                    Cerca de mí
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1264,6 +1384,9 @@ export function ExploreFullscreenMap({
               </div>
               {routeMetaLabel ? (
                 <p className="mt-0.5 truncate text-xs font-semibold text-[#64748B]">{routeMetaLabel}</p>
+              ) : null}
+              {routeSegmentsLabel ? (
+                <p className="mt-0.5 truncate text-[11px] font-medium text-[#0F766E]">{routeSegmentsLabel}</p>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -1314,8 +1437,9 @@ export function ExploreFullscreenMap({
               </button>
             </div>
             {routeMetaLabel ? (
-              <div className="mb-2 rounded-xl bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-semibold text-[#64748B]">
-                {routeMetaLabel}
+              <div className="mb-2 rounded-xl bg-[#F8FAFC] px-2.5 py-1.5">
+                <p className="text-xs font-semibold text-[#64748B]">{routeMetaLabel}</p>
+                {routeSegmentsLabel ? <p className="mt-0.5 text-[11px] font-medium text-[#0F766E]">{routeSegmentsLabel}</p> : null}
               </div>
             ) : null}
             <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
