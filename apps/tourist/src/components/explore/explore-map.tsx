@@ -1,13 +1,16 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import { Eye, MapPin, X } from "lucide-react";
 import { getCategoryColor } from "@/lib/category-theme";
 
 interface Place {
   id: string;
   slug: string;
   name_i18n: Record<string, string>;
+  description_i18n?: Record<string, string>;
+  ai_summary_i18n?: Record<string, string>;
   aggregated_rating: number;
   review_count: number;
   lat?: number | null;
@@ -49,13 +52,34 @@ export function ExploreMap({
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
   const hadSelectionRef = useRef(false);
   const suppressMapClickUntilRef = useRef(0);
-  const selectedPlaceRef = useRef<Place | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [selectedScreenPoint, setSelectedScreenPoint] = useState<{ x: number; y: number } | null>(null);
+  const [cardVisible, setCardVisible] = useState(false);
 
-  useEffect(() => {
-    selectedPlaceRef.current = selectedPlace;
-  }, [selectedPlace]);
+  const fitAllPlaces = useCallback((duration = 700) => {
+    if (!map.current) return;
+    const coords = places
+      .map((place) =>
+        typeof place.lng === "number" && typeof place.lat === "number"
+          ? ([place.lng, place.lat] as [number, number])
+          : null
+      )
+      .filter((value): value is [number, number] => Boolean(value));
+
+    if (coords.length >= 2) {
+      const bounds = coords.reduce(
+        (currentBounds, coordsItem) => currentBounds.extend(coordsItem),
+        new maplibregl.LngLatBounds(coords[0], coords[0])
+      );
+      map.current.fitBounds(bounds, {
+        padding: { top: 140, right: 80, left: 80, bottom: 170 },
+        maxZoom: 8.6,
+        duration,
+      });
+      return;
+    }
+
+    map.current.flyTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration });
+  }, [places]);
 
   const buildTooltipHTML = useCallback((place: Place) => {
     const name = place.name_i18n?.es ?? place.slug;
@@ -63,56 +87,27 @@ export function ExploreMap({
     const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
     const catName = cat?.name_i18n?.es ?? "";
     const rating = Number(place.aggregated_rating).toFixed(1);
+
     return `
-      <div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:140px;">
+      <div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:150px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
           <span style="font-size:14px;">${icon}</span>
-          <span style="font-weight:600;font-size:13px;color:#0F172A;">${name}</span>
+          <span style="font-weight:700;font-size:13px;color:#0F172A;">${name}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:11px;color:#0D9488;font-weight:500;">${catName}</span>
-          <span style="display:flex;align-items:center;gap:2px;font-size:11px;color:#64748B;">
-            <span style="color:#FBBF24;">★</span>${rating}
-          </span>
+          <span style="font-size:11px;color:#0D9488;font-weight:600;">${catName}</span>
+          <span style="font-size:11px;color:#64748B;">${rating}</span>
         </div>
       </div>`;
   }, []);
 
-  const updateSelectedScreenPoint = useCallback(() => {
-    const currentPlace = selectedPlaceRef.current;
-    if (!map.current || !currentPlace) {
-      setSelectedScreenPoint(null);
-      return;
-    }
-    if (typeof currentPlace.lng !== "number" || typeof currentPlace.lat !== "number") {
-      setSelectedScreenPoint(null);
-      return;
-    }
-    const point = map.current.project([currentPlace.lng, currentPlace.lat]);
-    setSelectedScreenPoint({ x: point.x, y: point.y });
-  }, []);
-
-  const fitAllPlaces = useCallback(() => {
-    if (!map.current) return;
-    const coords = places
-      .map((p) => (typeof p.lng === "number" && typeof p.lat === "number" ? [p.lng, p.lat] as [number, number] : null))
-      .filter((v): v is [number, number] => !!v);
-
-    if (coords.length >= 2) {
-      const bounds = coords.reduce(
-        (b, c) => b.extend(c),
-        new maplibregl.LngLatBounds(coords[0], coords[0])
-      );
-      map.current.fitBounds(bounds, {
-        padding: { top: 140, right: 80, left: 80, bottom: 170 },
-        maxZoom: 8.6,
-        duration: 700,
-      });
-      return;
-    }
-
-    map.current.flyTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration: 700 });
-  }, [places]);
+  function closeSelectedPlace() {
+    setCardVisible(false);
+    window.setTimeout(() => {
+      onSelectPlace(null);
+      fitAllPlaces(720);
+    }, 120);
+  }
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -128,22 +123,20 @@ export function ExploreMap({
     map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.current.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
     map.current.on("load", () => setMapReady(true));
-
     map.current.on("click", () => {
       if (Date.now() < suppressMapClickUntilRef.current) return;
       tooltipRef.current?.remove();
       tooltipRef.current = null;
-      onSelectPlace(null);
+      if (selectedPlace) closeSelectedPlace();
     });
-    map.current.on("move", updateSelectedScreenPoint);
-    map.current.on("zoom", updateSelectedScreenPoint);
 
     return () => {
       setMapReady(false);
       map.current?.remove();
       map.current = null;
     };
-  }, [onSelectPlace, updateSelectedScreenPoint]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlace]);
 
   useEffect(() => {
     if (!map.current) return;
@@ -152,43 +145,48 @@ export function ExploreMap({
     markers.current = [];
 
     places.forEach((place) => {
-      const coords = typeof place.lng === "number" && typeof place.lat === "number" ? [place.lng, place.lat] as [number, number] : null;
+      const coords =
+        typeof place.lng === "number" && typeof place.lat === "number"
+          ? ([place.lng, place.lat] as [number, number])
+          : null;
       if (!coords) return;
 
-      const cat = place.place_categories;
-      const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-      const bg = getCategoryColor({
-        slug: cat?.slug ?? "",
-        iconName: cat?.icon_name ?? "",
-        label: cat?.name_i18n?.es ?? cat?.name_i18n?.en ?? "",
+      const category = place.place_categories;
+      const color = getCategoryColor({
+        slug: category?.slug ?? "",
+        iconName: category?.icon_name ?? "",
+        label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
       });
+      const icon = ICON_MAP[category?.icon_name ?? ""] ?? "M";
       const isSelected = selectedPlace?.slug === place.slug;
       const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
 
       const wrapper = document.createElement("div");
       Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
 
-      const el = document.createElement("div");
-      Object.assign(el.style, {
+      const pin = document.createElement("div");
+      Object.assign(pin.style, {
         width: "40px",
         height: "40px",
-        background: bg,
+        background: color,
         border: isSelected ? "3px solid #F59E0B" : "3px solid white",
         borderRadius: "50%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontSize: "18px",
-        boxShadow: isSelected ? "0 4px 18px rgba(245,158,11,0.5)" : "0 2px 8px rgba(0,0,0,0.25)",
+        boxShadow: isSelected
+          ? "0 4px 18px rgba(245,158,11,0.5)"
+          : "0 2px 8px rgba(0,0,0,0.25)",
         opacity: isVisible ? "1" : "0.35",
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       });
-      el.textContent = icon;
-      wrapper.appendChild(el);
+      pin.textContent = icon;
+      wrapper.appendChild(pin);
 
       wrapper.addEventListener("mouseenter", () => {
-        el.style.transform = "scale(1.16)";
-        el.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
+        pin.style.transform = "scale(1.16)";
+        pin.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
         tooltipRef.current?.remove();
         tooltipRef.current = new maplibregl.Popup({
           offset: 22,
@@ -203,30 +201,33 @@ export function ExploreMap({
       });
 
       wrapper.addEventListener("mouseleave", () => {
-        el.style.transform = "scale(1)";
-        el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
+        pin.style.transform = "scale(1)";
+        pin.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
         tooltipRef.current?.remove();
         tooltipRef.current = null;
       });
 
       wrapper.addEventListener("click", (event) => {
         event.stopPropagation();
-        suppressMapClickUntilRef.current = Date.now() + 350;
+        suppressMapClickUntilRef.current = Date.now() + 400;
         tooltipRef.current?.remove();
         tooltipRef.current = null;
         onSelectPlace(place);
-        const point = map.current!.project(coords);
-        setSelectedScreenPoint({ x: point.x, y: point.y });
+        setCardVisible(true);
 
-        map.current?.flyTo({
-          center: coords,
-          zoom: Math.max(map.current.getZoom(), 10),
-          offset: [0, -60],
-          duration: 650,
-        });
+        window.setTimeout(() => {
+          map.current?.flyTo({
+            center: coords,
+            zoom: Math.max(map.current.getZoom(), 12),
+            offset: [160, 0],
+            duration: 760,
+          });
+        }, 140);
       });
 
-      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" }).setLngLat(coords).addTo(map.current!);
+      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" })
+        .setLngLat(coords)
+        .addTo(map.current!);
       markers.current.push(marker);
     });
   }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, onSelectPlace]);
@@ -242,26 +243,16 @@ export function ExploreMap({
 
   useEffect(() => {
     if (!map.current || !mapReady) return;
-    fitAllPlaces();
+    fitAllPlaces(0);
   }, [mapReady, fitAllPlaces]);
 
   useEffect(() => {
-    if (!selectedPlace || !map.current) return;
+    if (!selectedPlace) {
+      setCardVisible(false);
+      return;
+    }
     hadSelectionRef.current = true;
   }, [selectedPlace]);
-
-  useEffect(() => {
-    if (!map.current) return;
-    if (selectedPlace) return;
-    if (!hadSelectionRef.current) return;
-    hadSelectionRef.current = false;
-    setSelectedScreenPoint(null);
-    fitAllPlaces();
-  }, [selectedPlace, fitAllPlaces]);
-
-  useEffect(() => {
-    updateSelectedScreenPoint();
-  }, [selectedPlace, updateSelectedScreenPoint]);
 
   const selectedCategory = selectedPlace?.place_categories;
   const selectedColor = getCategoryColor({
@@ -269,57 +260,104 @@ export function ExploreMap({
     iconName: selectedCategory?.icon_name ?? "",
     label: selectedCategory?.name_i18n?.es ?? selectedCategory?.name_i18n?.en ?? "",
   });
+  const selectedDescription =
+    selectedPlace?.ai_summary_i18n?.es ??
+    selectedPlace?.description_i18n?.es ??
+    "Destino cultural de Honduras con historia, contexto local y puntos de interes para explorar.";
+  const selectedImages = getPlaceImages(selectedPlace?.slug ?? "");
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
-      {selectedPlace && selectedScreenPoint ? (
+      {selectedPlace ? (
         <div
-          className="pointer-events-auto absolute z-20 w-[268px] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_14px_40px_rgba(15,23,42,0.22)]"
+          className="pointer-events-auto absolute left-4 top-20 z-20 w-[282px] overflow-hidden rounded-[10px] border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24"
           style={{
-            left: selectedScreenPoint.x,
-            top: selectedScreenPoint.y,
-            transform: "translate(-50%, calc(-100% - 30px))",
+            opacity: cardVisible ? 1 : 0,
+            transform: cardVisible ? "translateY(0)" : "translateY(8px)",
           }}
         >
           <button
             type="button"
             aria-label="Cerrar"
-            onClick={() => onSelectPlace(null)}
-            className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 font-inter text-sm font-bold text-white backdrop-blur-sm"
+            onClick={closeSelectedPlace}
+            className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
           >
-            x
+            <X className="h-4 w-4" />
           </button>
-          <div
-            className="flex h-[78px] items-center justify-center font-jakarta text-3xl font-bold text-white"
-            style={{ backgroundColor: selectedColor }}
-          >
-            {ICON_MAP[selectedCategory?.icon_name ?? ""] ?? "M"}
+          <div className="grid h-[108px] grid-cols-2 gap-1 bg-[#ECFDF5] p-2">
+            {selectedImages.map((src) => (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                className="h-full w-full rounded-md object-cover"
+                loading="lazy"
+              />
+            ))}
           </div>
-          <div className="space-y-2 p-3">
-            <div>
-              <h3 className="font-jakarta text-base font-bold leading-tight text-[#0F172A]">
-                {selectedPlace.name_i18n?.es ?? selectedPlace.slug}
-              </h3>
-              <div className="mt-1 flex items-center gap-2 font-inter text-xs">
-                <span className="font-semibold text-[#0D9488]">
-                  {selectedCategory?.name_i18n?.es ?? "Lugar"}
-                </span>
-                <span className="text-[#F59E0B]">★</span>
-                <span className="font-semibold text-[#475569]">
-                  {Number(selectedPlace.aggregated_rating).toFixed(1)}
-                </span>
+          <div className="space-y-3 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-jakarta text-xl font-bold leading-tight text-[#0F172A]">
+                  {selectedPlace.name_i18n?.es ?? selectedPlace.slug}
+                </h3>
+                <div className="mt-2 flex items-center gap-1.5 font-inter text-[11px] font-semibold text-[#0D9488]">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: selectedColor }} />
+                  <span>{selectedCategory?.name_i18n?.es ?? "Lugar"}</span>
+                  <span>-</span>
+                  <span>{selectedPlace.regions?.name_i18n?.es ?? "Honduras"}</span>
+                </div>
               </div>
+              <span className="mt-1 font-inter text-xs font-semibold text-[#64748B]">
+                {Number(selectedPlace.aggregated_rating).toFixed(1)}
+              </span>
             </div>
+            <p className="line-clamp-[8] font-inter text-xs leading-5 text-[#334155]">
+              {selectedDescription}
+            </p>
+            <div className="h-px bg-[#E2E8F0]" />
             <a
               href={`/places/${selectedPlace.slug}`}
-              className="flex h-9 items-center justify-center rounded-lg bg-[#0D9488] font-inter text-xs font-bold text-white transition-colors hover:bg-[#0f766e]"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#0D9488] font-inter text-xs font-bold text-white transition-colors hover:bg-[#0f766e]"
             >
+              <Eye className="h-3.5 w-3.5" />
               Ver detalle
             </a>
+            <button
+              type="button"
+              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[#0D9488] font-inter text-xs font-bold text-[#0D9488] transition-colors hover:bg-[#F0FDFA]"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              Agregar a ruta
+            </button>
           </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function getPlaceImages(slug: string) {
+  const pool: Record<string, [string, string]> = {
+    "ruinas-copan": [
+      "https://images.unsplash.com/photo-1512813195386-6cf811ad3542?q=80&w=640&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1564665750701-56d6d6ef5f8f?q=80&w=640&auto=format&fit=crop",
+    ],
+    "catedral-comayagua": [
+      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=640&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1518998053901-5348d3961a04?q=80&w=640&auto=format&fit=crop",
+    ],
+    "playa-west-bay-roatan": [
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=640&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?q=80&w=640&auto=format&fit=crop",
+    ],
+  };
+
+  return (
+    pool[slug] ?? [
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=640&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=640&auto=format&fit=crop",
+    ]
   );
 }
