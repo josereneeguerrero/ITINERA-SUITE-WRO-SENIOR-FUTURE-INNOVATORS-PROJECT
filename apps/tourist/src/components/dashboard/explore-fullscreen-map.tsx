@@ -277,7 +277,7 @@ export function ExploreFullscreenMap({
     return rows;
   }, [places, query]);
 
-  const shouldShowSuggestionsPanel = query.trim().length > 0 || recentSearches.length > 0;
+  const shouldShowSuggestionsPanel = !selectedPlace && query.trim().length > 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -421,6 +421,7 @@ export function ExploreFullscreenMap({
     setMapZoom(null);
     setUserLocation(null);
     setAiChips([]);
+    setShowFilters(false);
   }
 
   function applyNearby() {
@@ -452,6 +453,7 @@ export function ExploreFullscreenMap({
     setSelectedPlaceSlug(place.slug);
     setMapCenter(typeof place.lng === "number" && typeof place.lat === "number" ? [place.lng, place.lat] : null);
     setMapZoom(12);
+    setShowFilters(false);
     const name = getEs(place.name_i18n, place.slug);
     const next = [name, ...recentSearches.filter((item) => item !== name)].slice(0, 6);
     persistRecent(next);
@@ -491,7 +493,10 @@ export function ExploreFullscreenMap({
     });
   }
 
-  const previewPlace = selectedPlace ?? searchSuggestions[0] ?? null;
+  const previewPlace =
+    !selectedPlace && !shouldShowSuggestionsPanel && query.trim().length > 0
+      ? searchSuggestions[0] ?? null
+      : null;
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden bg-[#E5E7EB]">
@@ -507,7 +512,14 @@ export function ExploreFullscreenMap({
           onAddToRoute={(place) => addToRoute(place as Place)}
           recommendationReason={aiRecommendationReason}
           routeStops={activeRoute?.stops ?? []}
-          onSelectPlace={(place) => setSelectedPlaceSlug((place as Place | null)?.slug ?? null)}
+          onSelectPlace={(place) => {
+            const nextSlug = (place as Place | null)?.slug ?? null;
+            setSelectedPlaceSlug(nextSlug);
+            if (nextSlug) {
+              setShowFilters(false);
+              setQuery("");
+            }
+          }}
         />
       </div>
 
@@ -725,7 +737,7 @@ export function ExploreFullscreenMap({
             </div>
           ) : null}
 
-          {showFilters ? (
+          {showFilters && !selectedPlace ? (
             <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm">
               <div className="flex flex-wrap gap-2">
                 <button
@@ -807,4 +819,3 @@ export function ExploreFullscreenMap({
     </section>
   );
 }
-
