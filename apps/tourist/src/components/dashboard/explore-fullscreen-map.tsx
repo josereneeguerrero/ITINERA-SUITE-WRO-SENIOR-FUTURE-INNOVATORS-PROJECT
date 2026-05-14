@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Locate, MapPin, Search, Sparkles, Star, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Locate, MapPin, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
 import { getCategoryColor } from "@/lib/category-theme";
@@ -55,6 +55,7 @@ type RouteMeta = {
   distanceKm?: number;
   durationMin?: number;
   approximate?: boolean;
+  mixed?: boolean;
 };
 
 type RouteSegment = {
@@ -69,10 +70,25 @@ type RouteFeedback = {
 };
 
 type UIAction = {
-  type: "apply_filter" | "select_place" | "set_route" | "get_nearby" | "clear_route" | "center_map";
+  type:
+    | "apply_filter"
+    | "select_place"
+    | "set_route"
+    | "add_route_stop"
+    | "remove_route_stop"
+    | "reorder_route"
+    | "get_nearby"
+    | "clear_filters"
+    | "clear_route"
+    | "center_map";
   slug?: string;
   query?: string;
   category?: string;
+  region?: string;
+  minRating?: number;
+  savedOnly?: boolean;
+  fromIndex?: number;
+  toIndex?: number;
   title?: string;
   center?: [number, number];
   zoom?: number;
@@ -86,7 +102,7 @@ type UIActionsChunk = {
 };
 
 type AiFilterChip = {
-  key: "query" | "category" | "nearby";
+  key: "query" | "category" | "region" | "rating" | "saved" | "nearby";
   label: string;
 };
 
@@ -296,7 +312,7 @@ async function buildSegmentedRoute(coords: [number, number][]) {
 function formatRouteMeta(meta: RouteMeta | null) {
   if (!meta) return "";
   const parts: string[] = [];
-  parts.push(meta.approximate ? "Ruta aproximada" : "Ruta por OSRM");
+  parts.push(meta.mixed ? "Ruta mixta" : meta.approximate ? "Ruta aproximada" : "Ruta por OSRM");
   if (typeof meta.distanceKm === "number") parts.push(`${Math.round(meta.distanceKm)} km`);
   if (typeof meta.durationMin === "number") {
     const hours = Math.floor(meta.durationMin / 60);
@@ -343,6 +359,9 @@ export function ExploreFullscreenMap({
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("");
+  const [activeRegion, setActiveRegion] = useState("");
+  const [minRating, setMinRating] = useState(0);
+  const [savedOnly, setSavedOnly] = useState(false);
   const [selectedPlaceSlug, setSelectedPlaceSlug] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
@@ -376,7 +395,10 @@ export function ExploreFullscreenMap({
         });
       const strictMatch = !q || isStrictlyRelevant(place, query);
       const matchesCategory = !activeCategory || place.place_categories?.slug === activeCategory;
-      return matchesQuery && strictMatch && matchesCategory;
+      const matchesRegion = !activeRegion || place.regions?.slug === activeRegion;
+      const matchesRating = !minRating || Number(place.aggregated_rating ?? 0) >= minRating;
+      const matchesSaved = !savedOnly || savedSlugs.includes(place.slug);
+      return matchesQuery && strictMatch && matchesCategory && matchesRegion && matchesRating && matchesSaved;
     });
     if (!userLocation) return base;
     return [...base].sort((a, b) => {
@@ -388,7 +410,7 @@ export function ExploreFullscreenMap({
       const userCoords: [number, number] = [userLocation.lng, userLocation.lat];
       return distanceKm(userCoords, aCoords) - distanceKm(userCoords, bCoords);
     });
-  }, [places, query, activeCategory, userLocation]);
+  }, [places, query, activeCategory, activeRegion, minRating, savedOnly, savedSlugs, userLocation]);
 
   const visibleSlugs = useMemo(() => new Set(filteredPlaces.map((item) => item.slug)), [filteredPlaces]);
   const selectedPlace = useMemo(
@@ -444,6 +466,20 @@ export function ExploreFullscreenMap({
   const shouldCompactRoutePanel = hasActiveRoute && Boolean(selectedPlace) && !routePanelExpanded;
   const shouldShowFullRoutePanel = hasActiveRoute && (!selectedPlace || routePanelExpanded);
   const routeMetaLabel = formatRouteMeta(routeMeta);
+  const regionFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    return places
+      .map((place) => ({
+        slug: place.regions?.slug ?? "",
+        label: getEs(place.regions?.name_i18n, "Honduras"),
+      }))
+      .filter((region) => {
+        if (!region.slug || set.has(region.slug)) return false;
+        set.add(region.slug);
+        return true;
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [places]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -547,6 +583,7 @@ export function ExploreFullscreenMap({
           distanceKm: route.distanceKm,
           durationMin: route.durationMin,
           approximate: route.approximate,
+          mixed: route.approximate && route.segments.some((segment) => !segment.approximate),
         });
       })
       .catch(() => {
@@ -575,6 +612,14 @@ export function ExploreFullscreenMap({
             const slug = normalizeCategorySlug(action.category);
             if (slug) setActiveCategory(slug);
           }
+          if (typeof action.region === "string") {
+            const region = regionFilterOptions.find(
+              (item) => item.slug === action.region || normalize(item.label) === normalize(action.region ?? "")
+            );
+            setActiveRegion(region?.slug ?? action.region);
+          }
+          if (typeof action.minRating === "number") setMinRating(action.minRating);
+          if (typeof action.savedOnly === "boolean") setSavedOnly(action.savedOnly);
           setAiChips((prev) => {
             let next = [...prev];
             if (typeof action.query === "string" && action.query.trim()) {
@@ -582,6 +627,16 @@ export function ExploreFullscreenMap({
             }
             if (typeof action.category === "string" && action.category.trim()) {
               next = upsertChip(next, { key: "category", label: `Categoría: ${action.category}` });
+            }
+            if (typeof action.region === "string" && action.region.trim()) {
+              const region = regionFilterOptions.find((item) => item.slug === action.region);
+              next = upsertChip(next, { key: "region", label: `Region: ${region?.label ?? action.region}` });
+            }
+            if (typeof action.minRating === "number" && action.minRating > 0) {
+              next = upsertChip(next, { key: "rating", label: `${action.minRating}+ estrellas` });
+            }
+            if (action.savedOnly) {
+              next = upsertChip(next, { key: "saved", label: "Guardados" });
             }
             return next;
           });
@@ -591,6 +646,8 @@ export function ExploreFullscreenMap({
           const place = places.find((item) => item.slug === action.slug);
           if (!place) return;
           setSelectedPlaceSlug(place.slug);
+          setShowFilters(false);
+          setRoutePanelExpanded(false);
           if (typeof place.lng === "number" && typeof place.lat === "number") {
             setMapCenter([place.lng, place.lat]);
             setMapZoom(12);
@@ -600,8 +657,9 @@ export function ExploreFullscreenMap({
         if (action.type === "set_route" && Array.isArray(action.stops)) {
           setActiveRoute({
             title: action.title || "Ruta recomendada por IA",
-            stops: action.stops,
+            stops: normalizeRouteStops(action.stops),
           });
+          setRoutePanelExpanded(false);
           const firstStop = action.stops[0];
           const firstPlace = firstStop?.slug ? places.find((item) => item.slug === firstStop.slug) : null;
           if (firstPlace && typeof firstPlace.lng === "number" && typeof firstPlace.lat === "number") {
@@ -609,6 +667,19 @@ export function ExploreFullscreenMap({
             setMapZoom(10.8);
           }
           setAiRecommendationReason("Ruta sugerida por IA balanceando cercanía, categoría y valoración.");
+        }
+        if (action.type === "add_route_stop" && action.slug) {
+          const place = places.find((item) => item.slug === action.slug);
+          if (place) addToRoute(place);
+        }
+        if (action.type === "remove_route_stop" && action.slug) {
+          removeRouteStop(action.slug);
+        }
+        if (action.type === "reorder_route" && typeof action.fromIndex === "number" && typeof action.toIndex === "number") {
+          reorderRouteStop(action.fromIndex, action.toIndex);
+        }
+        if (action.type === "clear_filters") {
+          clearFilters();
         }
         if (action.type === "clear_route") {
           clearRoute();
@@ -626,7 +697,7 @@ export function ExploreFullscreenMap({
 
     window.addEventListener("itinera:ui-actions", onActions as EventListener);
     return () => window.removeEventListener("itinera:ui-actions", onActions as EventListener);
-  }, [places]);
+  }, [places, regionFilterOptions]);
 
   function persistRecent(next: string[]) {
     setRecentSearches(next);
@@ -638,11 +709,15 @@ export function ExploreFullscreenMap({
   function clearFilters() {
     setQuery("");
     setActiveCategory("");
+    setActiveRegion("");
+    setMinRating(0);
+    setSavedOnly(false);
     setSelectedPlaceSlug(null);
     setMapCenter(null);
     setMapZoom(null);
     setUserLocation(null);
     setAiChips([]);
+    setAiRecommendationReason(null);
     setShowFilters(false);
   }
 
@@ -681,6 +756,9 @@ export function ExploreFullscreenMap({
     setAiChips((prev) => prev.filter((chip) => chip.key !== key));
     if (key === "query") setQuery("");
     if (key === "category") setActiveCategory("");
+    if (key === "region") setActiveRegion("");
+    if (key === "rating") setMinRating(0);
+    if (key === "saved") setSavedOnly(false);
     if (key === "nearby") {
       setUserLocation(null);
       setMapCenter(null);
@@ -724,6 +802,39 @@ export function ExploreFullscreenMap({
     setRoutePanelExpanded(false);
   }
 
+  function normalizeRouteStops(stops: RouteStop[]) {
+    return stops.map((stop, index) => ({ ...stop, order: index + 1 }));
+  }
+
+  function openRouteStop(slug: string) {
+    const place = places.find((item) => item.slug === slug);
+    if (!place) return;
+    selectPlaceFromSearch(place);
+    setRoutePanelExpanded(false);
+  }
+
+  function removeRouteStop(slug: string) {
+    setActiveRoute((prev) => {
+      if (!prev) return prev;
+      const nextStops = normalizeRouteStops(prev.stops.filter((stop) => stop.slug !== slug));
+      if (!nextStops.length) return null;
+      return { ...prev, stops: nextStops };
+    });
+    setRouteFeedback({ kind: "added", placeSlug: slug, message: "Parada removida de tu ruta" });
+  }
+
+  function reorderRouteStop(fromIndex: number, toIndex: number) {
+    setActiveRoute((prev) => {
+      if (!prev || toIndex < 0 || toIndex >= prev.stops.length) return prev;
+      const nextStops = [...prev.stops];
+      const [moved] = nextStops.splice(fromIndex, 1);
+      if (!moved) return prev;
+      nextStops.splice(toIndex, 0, moved);
+      return { ...prev, stops: normalizeRouteStops(nextStops) };
+    });
+    setRoutePanelExpanded(true);
+  }
+
   function addToRoute(place: Place) {
     const alreadyInRoute = activeRoute?.stops.some((stop) => stop.slug === place.slug) ?? false;
     setRouteFeedback({
@@ -745,6 +856,7 @@ export function ExploreFullscreenMap({
       const nextStops = [...prev.stops, { order: prev.stops.length + 1, slug: place.slug, name: getEs(place.name_i18n, place.slug) }];
       return { ...prev, stops: nextStops };
     });
+    setRoutePanelExpanded(false);
   }
 
   const previewPlace = uiMode === "idle" && query.trim().length > 0 ? searchSuggestions[0] ?? null : null;
@@ -1030,6 +1142,50 @@ export function ExploreFullscreenMap({
                 >
                   Limpiar
                 </button>
+                {regionFilterOptions.map((region) => (
+                  <button
+                    key={region.slug}
+                    type="button"
+                    onClick={() => {
+                      setActiveRegion(region.slug);
+                      setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
+                    }}
+                    className="rounded-full border px-3 py-1 font-inter text-xs font-semibold"
+                    style={{
+                      borderColor: activeRegion === region.slug ? "#0D9488" : "#E2E8F0",
+                      color: activeRegion === region.slug ? "#0F766E" : "#475569",
+                      backgroundColor: activeRegion === region.slug ? "rgba(13,148,136,0.08)" : "white",
+                    }}
+                  >
+                    {region.label}
+                  </button>
+                ))}
+                {[4, 4.5].map((rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => {
+                      setMinRating(rating);
+                      setAiChips((prev) => upsertChip(prev, { key: "rating", label: `${rating}+ estrellas` }));
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-3 py-1 font-inter text-xs font-semibold text-[#B45309]"
+                  >
+                    <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
+                    {rating}+
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !savedOnly;
+                    setSavedOnly(next);
+                    setAiChips((prev) => (next ? upsertChip(prev, { key: "saved", label: "Guardados" }) : prev.filter((chip) => chip.key !== "saved")));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-3 py-1 font-inter text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  Guardados
+                </button>
               </div>
             </div>
           ) : null}
@@ -1103,25 +1259,49 @@ export function ExploreFullscreenMap({
                 {routeMetaLabel}
               </div>
             ) : null}
-            <div className="space-y-1.5">
-              {activeRoute.stops.slice(0, 4).map((stop) => (
-                <button
+            <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+              {activeRoute.stops.map((stop, index) => (
+                <div
                   key={stop.slug}
-                  type="button"
-                  onClick={() => {
-                    const place = places.find((item) => item.slug === stop.slug);
-                    if (place) {
-                      selectPlaceFromSearch(place);
-                      setRoutePanelExpanded(false);
-                    }
-                  }}
-                  className="flex w-full items-center gap-2 rounded-xl border border-[#E2E8F0] px-2.5 py-2 text-left transition-colors hover:bg-[#F8FAFC]"
+                  className="flex items-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white px-1.5 py-1.5 transition-colors hover:bg-[#F8FAFC]"
                 >
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E6FFFB] px-1 text-[10px] font-bold text-[#0D9488]">
-                    {stop.order}
-                  </span>
-                  <span className="truncate text-sm text-[#0F172A]">{stop.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => openRouteStop(stop.slug)}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left focus:outline-none focus:ring-2 focus:ring-[#99F6E4]"
+                  >
+                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#E6FFFB] px-1 text-[10px] font-bold text-[#0D9488]">
+                      {index + 1}
+                    </span>
+                    <span className="truncate text-sm font-medium text-[#0F172A]">{stop.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => reorderRouteStop(index, index - 1)}
+                    disabled={index === 0}
+                    className="rounded-lg p-1.5 text-[#64748B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label={`Subir ${stop.name}`}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => reorderRouteStop(index, index + 1)}
+                    disabled={index === activeRoute.stops.length - 1}
+                    className="rounded-lg p-1.5 text-[#64748B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label={`Bajar ${stop.name}`}
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRouteStop(stop.slug)}
+                    className="rounded-lg p-1.5 text-[#64748B] transition-colors hover:bg-[#FEF2F2] hover:text-[#DC2626]"
+                    aria-label={`Quitar ${stop.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

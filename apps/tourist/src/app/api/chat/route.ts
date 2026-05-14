@@ -346,8 +346,9 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   return null;
 }
 
-function deriveUIActions(intent: string, params: Record<string, string>, dbData: unknown) {
+function deriveUIActions(intent: string, params: Record<string, string>, dbData: unknown, rawMessage = "") {
   const safeParams = params ?? {};
+  const normalizedMessage = normalizeText(rawMessage);
   const data = dbData as {
     places?: { slug?: string }[];
     place?: { slug?: string };
@@ -362,11 +363,23 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   if (safeParams.region) entities.region = safeParams.region;
   if (safeParams.slug) entities.slug = safeParams.slug;
 
+  if (["limpiar filtros", "quitar filtros", "quita filtros", "reset filtros", "borrar filtros"].some((term) => normalizedMessage.includes(term))) {
+    actions.push({ type: "clear_filters" });
+  }
+
+  if (["limpiar ruta", "borrar ruta", "quitar ruta", "quita ruta", "reiniciar ruta"].some((term) => normalizedMessage.includes(term))) {
+    actions.push({ type: "clear_route" });
+  }
+
   if (intent === "search_places") {
+    const ratingMatch = normalizedMessage.match(/(?:rating|estrellas?|valoracion)\s*(?:de\s*)?([4-5](?:\.\d)?)/);
     actions.push({
       type: "apply_filter",
       query: cleanSearchQuery(safeParams.query, safeParams) || (safeParams.region ? labelFromSlug(safeParams.region) : ""),
       category: safeParams.category ?? "",
+      region: safeParams.region ?? "",
+      minRating: ratingMatch ? Number(ratingMatch[1]) : undefined,
+      savedOnly: ["guardados", "favoritos"].some((term) => normalizedMessage.includes(term)) || undefined,
     });
     if (data?.places?.[0]?.slug) {
       actions.push({ type: "select_place", slug: data.places[0].slug });
@@ -375,6 +388,11 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
 
   if (intent === "get_place" && data?.place?.slug) {
     actions.push({ type: "select_place", slug: data.place.slug });
+    const mentionsRoute = normalizedMessage.includes("ruta");
+    const wantsAdd = ["agrega", "agregar", "anade", "añade", "poner", "mete", "incluye"].some((term) => normalizedMessage.includes(term));
+    const wantsRemove = ["quita", "quitar", "elimina", "eliminar", "saca", "remueve"].some((term) => normalizedMessage.includes(term));
+    if (mentionsRoute && wantsAdd) actions.push({ type: "add_route_stop", slug: data.place.slug });
+    if (mentionsRoute && wantsRemove) actions.push({ type: "remove_route_stop", slug: data.place.slug });
   }
 
   if (intent === "recommend_route" && Array.isArray(data?.stops)) {
@@ -471,7 +489,7 @@ export async function POST(req: Request) {
 
         if (result.text) emit({ type: "text-delta", textDelta: result.text });
         if (dbData)      emit({ type: "tool-result", toolName: intent, result: dbData });
-        emit({ type: "ui-actions", ...deriveUIActions(intent, normalizedParams, dbData) });
+        emit({ type: "ui-actions", ...deriveUIActions(intent, normalizedParams, dbData, lastUserMsg) });
 
       } catch (err) {
         console.error("api/chat error", err);
