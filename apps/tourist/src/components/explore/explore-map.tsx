@@ -20,8 +20,12 @@ const HONDURAS_CENTER: [number, number] = [-86.8, 15.2];
 const HONDURAS_ZOOM = 6.5;
 
 const ICON_MAP: Record<string, string> = {
-  landmark: "L", leaf: "N", utensils: "G",
-  waves: "P", zap: "A", church: "C",
+  landmark: "L",
+  leaf: "N",
+  utensils: "G",
+  waves: "P",
+  zap: "A",
+  church: "R",
 };
 
 export function ExploreMap({
@@ -40,19 +44,19 @@ export function ExploreMap({
   onSelectPlace: (place: Place | null) => void;
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map          = useRef<maplibregl.Map | null>(null);
-  const markers    = useRef<maplibregl.Marker[]>([]);
+  const map = useRef<maplibregl.Map | null>(null);
+  const markers = useRef<maplibregl.Marker[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
+  const selectedPopupRef = useRef<maplibregl.Popup | null>(null);
+  const hadSelectionRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
 
-  // Build hover tooltip HTML (compact, no actions)
   const buildTooltipHTML = useCallback((place: Place) => {
-    const name   = place.name_i18n?.es ?? place.slug;
-    const cat    = place.place_categories as { name_i18n: Record<string,string>; icon_name: string } | null;
-    const icon   = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
+    const name = place.name_i18n?.es ?? place.slug;
+    const cat = place.place_categories;
+    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
     const catName = cat?.name_i18n?.es ?? "";
     const rating = Number(place.aggregated_rating).toFixed(1);
-
     return `
       <div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:140px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
@@ -65,42 +69,59 @@ export function ExploreMap({
             <span style="color:#FBBF24;">★</span>${rating}
           </span>
         </div>
-        <div style="font-size:10px;color:#94A3B8;margin-top:3px;">Click para ver detalle</div>
       </div>`;
   }, []);
 
-  // Build click popup HTML (compact, no actions)
   const buildPopupHTML = useCallback((place: Place) => {
     const name = place.name_i18n?.es ?? place.slug;
-    const cat  = place.place_categories as { name_i18n: Record<string,string>; icon_name: string; slug?: string } | null;
+    const cat = place.place_categories;
     const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-    const bg   = getCategoryColor({
+    const bg = getCategoryColor({
       slug: cat?.slug ?? "",
       iconName: cat?.icon_name ?? "",
       label: cat?.name_i18n?.es ?? cat?.name_i18n?.en ?? "",
     });
     const rating = Number(place.aggregated_rating).toFixed(1);
-
     return `
-      <div style="width:220px;border-radius:12px;overflow:hidden;font-family:Inter,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
-        <div style="height:80px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:2rem;">
+      <div style="width:262px;border-radius:16px;overflow:hidden;font-family:Inter,sans-serif;box-shadow:0 8px 28px rgba(15,23,42,0.2);">
+        <div style="height:78px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:1.9rem;color:white;">
           ${icon}
         </div>
         <div style="padding:12px;background:white;">
-          <p style="font-weight:600;font-size:13px;color:#0F172A;margin:0 0 4px;">${name}</p>
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
+          <p style="font-weight:700;font-size:16px;line-height:1.2;color:#0F172A;margin:0 0 6px;">${name}</p>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:10px;">
             <span style="color:#FBBF24;font-size:12px;">★</span>
-            <span style="font-size:12px;font-weight:500;color:#0F172A;">${rating}</span>
-            <span style="font-size:10px;color:#94A3B8;">· IA recomienda</span>
+            <span style="font-size:12px;font-weight:600;color:#0F172A;">${rating}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#0D9488;font-weight:500;font-family:Inter,sans-serif;">
-            <span>Toca para ver detalle</span>
-          </div>
+          <a href="/places/${place.slug}" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:34px;border-radius:10px;background:#0D9488;color:white;text-decoration:none;font-size:12px;font-weight:700;">
+            Ver detalle
+          </a>
         </div>
       </div>`;
   }, []);
 
-  // Init map
+  const fitAllPlaces = useCallback(() => {
+    if (!map.current) return;
+    const coords = places
+      .map((p) => (typeof p.lng === "number" && typeof p.lat === "number" ? [p.lng, p.lat] as [number, number] : null))
+      .filter((v): v is [number, number] => !!v);
+
+    if (coords.length >= 2) {
+      const bounds = coords.reduce(
+        (b, c) => b.extend(c),
+        new maplibregl.LngLatBounds(coords[0], coords[0])
+      );
+      map.current.fitBounds(bounds, {
+        padding: { top: 140, right: 80, left: 80, bottom: 170 },
+        maxZoom: 8.6,
+        duration: 700,
+      });
+      return;
+    }
+
+    map.current.flyTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration: 700 });
+  }, [places]);
+
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
@@ -116,8 +137,9 @@ export function ExploreMap({
     map.current.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
     map.current.on("load", () => setMapReady(true));
 
-    // Close drawer on map click (backdrop handled by drawer itself)
     map.current.on("click", () => {
+      selectedPopupRef.current?.remove();
+      selectedPopupRef.current = null;
       onSelectPlace(null);
     });
 
@@ -126,41 +148,31 @@ export function ExploreMap({
       map.current?.remove();
       map.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onSelectPlace]);
 
-  // Update markers when places change
   useEffect(() => {
     if (!map.current) return;
 
-    markers.current.forEach(m => m.remove());
+    markers.current.forEach((marker) => marker.remove());
     markers.current = [];
 
     places.forEach((place) => {
-      const coords = typeof place.lng === "number" && typeof place.lat === "number"
-        ? [place.lng, place.lat] as [number, number]
-        : null;
+      const coords = typeof place.lng === "number" && typeof place.lat === "number" ? [place.lng, place.lat] as [number, number] : null;
       if (!coords) return;
 
-      const cat  = place.place_categories as { icon_name: string } | null;
+      const cat = place.place_categories;
       const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-      const bg   = getCategoryColor({
-        slug: (place.place_categories as { slug?: string } | null)?.slug ?? "",
+      const bg = getCategoryColor({
+        slug: cat?.slug ?? "",
         iconName: cat?.icon_name ?? "",
-        label: (place.place_categories as { name_i18n?: Record<string, string> } | null)?.name_i18n?.es ?? "",
+        label: cat?.name_i18n?.es ?? cat?.name_i18n?.en ?? "",
       });
       const isSelected = selectedPlace?.slug === place.slug;
       const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
 
-      // Marker element
-      // Wrapper: MapLibre owns this element's transform for positioning
       const wrapper = document.createElement("div");
-      Object.assign(wrapper.style, {
-        cursor: "pointer",
-        willChange: "transform",
-      });
+      Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
 
-      // Inner el: we apply our own hover/scale transform here (never on wrapper)
       const el = document.createElement("div");
       Object.assign(el.style, {
         width: "40px",
@@ -177,14 +189,11 @@ export function ExploreMap({
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       });
       el.textContent = icon;
-      el.title = place.name_i18n?.es ?? place.slug;
       wrapper.appendChild(el);
 
       wrapper.addEventListener("mouseenter", () => {
-        el.style.transform = "scale(1.2)";
+        el.style.transform = "scale(1.16)";
         el.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
-
-        // Show hover tooltip
         tooltipRef.current?.remove();
         tooltipRef.current = new maplibregl.Popup({
           offset: 22,
@@ -205,32 +214,40 @@ export function ExploreMap({
         tooltipRef.current = null;
       });
 
-      wrapper.addEventListener("click", (e) => {
-        e.stopPropagation();
-        // Remove hover tooltip immediately
+      wrapper.addEventListener("click", (event) => {
+        event.stopPropagation();
         tooltipRef.current?.remove();
         tooltipRef.current = null;
-        // Open drawer via parent state
+        selectedPopupRef.current?.remove();
+        selectedPopupRef.current = null;
         onSelectPlace(place);
-        // Fly to pin
+
+        selectedPopupRef.current = new maplibregl.Popup({
+          offset: 24,
+          closeButton: true,
+          closeOnClick: false,
+          className: "itinera-place-popup",
+          anchor: "bottom",
+        })
+          .setLngLat(coords)
+          .setHTML(buildPopupHTML(place))
+          .addTo(map.current!);
+
+        selectedPopupRef.current.on("close", () => onSelectPlace(null));
+
         map.current?.flyTo({
           center: coords,
-          zoom: Math.max(map.current.getZoom(), 9),
+          zoom: Math.max(map.current.getZoom(), 10),
           offset: [0, -60],
-          duration: 800,
+          duration: 650,
         });
       });
 
-      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" })
-        .setLngLat(coords)
-        .addTo(map.current!);
-
+      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" }).setLngLat(coords).addTo(map.current!);
       markers.current.push(marker);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, mapReady, selectedPlace, visibleSlugs]);
+  }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, buildPopupHTML, onSelectPlace]);
 
-  // Keep map synced with global viewport commands (nearby / IA)
   useEffect(() => {
     if (!map.current || !mapCenter) return;
     map.current.flyTo({
@@ -240,42 +257,25 @@ export function ExploreMap({
     });
   }, [mapCenter, mapZoom]);
 
-  // Ensure all pins start visible in the non-overlay area.
   useEffect(() => {
     if (!map.current || !mapReady) return;
-    const coords = places
-      .map((p) => (typeof p.lng === "number" && typeof p.lat === "number" ? [p.lng, p.lat] as [number, number] : null))
-      .filter((v): v is [number, number] => !!v);
+    fitAllPlaces();
+  }, [mapReady, fitAllPlaces]);
 
-    if (coords.length < 2) return;
-
-    const bounds = coords.reduce(
-      (b, c) => b.extend(c),
-      new maplibregl.LngLatBounds(coords[0], coords[0])
-    );
-
-    map.current.fitBounds(bounds, {
-      padding: { top: 56, right: 56, left: 56, bottom: 320 },
-      maxZoom: 8.6,
-      duration: 0,
-    });
-  }, [mapReady, places]);
-
-  // Fly to selected place (when triggered from list click)
   useEffect(() => {
     if (!selectedPlace || !map.current) return;
-    const coords = typeof selectedPlace.lng === "number" && typeof selectedPlace.lat === "number"
-      ? [selectedPlace.lng, selectedPlace.lat] as [number, number]
-      : null;
-    if (!coords) return;
-    map.current.flyTo({
-      center: coords,
-      zoom: Math.max(map.current.getZoom(), 9),
-      offset: [0, -60],
-      duration: 800,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    hadSelectionRef.current = true;
   }, [selectedPlace]);
+
+  useEffect(() => {
+    if (!map.current) return;
+    if (selectedPlace) return;
+    if (!hadSelectionRef.current) return;
+    hadSelectionRef.current = false;
+    selectedPopupRef.current?.remove();
+    selectedPopupRef.current = null;
+    fitAllPlaces();
+  }, [selectedPlace, fitAllPlaces]);
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
@@ -283,3 +283,4 @@ export function ExploreMap({
     </div>
   );
 }
+
