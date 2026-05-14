@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, Send, Info, Bot, X } from "lucide-react";
+import { Mic, Send, Bot, X } from "lucide-react";
 import { useStreamingChat, type ChatContext, type UIActionsChunk } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 
@@ -16,13 +16,13 @@ function ToolButton({
 }) {
   return (
     <button
-      className={`group relative rounded-lg p-2.5 text-zinc-500 transition-all duration-300 hover:scale-105 hover:bg-zinc-800/80 ${className ?? ""}`}
+      className={`group relative rounded-lg p-2 text-slate-500 transition-all duration-200 hover:scale-105 hover:bg-teal-50 hover:text-[#0D9488] ${className ?? ""}`}
       type="button"
     >
       {children}
-      <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-zinc-700/50 bg-zinc-900/95 px-3 py-2 text-xs text-zinc-200 opacity-0 shadow-lg backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:opacity-100">
+      <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-teal-100 bg-white/95 px-3 py-2 text-xs text-[#0F766E] opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 group-hover:-translate-y-1 group-hover:opacity-100">
         {label}
-        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-900/95" />
+        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/95" />
       </div>
     </button>
   );
@@ -121,33 +121,30 @@ export function FloatingAiAssistant({
       {isChatOpen && (
         <div
           ref={chatRef}
-          className="absolute bottom-20 right-0 w-[calc(100vw-2rem)] max-w-[500px] origin-bottom-right"
-          style={{ animation: "popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" }}
+          className="absolute bottom-20 right-0 w-[calc(100vw-2rem)] max-w-[430px] origin-bottom-right sm:right-0"
+          style={{ animation: "popIn 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) forwards" }}
         >
-          <div className="relative flex h-[420px] max-h-[78vh] flex-col overflow-hidden rounded-3xl border border-zinc-500/50 bg-gradient-to-br from-zinc-800/80 to-zinc-900/90 shadow-2xl backdrop-blur-3xl">
-            <div className="shrink-0 flex items-center justify-between px-6 pb-2 pt-4">
+          <div className="relative flex h-[360px] max-h-[62vh] flex-col overflow-hidden rounded-[26px] border border-[#BFE8E3] bg-white/82 shadow-[0_22px_70px_rgba(15,23,42,0.22)] backdrop-blur-2xl">
+            <div className="shrink-0 flex items-center justify-between border-b border-[#E2E8F0]/70 px-4 pb-2.5 pt-3">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-                <span className="text-xs font-medium text-zinc-400">Itinera IA</span>
+                <span className="text-xs font-bold text-[#0F172A]">Itinera IA</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-2xl bg-zinc-800/60 px-2 py-1 text-xs font-medium text-zinc-300">
-                  Modelo cultural
-                </span>
-                <span className="rounded-2xl border border-teal-400/20 bg-teal-500/10 px-2 py-1 text-xs font-medium text-teal-300">
-                  En linea
+                <span className="rounded-2xl border border-[#99F6E4] bg-[#F0FDFA] px-2 py-1 text-xs font-bold text-[#0F766E]">
+                  En línea
                 </span>
                 <button
                   onClick={() => setIsChatOpen(false)}
-                  className="rounded-full p-1.5 transition-colors hover:bg-zinc-700/50"
+                  className="rounded-full p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                   type="button"
                 >
-                  <X className="h-4 w-4 text-zinc-400" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3">
               {hasConversation ? (
                 <>
                 {messages.map((chatMessage, index) => (
@@ -159,13 +156,13 @@ export function FloatingAiAssistant({
                       className={`max-w-[86%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
                         chatMessage.role === "user"
                           ? "bg-[#0D9488] text-white"
-                          : "border border-zinc-700/60 bg-zinc-950/45 text-zinc-100"
+                          : "border border-[#D9E5E2] bg-white text-[#0F172A]"
                       }`}
                     >
                       {chatMessage.content ? (
                         <p className="whitespace-pre-wrap">{chatMessage.content}</p>
                       ) : (
-                        <p className="text-zinc-400">Pensando...</p>
+                        <p className="text-slate-500">Pensando...</p>
                       )}
                       {chatMessage.toolResults?.length ? (
                         <div className="mt-3 space-y-2">
@@ -185,16 +182,16 @@ export function FloatingAiAssistant({
                 </>
               ) : (
                 <div className="flex h-full items-center justify-center px-4 text-center">
-                  <p className="max-w-[320px] font-inter text-sm leading-6 text-zinc-400">
-                    Pide rutas, contexto historico o recomendaciones culturales de Honduras.
+                  <p className="max-w-[280px] font-inter text-sm leading-6 text-slate-500">
+                    Pide rutas, contexto histórico o recomendaciones culturales de Honduras.
                   </p>
                 </div>
               )}
             </div>
 
-            <div className="shrink-0 border-t border-zinc-800/50 px-4 pb-4 pt-3">
-              <div className="flex min-h-12 items-end gap-2 rounded-2xl border border-zinc-700/40 bg-zinc-950/25 px-2.5 py-2">
-                <ToolButton label="Comando por voz" className="shrink-0 border border-zinc-700/30 p-2 hover:border-teal-400/30 hover:text-teal-300">
+            <div className="shrink-0 border-t border-[#E2E8F0]/80 px-3.5 pb-3 pt-2.5">
+              <div className="flex min-h-11 items-end gap-2 rounded-2xl border border-[#D9E5E2] bg-white/90 px-2.5 py-1.5 shadow-inner">
+                <ToolButton label="Comando por voz" className="shrink-0 border border-[#E2E8F0]">
                   <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
                 </ToolButton>
                 <textarea
@@ -202,18 +199,18 @@ export function FloatingAiAssistant({
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   rows={1}
-                  className="max-h-[76px] min-h-9 flex-1 resize-none border-none bg-transparent px-1 py-2 text-sm leading-5 text-zinc-100 outline-none placeholder:text-zinc-500 disabled:opacity-60"
+                  className="max-h-[58px] min-h-8 flex-1 resize-none border-none bg-transparent px-1 py-1.5 text-sm leading-5 text-[#0F172A] outline-none placeholder:text-slate-400 disabled:opacity-60"
                   placeholder="Pregunta a Itinera IA..."
                   maxLength={maxChars}
                   disabled={isLoading}
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 />
-                <span className="hidden shrink-0 pb-2 text-[11px] font-medium text-zinc-500 sm:inline">
+                <span className="hidden shrink-0 pb-1.5 text-[11px] font-medium text-slate-400 sm:inline">
                   {charCount}/{maxChars}
                 </span>
                 <button
                   onClick={() => void handleSend()}
-                  className="group relative shrink-0 rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-2.5 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
+                  className="group relative shrink-0 rounded-xl bg-gradient-to-r from-[#0D9488] to-[#00685f] p-2.5 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:from-[#0fb3a3] hover:to-[#0D9488] hover:shadow-xl hover:shadow-teal-500/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55"
                   type="button"
                   disabled={isLoading || !message.trim()}
                   onMouseEnter={(e) => {
@@ -230,29 +227,13 @@ export function FloatingAiAssistant({
                 </button>
               </div>
 
-              <div className="mt-2 flex items-center justify-between gap-6 text-xs text-zinc-500">
-                <div className="flex items-center gap-2">
-                  <Info className="h-3 w-3" />
-                  <span>
-                    Presiona{" "}
-                    <kbd className="rounded border border-zinc-600 bg-zinc-800 px-1.5 py-1 font-mono text-xs text-zinc-400 shadow-sm">
-                      Shift + Enter
-                    </kbd>{" "}
-                    para nueva linea
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                  <span>Sistema operativo</span>
-                </div>
-              </div>
+              <p className="mt-1.5 px-1 font-inter text-[11px] text-slate-400">Enter para enviar. Shift + Enter para nueva línea.</p>
             </div>
 
             <div
               className="pointer-events-none absolute inset-0 rounded-3xl"
               style={{
-                background:
-                  "linear-gradient(135deg, rgba(13,148,136,0.08), transparent, rgba(34,211,238,0.06))",
+                background: "linear-gradient(135deg, rgba(13,148,136,0.08), transparent, rgba(34,211,238,0.06))",
               }}
             />
           </div>

@@ -95,6 +95,27 @@ function looksLikePlaceSearch(text: string): boolean {
   ].some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")));
 }
 
+function isRecommendationRequest(text: string) {
+  const normalized = normalizeText(text);
+  return [
+    "otra opcion",
+    "otras opciones",
+    "otro lugar",
+    "otros lugares",
+    "que mas hay",
+    "que mas puedo ver",
+    "algo mas",
+    "algo diferente",
+    "alguna recomendacion",
+    "recomiendame algo",
+    "recomienda algo",
+    "dame opciones",
+    "mas opciones",
+    "no se",
+    "sorprendeme",
+  ].some((term) => normalized.includes(term));
+}
+
 // ─── System prompt ───────────────────────────────────────────────────────────
 function inferEntryFromText(text: string, entries: GazetteerEntry[]) {
   const normalized = normalizeText(text);
@@ -358,6 +379,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
 function deriveUIActions(intent: string, params: Record<string, string>, dbData: unknown, rawMessage = "") {
   const safeParams = params ?? {};
   const normalizedMessage = normalizeText(rawMessage);
+  const recommendationRequest = isRecommendationRequest(rawMessage);
   const data = dbData as {
     places?: { slug?: string }[];
     place?: { slug?: string };
@@ -381,6 +403,9 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   }
 
   if (intent === "search_places") {
+    if (recommendationRequest) {
+      return { intent, entities, actions };
+    }
     const ratingMatch = normalizedMessage.match(/(?:rating|estrellas?|valoracion)\s*(?:de\s*)?([4-5](?:\.\d)?)/);
     actions.push({
       type: "apply_filter",
@@ -425,14 +450,23 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   return { intent, entities, actions };
 }
 
-function buildExploreActionText(intent: string, dbData: unknown, actions: Array<Record<string, unknown>>) {
-  if (!actions.length) return "";
+function buildExploreActionText(intent: string, dbData: unknown, actions: Array<Record<string, unknown>>, rawMessage = "") {
   const data = dbData as {
     places?: Array<{ name?: string; region?: string }>;
     place?: { name?: string; region?: string };
     stops?: Array<{ name?: string }>;
   } | null;
   const actionTypes = new Set(actions.map((action) => action.type));
+  const recommendationRequest = isRecommendationRequest(rawMessage);
+
+  if (!actions.length && intent === "search_places" && recommendationRequest) {
+    const count = data?.places?.length ?? 0;
+    return count > 0
+      ? "Te sugiero estas opciones reales disponibles. Puedes abrir cualquiera para verla en el mapa."
+      : "No encontré opciones reales disponibles ahora mismo.";
+  }
+
+  if (!actions.length) return "";
 
   if (actionTypes.has("clear_route")) return "Listo, limpié la ruta del mapa.";
   if (actionTypes.has("clear_filters")) return "Listo, quité los filtros y dejé el mapa limpio.";
@@ -449,7 +483,7 @@ function buildExploreActionText(intent: string, dbData: unknown, actions: Array<
   }
   if (intent === "search_places") {
     const count = data?.places?.length ?? 0;
-    if (count === 0) return "No encontré destinos reales con esa búsqueda. Prueba con otra región o categoría.";
+    if (count === 0) return "No encontré eso como destino real. Te puedo sugerir otras opciones disponibles.";
     return `Encontré ${count} destino${count === 1 ? "" : "s"} y enfoqué el más relevante.`;
   }
 
@@ -484,16 +518,24 @@ export async function POST(req: Request) {
           .map((m) => m.content)
           .join(" ");
         const groundingText = `${recentUserContext} ${lastUserMsg}`;
+        const isExploreRecommendation = context.page === "explore" && isRecommendationRequest(lastUserMsg);
         const gazetteer = await buildGazetteer();
         const currentPlace = inferEntryFromText(lastUserMsg, gazetteer.places);
         const currentRegion = inferEntryFromText(lastUserMsg, gazetteer.regions);
-        const groundedPlace = currentPlace ?? (currentRegion ? null : inferEntryFromText(groundingText, gazetteer.places));
-        const groundedRegion = currentRegion ?? inferEntryFromText(groundingText, gazetteer.regions);
-        const groundedCategory = inferEntryFromText(lastUserMsg, gazetteer.categories) ?? inferEntryFromText(groundingText, gazetteer.categories);
-        const inferredRegion = groundedRegion?.slug ?? inferRegionFromText(groundingText);
+        const groundedPlace = isExploreRecommendation ? null : currentPlace ?? (currentRegion ? null : inferEntryFromText(groundingText, gazetteer.places));
+        const groundedRegion = isExploreRecommendation ? null : currentRegion ?? inferEntryFromText(groundingText, gazetteer.regions);
+        const groundedCategory = isExploreRecommendation ? null : inferEntryFromText(lastUserMsg, gazetteer.categories) ?? inferEntryFromText(groundingText, gazetteer.categories);
+        const inferredRegion = isExploreRecommendation ? null : groundedRegion?.slug ?? inferRegionFromText(groundingText);
         const asksForDirections = ["me indicas", "indicame", "como llegar", "como llego", "donde queda", "ubicacion"]
           .some((term) => normalizeText(lastUserMsg).includes(term));
-        const inferredPlaceSlug = groundedPlace?.slug ?? (asksForDirections ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
+        const inferredPlaceSlug = isExploreRecommendation ? null : groundedPlace?.slug ?? (asksForDirections ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
+        if (isExploreRecommendation) {
+          intent = "search_places";
+          delete normalizedParams.slug;
+          delete normalizedParams.region;
+          delete normalizedParams.category;
+          normalizedParams.query = "";
+        }
         if (intent === "general" && looksLikePlaceSearch(groundingText)) {
           intent = "search_places";
         }
@@ -518,7 +560,7 @@ export async function POST(req: Request) {
         const dbData = await fetchData(intent, normalizedParams, context);
 
         const uiActions = deriveUIActions(intent, normalizedParams, dbData, lastUserMsg);
-        const exploreActionText = context.page === "explore" ? buildExploreActionText(intent, dbData, uiActions.actions) : "";
+        const exploreActionText = context.page === "explore" ? buildExploreActionText(intent, dbData, uiActions.actions, lastUserMsg) : "";
 
         if (exploreActionText) {
           emit({ type: "text-delta", textDelta: exploreActionText });

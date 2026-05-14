@@ -113,6 +113,8 @@ type AiFilterChip = {
   label: string;
 };
 
+type SearchIntent = "idle" | "literal_search" | "recommendation_intent" | "invalid_search";
+
 const RECENT_SEARCHES_KEY = "itinera-explore-recent-searches";
 const SAVED_PLACES_KEY = "itinera-explore-saved-slugs";
 const ROUTE_KEY_PREFIX = "itinera-explore-active-route";
@@ -242,6 +244,53 @@ function isStrictlyRelevant(place: Place, query: string) {
   }
 
   return matched / tokens.length >= 0.6;
+}
+
+function isRecommendationIntent(value: string) {
+  const q = normalize(value);
+  if (!q) return false;
+  const phrases = [
+    "otra opcion",
+    "otras opciones",
+    "otro lugar",
+    "otros lugares",
+    "que mas hay",
+    "que mas puedo ver",
+    "algo mas",
+    "algo diferente",
+    "alguna recomendacion",
+    "recomiendame algo",
+    "recomienda algo",
+    "sorprendeme",
+    "no se",
+    "dame opciones",
+    "mas opciones",
+  ];
+  return phrases.some((phrase) => q.includes(phrase));
+}
+
+function getDiverseRecommendations(places: Place[], limit = 4) {
+  const seenCategories = new Set<string>();
+  const seenRegions = new Set<string>();
+  const ranked = [...places].sort((a, b) => Number(b.aggregated_rating ?? 0) - Number(a.aggregated_rating ?? 0));
+  const diverse: Place[] = [];
+
+  for (const place of ranked) {
+    const category = place.place_categories?.slug ?? "";
+    const region = place.regions?.slug ?? "";
+    if (diverse.length < limit && (!seenCategories.has(category) || !seenRegions.has(region))) {
+      diverse.push(place);
+      if (category) seenCategories.add(category);
+      if (region) seenRegions.add(region);
+    }
+  }
+
+  for (const place of ranked) {
+    if (diverse.length >= limit) break;
+    if (!diverse.some((item) => item.slug === place.slug)) diverse.push(place);
+  }
+
+  return diverse;
 }
 
 function toRad(value: number) {
@@ -460,9 +509,10 @@ export function ExploreFullscreenMap({
   const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
   const [aiChips, setAiChips] = useState<AiFilterChip[]>([]);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
+  const isRecommendationQuery = useMemo(() => isRecommendationIntent(query), [query]);
 
   const filteredPlaces = useMemo(() => {
-    const q = normalize(query);
+    const q = isRecommendationQuery ? "" : normalize(query);
     const terms = expandSynonyms(q);
     const base = places.filter((place) => {
       const name = normalize(getEs(place.name_i18n, place.slug));
@@ -491,7 +541,7 @@ export function ExploreFullscreenMap({
       const userCoords: [number, number] = [userLocation.lng, userLocation.lat];
       return distanceKm(userCoords, aCoords) - distanceKm(userCoords, bCoords);
     });
-  }, [places, query, activeCategory, activeRegion, minRating, savedOnly, savedSlugs, userLocation]);
+  }, [places, query, isRecommendationQuery, activeCategory, activeRegion, minRating, savedOnly, savedSlugs, userLocation]);
 
   const visibleSlugs = useMemo(() => new Set(filteredPlaces.map((item) => item.slug)), [filteredPlaces]);
   const selectedPlace = useMemo(
@@ -500,6 +550,7 @@ export function ExploreFullscreenMap({
   );
   const searchSuggestions = useMemo(() => {
     const q = normalize(query);
+    if (isRecommendationQuery) return [];
     if (q.length < 1) return [];
     const minimumScore = q.length >= 5 ? 32 : 20;
     return places
@@ -508,18 +559,20 @@ export function ExploreFullscreenMap({
       .sort((a, b) => b.score - a.score)
       .slice(0, 7)
       .map((item) => item.place);
-  }, [places, query]);
+  }, [places, query, isRecommendationQuery]);
 
   const categorySuggestions = useMemo(() => {
     const q = normalize(query);
+    if (isRecommendationQuery) return [];
     if (!q) return [];
     return categories
       .filter((cat) => normalize(getEs(cat.name_i18n, cat.slug)).includes(q))
       .slice(0, 4);
-  }, [categories, query]);
+  }, [categories, query, isRecommendationQuery]);
 
   const regionSuggestions = useMemo(() => {
     const q = normalize(query);
+    if (isRecommendationQuery) return [] as Array<{ slug: string; label: string }>;
     if (!q) return [] as Array<{ slug: string; label: string }>;
     const set = new Set<string>();
     const rows: Array<{ slug: string; label: string }> = [];
@@ -534,17 +587,24 @@ export function ExploreFullscreenMap({
       if (rows.length >= 4) break;
     }
     return rows;
-  }, [places, query]);
+  }, [places, query, isRecommendationQuery]);
   const recentSearchMatches = useMemo(() => {
     const q = normalize(query);
+    if (isRecommendationQuery) return [];
     if (!q) return [];
     return recentSearches.filter((item) => normalize(item).includes(q)).slice(0, 4);
-  }, [query, recentSearches]);
+  }, [isRecommendationQuery, query, recentSearches]);
   const hasSearchResults =
     recentSearchMatches.length > 0 ||
     searchSuggestions.length > 0 ||
     categorySuggestions.length > 0 ||
     regionSuggestions.length > 0;
+  const searchIntent = useMemo<SearchIntent>(() => {
+    if (!query.trim()) return "idle";
+    if (isRecommendationQuery) return "recommendation_intent";
+    return hasSearchResults ? "literal_search" : "invalid_search";
+  }, [hasSearchResults, isRecommendationQuery, query]);
+  const recommendedPlaces = useMemo(() => getDiverseRecommendations(places, 4), [places]);
 
   const uiMode = useMemo<"idle" | "searching" | "filters" | "placeSelected">(() => {
     if (selectedPlace) return "placeSelected";
@@ -553,7 +613,9 @@ export function ExploreFullscreenMap({
     return "idle";
   }, [selectedPlace, showFilters, query]);
 
-  const shouldShowSuggestionsPanel = uiMode === "searching" && hasSearchResults;
+  const shouldShowSuggestionsPanel = uiMode === "searching" && searchIntent === "literal_search";
+  const shouldShowRecommendationsPanel = uiMode === "searching" && searchIntent === "recommendation_intent";
+  const shouldShowEmptySearchPanel = uiMode === "searching" && searchIntent === "invalid_search";
   const hasActiveRoute = Boolean(activeRoute?.stops.length);
   const shouldCompactRoutePanel = hasActiveRoute && Boolean(selectedPlace) && !routePanelExpanded;
   const shouldShowFullRoutePanel = hasActiveRoute && (!selectedPlace || routePanelExpanded);
@@ -575,7 +637,7 @@ export function ExploreFullscreenMap({
   }, [places]);
   const activeChips = useMemo(() => {
     const chips: AiFilterChip[] = [...aiChips];
-    if (query.trim()) chips.push({ key: "query", label: `Búsqueda: ${query.trim()}` });
+    if (searchIntent === "literal_search" && query.trim()) chips.push({ key: "query", label: `Búsqueda: ${query.trim()}` });
     if (activeCategory) {
       const category = categories.find((item) => item.slug === activeCategory);
       chips.push({ key: "category", label: getEs(category?.name_i18n, activeCategory) });
@@ -595,7 +657,7 @@ export function ExploreFullscreenMap({
       seen.add(id);
       return true;
     });
-  }, [activeCategory, activeRegion, aiChips, categories, minRating, query, regionFilterOptions, savedOnly, userLocation]);
+  }, [activeCategory, activeRegion, aiChips, categories, minRating, query, regionFilterOptions, savedOnly, searchIntent, userLocation]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1020,7 +1082,12 @@ export function ExploreFullscreenMap({
             onValueChange={setQuery}
             onSubmit={(text) => {
               if (!text.trim()) return;
-              const first = searchSuggestions[0] ?? filteredPlaces[0];
+              const first =
+                searchIntent === "recommendation_intent"
+                  ? recommendedPlaces[0]
+                  : searchIntent === "literal_search"
+                    ? searchSuggestions[0] ?? filteredPlaces[0]
+                    : null;
               if (first) selectPlaceFromSearch(first);
             }}
             onTrailingClick={() => setShowFilters((prev) => !prev)}
@@ -1221,11 +1288,128 @@ export function ExploreFullscreenMap({
                 ) : null}
               </div>
             </div>
-          ) : query.trim().length > 0 ? (
-            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur-md">
-              <div className="flex items-center gap-3 font-inter text-sm text-[#64748B]">
-                <Search className="h-4 w-4" />
-                No encontramos destinos parecidos.
+          ) : null}
+
+          {shouldShowRecommendationsPanel ? (
+            <div className="mt-2 overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
+              <div className="p-3">
+                <div className="flex items-start justify-between gap-3 px-1 pb-2">
+                  <div>
+                    <p className="font-jakarta text-sm font-bold text-[#0F172A]">Opciones recomendadas</p>
+                    <p className="mt-0.5 font-inter text-xs text-[#64748B]">No lo tomé como búsqueda literal; aquí tienes alternativas reales.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="rounded-full border border-[#D9E5E2] px-3 py-1.5 font-inter text-xs font-bold text-[#0F766E] transition-colors hover:bg-[#F0FDFA]"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {recommendedPlaces.map((place) => {
+                    const category = place.place_categories;
+                    const color = getCategoryColor({
+                      slug: category?.slug ?? "",
+                      iconName: category?.icon_name ?? "",
+                      label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
+                    });
+                    return (
+                      <button
+                        key={place.id}
+                        type="button"
+                        onClick={() => selectPlaceFromSearch(place)}
+                        className="flex min-w-0 items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-[#F8FAFC]"
+                      >
+                        <span
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
+                          style={{ backgroundColor: color }}
+                        >
+                          <MapPin className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-jakarta text-sm font-bold text-[#0F172A]">
+                            {getEs(place.name_i18n, place.slug)}
+                          </span>
+                          <span className="block truncate font-inter text-xs text-[#64748B]">
+                            {getEs(category?.name_i18n, "Lugar")} - {getEs(place.regions?.name_i18n, "Honduras")}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 border-t border-[#E2E8F0] px-1 pt-3">
+                  {[
+                    { label: "Patrimonio", slug: "patrimonio-cultural" },
+                    { label: "Naturaleza", slug: "naturaleza" },
+                    { label: "Playas", slug: "playa" },
+                  ].map((item) => (
+                    <button
+                      key={item.slug}
+                      type="button"
+                      onClick={() => {
+                        setQuery("");
+                        setActiveCategory(item.slug);
+                      }}
+                      className="rounded-full border border-[#D9E5E2] bg-white px-3 py-1.5 font-inter text-xs font-bold text-[#0F766E] transition-colors hover:bg-[#F0FDFA]"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={applyNearby}
+                    className="rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-3 py-1.5 font-inter text-xs font-bold text-[#0F766E]"
+                  >
+                    Cerca de mí
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {shouldShowEmptySearchPanel ? (
+            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F0FDFA] text-[#0D9488]">
+                  <Search className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-jakarta text-sm font-bold text-[#0F172A]">No encontré ese destino</p>
+                  <p className="mt-1 font-inter text-sm text-[#64748B]">
+                    Puedo mostrarte opciones reales disponibles.
+                    {hasActiveRoute ? " Tu ruta sigue activa en el mapa." : ""}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setQuery("otra opción")}
+                      className="rounded-full bg-[#0D9488] px-3 py-1.5 font-inter text-xs font-bold text-white transition-colors hover:bg-[#0F766E]"
+                    >
+                      Ver recomendados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery("");
+                        setShowFilters(true);
+                      }}
+                      className="rounded-full border border-[#D9E5E2] px-3 py-1.5 font-inter text-xs font-bold text-[#0F766E] transition-colors hover:bg-[#F0FDFA]"
+                    >
+                      Explorar categorías
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuery("")}
+                      className="rounded-full border border-[#E2E8F0] px-3 py-1.5 font-inter text-xs font-bold text-[#475569] transition-colors hover:bg-[#F8FAFC]"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}
