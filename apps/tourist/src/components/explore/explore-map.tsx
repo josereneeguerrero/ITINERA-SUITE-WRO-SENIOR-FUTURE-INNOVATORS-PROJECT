@@ -268,14 +268,15 @@ export function ExploreMap({
     iconName: selectedCategory?.icon_name ?? "",
     label: selectedCategory?.name_i18n?.es ?? selectedCategory?.name_i18n?.en ?? "",
   });
-  const selectedDescription =
-    selectedPlace?.ai_summary_i18n?.es ??
-    selectedPlace?.description_i18n?.es ??
-    getPlaceShortDescription({
+  const selectedDescription = pickBestDescription({
+    aiSummary: selectedPlace?.ai_summary_i18n?.es,
+    description: selectedPlace?.description_i18n?.es,
+    fallback: getPlaceShortDescription({
       name: selectedPlace?.name_i18n?.es ?? selectedPlace?.slug ?? "Este destino",
       category: selectedCategory?.name_i18n?.es ?? "Lugar cultural",
       region: selectedPlace?.regions?.name_i18n?.es ?? "Honduras",
-    });
+    }),
+  });
   const selectedImage = getPlaceImage(selectedPlace?.slug ?? "");
   const categoryFallbackImage = getCategoryFallbackImage(
     selectedCategory?.name_i18n?.es ?? "Destino",
@@ -456,4 +457,35 @@ function getPlaceShortDescription({
   }
 
   return `${name} es un lugar recomendado en ${region} para descubrir contexto local y cultura hondurena.`;
+}
+
+function pickBestDescription({
+  aiSummary,
+  description,
+  fallback,
+}: {
+  aiSummary?: string;
+  description?: string;
+  fallback: string;
+}) {
+  const genericPhrases = [
+    "destino recomendado para explorar",
+    "lugar recomendado para explorar",
+    "destino cultural de honduras",
+  ];
+
+  const normalize = (text?: string) => (text ?? "").trim();
+  const isGeneric = (text?: string) => {
+    const value = normalize(text).toLowerCase();
+    if (!value) return true;
+    return genericPhrases.some((phrase) => value.includes(phrase));
+  };
+
+  const ai = normalize(aiSummary);
+  if (ai && !isGeneric(ai)) return ai;
+
+  const raw = normalize(description);
+  if (raw && !isGeneric(raw)) return raw;
+
+  return fallback;
 }
