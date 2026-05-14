@@ -49,6 +49,7 @@ export function ExploreMap({
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
   const selectedPopupRef = useRef<maplibregl.Popup | null>(null);
   const hadSelectionRef = useRef(false);
+  const suppressMapClickUntilRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
 
   const buildTooltipHTML = useCallback((place: Place) => {
@@ -138,6 +139,9 @@ export function ExploreMap({
     map.current.on("load", () => setMapReady(true));
 
     map.current.on("click", () => {
+      if (Date.now() < suppressMapClickUntilRef.current) return;
+      tooltipRef.current?.remove();
+      tooltipRef.current = null;
       selectedPopupRef.current?.remove();
       selectedPopupRef.current = null;
       onSelectPlace(null);
@@ -216,6 +220,7 @@ export function ExploreMap({
 
       wrapper.addEventListener("click", (event) => {
         event.stopPropagation();
+        suppressMapClickUntilRef.current = Date.now() + 350;
         tooltipRef.current?.remove();
         tooltipRef.current = null;
         selectedPopupRef.current?.remove();
@@ -283,4 +288,3 @@ export function ExploreMap({
     </div>
   );
 }
-
