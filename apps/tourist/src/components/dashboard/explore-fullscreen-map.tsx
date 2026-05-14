@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { MapPin, Search, Star } from "lucide-react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
+import { getCategoryColor } from "@/lib/category-theme";
 
 type Place = {
   id: string;
@@ -43,6 +45,26 @@ function normalize(value: string) {
     .trim();
 }
 
+function scorePlace(place: Place, query: string) {
+  const q = normalize(query);
+  if (!q) return 0;
+
+  const name = normalize(getEs(place.name_i18n, place.slug));
+  const category = normalize(getEs(place.place_categories?.name_i18n, ""));
+  const region = normalize(getEs(place.regions?.name_i18n, ""));
+  const slug = normalize(place.slug);
+
+  let score = 0;
+  if (name === q) score += 100;
+  if (name.startsWith(q)) score += 60;
+  if (name.includes(q)) score += 40;
+  if (slug.includes(q)) score += 30;
+  if (category.includes(q)) score += 20;
+  if (region.includes(q)) score += 15;
+  score += Number(place.aggregated_rating ?? 0);
+  return score;
+}
+
 export function ExploreFullscreenMap({
   places,
   categories,
@@ -74,6 +96,17 @@ export function ExploreFullscreenMap({
     () => places.find((item) => item.slug === selectedPlaceSlug) ?? null,
     [places, selectedPlaceSlug]
   );
+  const searchSuggestions = useMemo(() => {
+    const q = normalize(query);
+    if (q.length < 1) return [];
+    return places
+      .map((place) => ({ place, score: scorePlace(place, query) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 7)
+      .map((item) => item.place);
+  }, [places, query]);
+  const showSearchPanel = query.trim().length > 0 && searchSuggestions.length > 0;
 
   function clearFilters() {
     setQuery("");
@@ -92,6 +125,12 @@ export function ExploreFullscreenMap({
       },
       () => undefined
     );
+  }
+
+  function selectPlaceFromSearch(place: Place) {
+    setSelectedPlaceSlug(place.slug);
+    setMapCenter(typeof place.lng === "number" && typeof place.lat === "number" ? [place.lng, place.lat] : null);
+    setMapZoom(12);
   }
 
   return (
@@ -114,13 +153,66 @@ export function ExploreFullscreenMap({
             onValueChange={setQuery}
             onSubmit={(text) => {
               if (!text.trim()) return;
-              const first = filteredPlaces[0];
-              if (first) setSelectedPlaceSlug(first.slug);
+              const first = searchSuggestions[0] ?? filteredPlaces[0];
+              if (first) selectPlaceFromSearch(first);
             }}
             onTrailingClick={() => setShowFilters((prev) => !prev)}
             suggestions={["Buscar destinos...", "Buscar por categoria...", "Buscar por region..."]}
             effect="fade"
           />
+
+          {showSearchPanel ? (
+            <div className="mt-2 overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
+              <div className="border-b border-[#E2E8F0] px-4 py-2 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                Sugerencias
+              </div>
+              <div className="max-h-[360px] overflow-y-auto p-2">
+                {searchSuggestions.map((place) => {
+                  const category = place.place_categories;
+                  const color = getCategoryColor({
+                    slug: category?.slug ?? "",
+                    iconName: category?.icon_name ?? "",
+                    label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
+                  });
+
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      onClick={() => selectPlaceFromSearch(place)}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[#F8FAFC]"
+                    >
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
+                        style={{ backgroundColor: color }}
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-jakarta text-sm font-bold text-[#0F172A]">
+                          {getEs(place.name_i18n, place.slug)}
+                        </span>
+                        <span className="mt-0.5 block truncate font-inter text-xs text-[#64748B]">
+                          {getEs(category?.name_i18n, "Lugar")} · {getEs(place.regions?.name_i18n, "Honduras")}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1 font-inter text-xs font-semibold text-[#64748B]">
+                        <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
+                        {Number(place.aggregated_rating).toFixed(1)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : query.trim().length > 0 ? (
+            <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur-md">
+              <div className="flex items-center gap-3 font-inter text-sm text-[#64748B]">
+                <Search className="h-4 w-4" />
+                No encontramos destinos parecidos.
+              </div>
+            </div>
+          ) : null}
 
           {showFilters ? (
             <div className="mt-2 rounded-2xl border border-[#D9E5E2] bg-white/95 p-2 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-sm">
