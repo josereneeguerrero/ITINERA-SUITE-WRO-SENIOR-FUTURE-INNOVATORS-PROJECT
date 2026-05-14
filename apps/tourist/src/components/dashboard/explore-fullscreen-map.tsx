@@ -133,18 +133,67 @@ function scorePlace(place: Place, query: string) {
   const slug = normalize(place.slug);
 
   let score = 0;
+  let hasTextMatch = false;
   for (const term of terms) {
-    if (name === term) score += 100;
-    if (name.startsWith(term)) score += 60;
-    if (name.includes(term)) score += 40;
-    if (slug.includes(term)) score += 30;
-    if (category.includes(term)) score += 20;
-    if (region.includes(term)) score += 15;
+    if (name === term) {
+      score += 100;
+      hasTextMatch = true;
+    }
+    if (name.startsWith(term)) {
+      score += 60;
+      hasTextMatch = true;
+    }
+    if (name.includes(term)) {
+      score += 40;
+      hasTextMatch = true;
+    }
+    if (slug.includes(term)) {
+      score += 30;
+      hasTextMatch = true;
+    }
+    if (category.includes(term)) {
+      score += 20;
+      hasTextMatch = true;
+    }
+    if (region.includes(term)) {
+      score += 15;
+      hasTextMatch = true;
+    }
     const d = levenshtein(name.slice(0, term.length + 2), term);
-    if (d <= 2) score += 12 - d * 3;
+    if (d <= 2) {
+      score += 12 - d * 3;
+      hasTextMatch = true;
+    }
   }
+  if (!hasTextMatch) return 0;
   score += Number(place.aggregated_rating ?? 0);
   return score;
+}
+
+function isStrictlyRelevant(place: Place, query: string) {
+  const q = normalize(query);
+  if (!q) return true;
+
+  const stopWords = new Set(["de", "del", "la", "el", "los", "las", "y", "en"]);
+  const tokens = q.split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
+  if (!tokens.length) return true;
+
+  const name = normalize(getEs(place.name_i18n, place.slug));
+  const category = normalize(getEs(place.place_categories?.name_i18n, ""));
+  const region = normalize(getEs(place.regions?.name_i18n, ""));
+  const haystack = `${name} ${category} ${region}`;
+
+  let matched = 0;
+  for (const token of tokens) {
+    if (haystack.includes(token)) {
+      matched += 1;
+      continue;
+    }
+    const fuzzy = levenshtein(name.slice(0, token.length + 2), token) <= 1;
+    if (fuzzy) matched += 1;
+  }
+
+  return matched / tokens.length >= 0.6;
 }
 
 function toRad(value: number) {
@@ -227,8 +276,9 @@ export function ExploreFullscreenMap({
           const fuzzy = levenshtein(name.slice(0, term.length + 2), term) <= 2;
           return name.includes(term) || category.includes(term) || region.includes(term) || fuzzy;
         });
+      const strictMatch = !q || isStrictlyRelevant(place, query);
       const matchesCategory = !activeCategory || place.place_categories?.slug === activeCategory;
-      return matchesQuery && matchesCategory;
+      return matchesQuery && strictMatch && matchesCategory;
     });
     if (!userLocation) return base;
     return [...base].sort((a, b) => {
@@ -251,7 +301,7 @@ export function ExploreFullscreenMap({
     if (q.length < 1) return [];
     return places
       .map((place) => ({ place, score: scorePlace(place, query) }))
-      .filter((item) => item.score > 0)
+      .filter((item) => item.score >= 20 && isStrictlyRelevant(item.place, query))
       .sort((a, b) => b.score - a.score)
       .slice(0, 7)
       .map((item) => item.place);
