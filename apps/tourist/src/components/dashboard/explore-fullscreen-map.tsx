@@ -452,6 +452,84 @@ function normalizeCategorySlug(value: string) {
   return "";
 }
 
+function getCategoryLabel(categories: Category[], slug: string) {
+  const category = categories.find((item) => item.slug === slug);
+  return getEs(category?.name_i18n, slug);
+}
+
+function cleanNaturalSearchQuery(value: string, categorySlug = "") {
+  const normalized = normalize(value);
+  if (!normalized) return "";
+
+  const inferredCategory = categorySlug || normalizeCategorySlug(value);
+  if (inferredCategory) {
+    const categoryWords = new Set([
+      ...normalize(inferredCategory).split(" "),
+      ...normalize(inferredCategory.replace(/-/g, " ")).split(" "),
+      "playa",
+      "playas",
+      "beach",
+      "naturaleza",
+      "nature",
+      "patrimonio",
+      "cultural",
+      "gastronomia",
+      "comida",
+      "aventura",
+      "religioso",
+      "religion",
+      "arte",
+      "museo",
+      "museos",
+    ]);
+    const fillerWords = new Set([
+      "tienes",
+      "tiene",
+      "hay",
+      "alguna",
+      "algun",
+      "otra",
+      "otro",
+      "opcion",
+      "opciones",
+      "bonita",
+      "bonito",
+      "linda",
+      "lindo",
+      "hermosa",
+      "hermoso",
+      "buena",
+      "buen",
+      "recomienda",
+      "recomendame",
+      "busco",
+      "quiero",
+      "para",
+      "visitar",
+      "conocer",
+      "destino",
+      "destinos",
+      "lugar",
+      "lugares",
+      "una",
+      "un",
+      "de",
+      "del",
+      "la",
+      "el",
+      "en",
+      "por",
+      "favor",
+    ]);
+    const meaningful = normalized
+      .split(" ")
+      .filter((token) => token.length > 2 && !categoryWords.has(token) && !fillerWords.has(token));
+    if (meaningful.length === 0) return "";
+  }
+
+  return value.trim();
+}
+
 function upsertChip(chips: AiFilterChip[], chip: AiFilterChip) {
   const next = chips.filter((item) => item.key !== chip.key);
   next.push(chip);
@@ -510,10 +588,13 @@ export function ExploreFullscreenMap({
   const [aiChips, setAiChips] = useState<AiFilterChip[]>([]);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
   const isRecommendationQuery = useMemo(() => isRecommendationIntent(query), [query]);
+  const queryCategorySlug = useMemo(() => normalizeCategorySlug(query), [query]);
+  const semanticQuery = useMemo(() => cleanNaturalSearchQuery(query, queryCategorySlug), [query, queryCategorySlug]);
 
   const filteredPlaces = useMemo(() => {
-    const q = isRecommendationQuery ? "" : normalize(query);
+    const q = isRecommendationQuery ? "" : normalize(semanticQuery);
     const terms = expandSynonyms(q);
+    const effectiveCategory = activeCategory || queryCategorySlug;
     const base = places.filter((place) => {
       const name = normalize(getEs(place.name_i18n, place.slug));
       const category = normalize(getEs(place.place_categories?.name_i18n, ""));
@@ -524,8 +605,8 @@ export function ExploreFullscreenMap({
           const fuzzy = levenshtein(name.slice(0, term.length + 2), term) <= 2;
           return name.includes(term) || category.includes(term) || region.includes(term) || fuzzy;
         });
-      const strictMatch = !q || isStrictlyRelevant(place, query);
-      const matchesCategory = !activeCategory || place.place_categories?.slug === activeCategory;
+      const strictMatch = !q || isStrictlyRelevant(place, semanticQuery);
+      const matchesCategory = !effectiveCategory || place.place_categories?.slug === effectiveCategory;
       const matchesRegion = !activeRegion || place.regions?.slug === activeRegion;
       const matchesRating = !minRating || Number(place.aggregated_rating ?? 0) >= minRating;
       const matchesSaved = !savedOnly || savedSlugs.includes(place.slug);
@@ -541,7 +622,7 @@ export function ExploreFullscreenMap({
       const userCoords: [number, number] = [userLocation.lng, userLocation.lat];
       return distanceKm(userCoords, aCoords) - distanceKm(userCoords, bCoords);
     });
-  }, [places, query, isRecommendationQuery, activeCategory, activeRegion, minRating, savedOnly, savedSlugs, userLocation]);
+  }, [places, semanticQuery, isRecommendationQuery, activeCategory, queryCategorySlug, activeRegion, minRating, savedOnly, savedSlugs, userLocation]);
 
   const visibleSlugs = useMemo(() => new Set(filteredPlaces.map((item) => item.slug)), [filteredPlaces]);
   const selectedPlace = useMemo(
@@ -549,17 +630,18 @@ export function ExploreFullscreenMap({
     [places, selectedPlaceSlug]
   );
   const searchSuggestions = useMemo(() => {
-    const q = normalize(query);
+    const q = normalize(semanticQuery);
     if (isRecommendationQuery) return [];
+    if (queryCategorySlug && !q) return filteredPlaces.slice(0, 7);
     if (q.length < 1) return [];
     const minimumScore = q.length >= 5 ? 32 : 20;
     return places
-      .map((place) => ({ place, score: scorePlace(place, query) }))
-      .filter((item) => item.score >= minimumScore && isStrictlyRelevant(item.place, query))
+      .map((place) => ({ place, score: scorePlace(place, semanticQuery) }))
+      .filter((item) => item.score >= minimumScore && isStrictlyRelevant(item.place, semanticQuery))
       .sort((a, b) => b.score - a.score)
       .slice(0, 7)
       .map((item) => item.place);
-  }, [places, query, isRecommendationQuery]);
+  }, [places, semanticQuery, isRecommendationQuery, queryCategorySlug, filteredPlaces]);
 
   const categorySuggestions = useMemo(() => {
     const q = normalize(query);
@@ -637,10 +719,10 @@ export function ExploreFullscreenMap({
   }, [places]);
   const activeChips = useMemo(() => {
     const chips: AiFilterChip[] = [...aiChips];
-    if (searchIntent === "literal_search" && query.trim()) chips.push({ key: "query", label: `Búsqueda: ${query.trim()}` });
-    if (activeCategory) {
-      const category = categories.find((item) => item.slug === activeCategory);
-      chips.push({ key: "category", label: getEs(category?.name_i18n, activeCategory) });
+    if (searchIntent === "literal_search" && semanticQuery.trim()) chips.push({ key: "query", label: `Búsqueda: ${semanticQuery.trim()}` });
+    const effectiveCategory = activeCategory || queryCategorySlug;
+    if (effectiveCategory) {
+      chips.push({ key: "category", label: getCategoryLabel(categories, effectiveCategory) });
     }
     if (activeRegion) {
       const region = regionFilterOptions.find((item) => item.slug === activeRegion);
@@ -657,7 +739,7 @@ export function ExploreFullscreenMap({
       seen.add(id);
       return true;
     });
-  }, [activeCategory, activeRegion, aiChips, categories, minRating, query, regionFilterOptions, savedOnly, searchIntent, userLocation]);
+  }, [activeCategory, activeRegion, aiChips, categories, minRating, queryCategorySlug, regionFilterOptions, savedOnly, searchIntent, semanticQuery, userLocation]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -789,10 +871,13 @@ export function ExploreFullscreenMap({
 
       detail.actions.forEach((action) => {
         if (action.type === "apply_filter") {
-          if (typeof action.query === "string") setQuery(action.query);
+          const actionCategorySlug =
+            typeof action.category === "string" ? normalizeCategorySlug(action.category) : "";
+          const actionQuery =
+            typeof action.query === "string" ? cleanNaturalSearchQuery(action.query, actionCategorySlug) : "";
+          if (typeof action.query === "string") setQuery(actionQuery);
           if (typeof action.category === "string") {
-            const slug = normalizeCategorySlug(action.category);
-            if (slug) setActiveCategory(slug);
+            if (actionCategorySlug) setActiveCategory(actionCategorySlug);
           }
           if (typeof action.region === "string") {
             const region = regionFilterOptions.find(
@@ -804,11 +889,11 @@ export function ExploreFullscreenMap({
           if (typeof action.savedOnly === "boolean") setSavedOnly(action.savedOnly);
           setAiChips((prev) => {
             let next = [...prev];
-            if (typeof action.query === "string" && action.query.trim()) {
-              next = upsertChip(next, { key: "query", label: `Búsqueda: ${action.query}` });
+            if (actionQuery) {
+              next = upsertChip(next, { key: "query", label: `Búsqueda: ${actionQuery}` });
             }
-            if (typeof action.category === "string" && action.category.trim()) {
-              next = upsertChip(next, { key: "category", label: `Categoría: ${action.category}` });
+            if (actionCategorySlug) {
+              next = upsertChip(next, { key: "category", label: getCategoryLabel(categories, actionCategorySlug) });
             }
             if (typeof action.region === "string" && action.region.trim()) {
               const region = regionFilterOptions.find((item) => item.slug === action.region);
@@ -879,7 +964,7 @@ export function ExploreFullscreenMap({
 
     window.addEventListener("itinera:ui-actions", onActions as EventListener);
     return () => window.removeEventListener("itinera:ui-actions", onActions as EventListener);
-  }, [places, regionFilterOptions]);
+  }, [categories, places, regionFilterOptions]);
 
   function persistRecent(next: string[]) {
     setRecentSearches(next);
@@ -937,7 +1022,10 @@ export function ExploreFullscreenMap({
   function removeAiChip(key: AiFilterChip["key"]) {
     setAiChips((prev) => prev.filter((chip) => chip.key !== key));
     if (key === "query") setQuery("");
-    if (key === "category") setActiveCategory("");
+    if (key === "category") {
+      setActiveCategory("");
+      if (queryCategorySlug) setQuery("");
+    }
     if (key === "region") setActiveRegion("");
     if (key === "rating") setMinRating(0);
     if (key === "saved") setSavedOnly(false);
