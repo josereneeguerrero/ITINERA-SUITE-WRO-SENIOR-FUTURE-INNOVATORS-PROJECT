@@ -187,17 +187,20 @@ export async function POST(req: Request) {
 
         if (isRegionOnly) {
           // Region-only: describe briefly, invite to explore by category
-          system = `Eres Itinera IA, guía turística de Honduras. El usuario mencionó una región o ciudad.
+          // IMPORTANT: do NOT pass history — prevents LLM from repeating specific places from prior turns
+          system = `Eres Itinera IA, guía turística de Honduras.
 
-Devuelve ÚNICAMENTE JSON válido (sin markdown, sin texto extra):
-{"text":"<respuesta>","action":{"type":"filter_region","slug":"${regionSlug}"}}
+El usuario quiere explorar: ${regionSlug}.
 
-INSTRUCCIONES:
-- La acción SIEMPRE es filter_region con el slug indicado.
-- En "text": describe la región en 1-2 frases con su esencia (historia, naturaleza, gastronomía, etc.).
-- Luego invita al usuario a explorar mencionando 2-3 tipos de experiencias disponibles (sin listar lugares específicos): por ejemplo "¿Te interesa la arquitectura colonial, la gastronomía local o la naturaleza?"
-- Máximo 3 frases en total. Cálido y directo.
-- Responde en el mismo idioma que el usuario.`;
+Devuelve EXACTAMENTE este JSON (sin markdown, sin texto extra), solo cambia el valor de "text":
+{"text":"<tu respuesta>","action":{"type":"filter_region","slug":"${regionSlug}"}}
+
+REGLAS ESTRICTAS para "text":
+- PROHIBIDO mencionar nombres de lugares, monumentos, restaurantes o sitios específicos.
+- Describe la región/ciudad en 1 frase (historia, naturaleza, cultura — lo que la hace especial).
+- En la siguiente frase pregunta qué tipo de experiencia busca: arquitectura/historia, gastronomía, naturaleza, religioso, arte, aventura.
+- Máximo 2 frases. Cálido y directo.
+- Responde en el idioma del usuario.`;
         } else {
           // Region + category (or category alone): fetch and show real places
           const placesText = places.length > 0
@@ -232,11 +235,16 @@ REGLAS:
 6. Máximo 3 frases. Responde en el idioma del usuario.`;
         }
 
+        // For region-only: skip history so LLM can't repeat specific places from prior turns
+        const llmMessages = isRegionOnly
+          ? [{ role: "user" as const, content: lastMsg }]
+          : messages as { role: "user" | "assistant"; content: string }[];
+
         const result = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
           system,
-          messages: messages as { role: "user" | "assistant"; content: string }[],
+          messages: llmMessages,
           temperature: 0.25,
         });
 
