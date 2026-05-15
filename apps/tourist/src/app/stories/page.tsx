@@ -1,9 +1,16 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
+
+export const revalidate = 0;
 import { Navbar } from "@/components/layout/navbar";
+
 import { AIFloatingButton } from "@/components/ai/ai-floating-button";
+
 import { Footer } from "@/components/layout/footer";
+
 import { StoriesHero } from "@/components/stories/stories-hero";
+
 import { StoriesGrid } from "@/components/stories/stories-grid";
+
 
 export default async function StoriesPage({
   searchParams,
@@ -19,14 +26,14 @@ export default async function StoriesPage({
     .select("id, slug, name_i18n")
     .order("sort_order");
 
-  // Resolve region slug → id for filtering
+  // Resolve region slug â†’ id for filtering
   let regionId: string | null = null;
   if (region) {
     const found = regions?.find((r) => r.slug === region);
     regionId = found?.id ?? null;
   }
 
-  // Fetch stories — filter by region_id if provided
+  // Fetch stories â€” filter by region_id if provided
   let query = supabase
     .from("stories")
     .select(`
@@ -62,3 +69,4 @@ export default async function StoriesPage({
     </div>
   );
 }
+

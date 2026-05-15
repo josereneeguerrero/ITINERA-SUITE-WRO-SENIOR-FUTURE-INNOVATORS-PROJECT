@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { ExploreFullscreenMap } from "@/components/dashboard/explore-fullscreen-map";
 
+export const revalidate = 0; // always fetch fresh data from DB
+
 type Category = {
   id: string;
   slug: string;

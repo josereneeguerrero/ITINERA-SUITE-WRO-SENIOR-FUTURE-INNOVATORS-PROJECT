@@ -1,7 +1,12 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
+
+export const revalidate = 0;
 import { redirect } from "next/navigation";
+
 import Link from "next/link";
+
 import {
+
   Landmark,
   Trees,
   Utensils,
@@ -12,20 +17,26 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
+
 import {
+
   ImageAutoSlider,
   type ImageAutoSliderItem,
 } from "@/components/ui/image-auto-slider";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+
 import {
+
   DashboardHomeMap,
   type DashboardHomeMapPlace,
 } from "@/components/dashboard/dashboard-home-map";
 import {
+
   DashboardHomeStories,
   type DashboardHomeStory,
 } from "@/components/dashboard/dashboard-home-stories";
 import { getCategoryColor, getCategoryKey } from "@/lib/category-theme";
+
 
 type Category = {
   id: string;
@@ -316,7 +327,7 @@ export default async function DashboardPage({
 
       <section className="mx-auto mt-10 w-full max-w-6xl px-6 md:mt-12 md:px-10">
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
-          Explorar por categoría
+          Explorar por categorÃ­a
         </h2>
         <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
           {categories.map((category) => {
@@ -368,7 +379,7 @@ export default async function DashboardPage({
             href={isGuest ? "/explore?guest=true" : "/explore"}
             className="font-inter text-sm font-bold text-[#00685f] transition-opacity hover:opacity-80"
           >
-            Ver todos →
+            Ver todos â†’
           </Link>
         </div>
 
@@ -376,7 +387,7 @@ export default async function DashboardPage({
           <ImageAutoSlider items={sliderItems} durationSeconds={28} />
         ) : (
           <div className="rounded-xl border border-[#dee4e1] bg-white px-5 py-8 font-inter text-sm text-[#3d4947]">
-            Aún no hay destinos destacados publicados.
+            AÃºn no hay destinos destacados publicados.
           </div>
         )}
       </section>
@@ -385,3 +396,4 @@ export default async function DashboardPage({
     </main>
   );
 }
+

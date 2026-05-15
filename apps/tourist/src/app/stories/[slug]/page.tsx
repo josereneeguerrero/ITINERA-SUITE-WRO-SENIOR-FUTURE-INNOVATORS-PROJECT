@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+
+export const revalidate = 0;
 import { Navbar } from "@/components/layout/navbar";
 import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 import { Footer } from "@/components/layout/footer";
