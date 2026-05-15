@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Locate, MapPin, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
-import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { getCategoryColor } from "@/lib/category-theme";
 import { createClient } from "@/lib/supabase/client";
 
@@ -75,43 +74,6 @@ type RouteFeedback = {
   kind: "added" | "exists";
   placeSlug: string;
   message: string;
-};
-
-type UIAction = {
-  type:
-    | "apply_filter"
-    | "select_place"
-    | "set_route"
-    | "add_route_stop"
-    | "remove_route_stop"
-    | "reorder_route"
-    | "get_nearby"
-    | "clear_filters"
-    | "clear_route"
-    | "center_map";
-  slug?: string;
-  query?: string;
-  category?: string;
-  region?: string;
-  minRating?: number;
-  savedOnly?: boolean;
-  fromIndex?: number;
-  toIndex?: number;
-  title?: string;
-  center?: [number, number];
-  zoom?: number;
-  stops?: RouteStop[];
-};
-
-type UIActionsChunk = {
-  intent: string;
-  actions: UIAction[];
-  entities?: Record<string, unknown>;
-};
-
-type AiFilterChip = {
-  key: "query" | "category" | "region" | "rating" | "saved" | "nearby";
-  label: string;
 };
 
 type SearchIntent = "idle" | "literal_search" | "recommendation_intent" | "invalid_search";
@@ -573,23 +535,6 @@ function cleanNaturalSearchQuery(value: string, categorySlug = "") {
   return value.trim();
 }
 
-function upsertChip(chips: AiFilterChip[], chip: AiFilterChip) {
-  const next = chips.filter((item) => item.key !== chip.key);
-  next.push(chip);
-  return next;
-}
-
-function getAiHintFromActions(detail: UIActionsChunk) {
-  const types = new Set(detail.actions.map((action) => action.type));
-  if (types.has("set_route")) return "IA creó una ruta con destinos reales.";
-  if (types.has("add_route_stop")) return "IA agregó una parada a tu ruta.";
-  if (types.has("remove_route_stop")) return "IA quitó una parada de tu ruta.";
-  if (types.has("select_place")) return "IA abrió el destino en el mapa.";
-  if (types.has("get_nearby")) return "IA activó Cerca de mí.";
-  if (types.has("apply_filter")) return "IA aplicó filtros al mapa.";
-  if (types.has("clear_route") || types.has("clear_filters")) return "IA limpió la vista.";
-  return `IA aplicó ${detail.intent.replaceAll("_", " ")}.`;
-}
 
 const Z = {
   mapCard: "z-30",
@@ -625,10 +570,7 @@ export function ExploreFullscreenMap({
   const [routeSegments, setRouteSegments] = useState<RouteSegment[] | null>(null);
   const [routeMeta, setRouteMeta] = useState<RouteMeta | null>(null);
   const [routePanelExpanded, setRoutePanelExpanded] = useState(false);
-  const [aiHint, setAiHint] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
-  const [aiRecommendationReason, setAiRecommendationReason] = useState<string | null>(null);
-  const [aiChips, setAiChips] = useState<AiFilterChip[]>([]);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
   const isRecommendationQuery = useMemo(() => isRecommendationIntent(query), [query]);
   const queryCategorySlug = useMemo(() => normalizeCategorySlug(query), [query]);
@@ -768,7 +710,7 @@ export function ExploreFullscreenMap({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [places]);
   const activeChips = useMemo(() => {
-    const chips: AiFilterChip[] = [...aiChips];
+    const chips: { key: string; label: string }[] = [];
     if (searchIntent === "literal_search" && semanticQuery.trim()) chips.push({ key: "query", label: `Búsqueda: ${semanticQuery.trim()}` });
     const effectiveCategory = activeCategory || queryCategorySlug;
     if (effectiveCategory) {
@@ -781,44 +723,8 @@ export function ExploreFullscreenMap({
     if (minRating) chips.push({ key: "rating", label: `${minRating}+ estrellas` });
     if (savedOnly) chips.push({ key: "saved", label: "Guardados" });
     if (userLocation) chips.push({ key: "nearby", label: "Cerca de mí" });
-
-    const seen = new Set<string>();
-    return chips.filter((chip) => {
-      const id = `${chip.key}:${chip.label}`;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-  }, [activeCategory, activeRegion, aiChips, categories, minRating, queryCategorySlug, regionFilterOptions, savedOnly, searchIntent, semanticQuery, userLocation]);
-  const aiContext = useMemo(
-    () => ({
-      page: "explore",
-      placeSlug: selectedPlace?.slug,
-      placeName: selectedPlace ? getEs(selectedPlace.name_i18n, selectedPlace.slug) : undefined,
-      activeRouteSlugs: activeRoute?.stops.map((stop) => stop.slug) ?? [],
-      filters: {
-        query: semanticQuery,
-        category: activeCategory || queryCategorySlug || undefined,
-        region: activeRegion || undefined,
-        minRating: minRating || undefined,
-        savedOnly: savedOnly || undefined,
-        nearby: Boolean(userLocation) || undefined,
-      },
-      visibleSlugs: Array.from(visibleSlugs).slice(0, 30),
-    }),
-    [
-      activeCategory,
-      activeRegion,
-      activeRoute,
-      minRating,
-      queryCategorySlug,
-      savedOnly,
-      selectedPlace,
-      semanticQuery,
-      userLocation,
-      visibleSlugs,
-    ]
-  );
+    return chips;
+  }, [activeCategory, activeRegion, categories, minRating, queryCategorySlug, regionFilterOptions, savedOnly, searchIntent, semanticQuery, userLocation]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -941,118 +847,6 @@ export function ExploreFullscreenMap({
     };
   }, [activeRoute, places]);
 
-  useEffect(() => {
-    const onActions = (event: Event) => {
-      const detail = (event as CustomEvent<UIActionsChunk>).detail;
-      if (!detail?.actions?.length) return;
-      setAiHint(getAiHintFromActions(detail));
-      window.setTimeout(() => setAiHint(null), 2600);
-
-      detail.actions.forEach((action) => {
-        if (action.type === "apply_filter") {
-          const actionCategorySlug =
-            typeof action.category === "string" ? normalizeCategorySlug(action.category) : "";
-          const actionQuery =
-            typeof action.query === "string" ? cleanNaturalSearchQuery(action.query, actionCategorySlug) : "";
-
-          // Always apply query — including clearing it when empty
-          if (typeof action.query === "string") setQuery(actionQuery);
-
-          // Always apply category — including clearing it when empty (region switch)
-          if (typeof action.category === "string") {
-            setActiveCategory(actionCategorySlug);
-          }
-
-          // Always apply region — replaces previous region
-          if (typeof action.region === "string") {
-            const matched = regionFilterOptions.find(
-              (item) => item.slug === action.region || normalize(item.label) === normalize(action.region ?? "")
-            );
-            setActiveRegion(matched?.slug ?? action.region);
-          }
-
-          if (typeof action.minRating === "number") setMinRating(action.minRating);
-          if (typeof action.savedOnly === "boolean") setSavedOnly(action.savedOnly);
-
-          setAiChips((prev) => {
-            // Start fresh with only the chips that still apply from this action
-            let next = prev.filter((chip) => chip.key !== "query" && chip.key !== "category" && chip.key !== "region");
-            if (actionQuery) {
-              next = upsertChip(next, { key: "query", label: `Búsqueda: ${actionQuery}` });
-            }
-            if (actionCategorySlug) {
-              next = upsertChip(next, { key: "category", label: getCategoryLabel(categories, actionCategorySlug) });
-            }
-            if (typeof action.region === "string" && action.region.trim()) {
-              const region = regionFilterOptions.find((item) => item.slug === action.region);
-              next = upsertChip(next, { key: "region", label: `Region: ${region?.label ?? action.region}` });
-            }
-            if (typeof action.minRating === "number" && action.minRating > 0) {
-              next = upsertChip(next, { key: "rating", label: `${action.minRating}+ estrellas` });
-            }
-            if (action.savedOnly) {
-              next = upsertChip(next, { key: "saved", label: "Guardados" });
-            }
-            return next;
-          });
-          setAiRecommendationReason("Filtro aplicado por IA.");
-        }
-        if (action.type === "select_place" && action.slug) {
-          const place = places.find((item) => item.slug === action.slug);
-          if (!place) return;
-          setSelectedPlaceSlug(place.slug);
-          setShowFilters(false);
-          setRoutePanelExpanded(false);
-          if (typeof place.lng === "number" && typeof place.lat === "number") {
-            setMapCenter([place.lng, place.lat]);
-            setMapZoom(12);
-          }
-          setAiRecommendationReason("Destino abierto por IA.");
-        }
-        if (action.type === "set_route" && Array.isArray(action.stops)) {
-          setActiveRoute({
-            title: action.title || "Ruta recomendada por IA",
-            stops: normalizeRouteStops(action.stops),
-          });
-          setRoutePanelExpanded(false);
-          const firstStop = action.stops[0];
-          const firstPlace = firstStop?.slug ? places.find((item) => item.slug === firstStop.slug) : null;
-          if (firstPlace && typeof firstPlace.lng === "number" && typeof firstPlace.lat === "number") {
-            setMapCenter([firstPlace.lng, firstPlace.lat]);
-            setMapZoom(10.8);
-          }
-          setAiRecommendationReason("Ruta creada por IA con destinos reales.");
-        }
-        if (action.type === "add_route_stop" && action.slug) {
-          const place = places.find((item) => item.slug === action.slug);
-          if (place) addToRoute(place);
-        }
-        if (action.type === "remove_route_stop" && action.slug) {
-          removeRouteStop(action.slug);
-        }
-        if (action.type === "reorder_route" && typeof action.fromIndex === "number" && typeof action.toIndex === "number") {
-          reorderRouteStop(action.fromIndex, action.toIndex);
-        }
-        if (action.type === "clear_filters") {
-          clearFilters();
-        }
-        if (action.type === "clear_route") {
-          clearRoute();
-        }
-        if (action.type === "center_map" && action.center) {
-          setMapCenter(action.center);
-          setMapZoom(action.zoom ?? 10);
-        }
-        if (action.type === "get_nearby") {
-          applyNearby();
-          setAiChips((prev) => upsertChip(prev, { key: "nearby", label: "Cerca de mí" }));
-        }
-      });
-    };
-
-    window.addEventListener("itinera:ui-actions", onActions as EventListener);
-    return () => window.removeEventListener("itinera:ui-actions", onActions as EventListener);
-  }, [categories, places, regionFilterOptions]);
 
   function persistRecent(next: string[]) {
     setRecentSearches(next);
@@ -1071,17 +865,11 @@ export function ExploreFullscreenMap({
     setMapCenter(null);
     setMapZoom(null);
     setUserLocation(null);
-    setAiChips([]);
-    setAiRecommendationReason(null);
     setShowFilters(false);
   }
 
   function applyNearby() {
-    if (!navigator.geolocation) {
-      setAiHint("Tu navegador no permite obtener ubicacion.");
-      window.setTimeout(() => setAiHint(null), 2600);
-      return;
-    }
+    if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const point: UserLocation = {
@@ -1093,22 +881,13 @@ export function ExploreFullscreenMap({
         setUserLocation(point);
         setMapCenter([coords.longitude, coords.latitude]);
         setMapZoom(zoom);
-        if (coords.accuracy > 1000) {
-          setAiHint("Ubicacion aproximada: ordenamos destinos cercanos con menor precision.");
-          window.setTimeout(() => setAiHint(null), 3200);
-        }
-        setAiChips((prev) => upsertChip(prev, { key: "nearby", label: "Cerca de mí" }));
       },
-      () => {
-        setAiHint("No pudimos obtener tu ubicacion. Revisa permisos del navegador.");
-        window.setTimeout(() => setAiHint(null), 3200);
-      },
+      () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   }
 
-  function removeAiChip(key: AiFilterChip["key"]) {
-    setAiChips((prev) => prev.filter((chip) => chip.key !== key));
+  function removeActiveChip(key: string) {
     if (key === "query") setQuery("");
     if (key === "category") {
       setActiveCategory("");
@@ -1231,7 +1010,6 @@ export function ExploreFullscreenMap({
           isSaved={selectedPlace ? savedSlugs.includes(selectedPlace.slug) : false}
           onToggleSave={(place) => toggleSave(place as Place)}
           onAddToRoute={(place) => addToRoute(place as Place)}
-          recommendationReason={aiRecommendationReason}
           routeStops={activeRoute?.stops ?? []}
           routeGeometry={routeGeometry}
           routeSegments={routeSegments}
@@ -1271,12 +1049,6 @@ export function ExploreFullscreenMap({
             effect="fade"
           />
 
-          {aiHint && uiMode !== "placeSelected" ? (
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm">
-              <Sparkles className="h-3.5 w-3.5" />
-              {aiHint}
-            </div>
-          ) : null}
 
           {activeChips.length > 0 && uiMode !== "placeSelected" ? (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -1284,7 +1056,7 @@ export function ExploreFullscreenMap({
                 <button
                   key={`${chip.key}-${chip.label}`}
                   type="button"
-                  onClick={() => removeAiChip(chip.key)}
+                  onClick={() => removeActiveChip(chip.key)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#0F766E] shadow-sm transition-colors hover:bg-[#F0FDFA]"
                 >
                   {chip.label}
@@ -1423,7 +1195,6 @@ export function ExploreFullscreenMap({
                           onClick={() => {
                             setActiveCategory(cat.slug);
                             setQuery(getEs(cat.name_i18n, cat.slug));
-                            setAiChips((prev) => upsertChip(prev, { key: "category", label: getEs(cat.name_i18n, cat.slug) }));
                           }}
                           className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
                         >
@@ -1447,7 +1218,6 @@ export function ExploreFullscreenMap({
                           onClick={() => {
                             setQuery(region.label);
                             setActiveRegion(region.slug);
-                            setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
                             const regionPlace = places.find((item) => item.regions?.slug === region.slug);
                             if (regionPlace && typeof regionPlace.lng === "number" && typeof regionPlace.lat === "number") {
                               setMapCenter([regionPlace.lng, regionPlace.lat]);
@@ -1661,7 +1431,6 @@ export function ExploreFullscreenMap({
                         type="button"
                         onClick={() => {
                           setActiveRegion(region.slug);
-                          setAiChips((prev) => upsertChip(prev, { key: "region", label: region.label }));
                         }}
                         className="rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
                         style={{
@@ -1686,7 +1455,6 @@ export function ExploreFullscreenMap({
                       type="button"
                       onClick={() => {
                         setMinRating(rating);
-                        setAiChips((prev) => upsertChip(prev, { key: "rating", label: `${rating}+ estrellas` }));
                       }}
                       className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
                       style={{
@@ -1702,9 +1470,7 @@ export function ExploreFullscreenMap({
                   <button
                     type="button"
                     onClick={() => {
-                      const next = !savedOnly;
-                      setSavedOnly(next);
-                      setAiChips((prev) => (next ? upsertChip(prev, { key: "saved", label: "Guardados" }) : prev.filter((chip) => chip.key !== "saved")));
+                      setSavedOnly(!savedOnly);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 font-inter text-xs font-semibold transition-colors"
                     style={{
@@ -1850,7 +1616,6 @@ export function ExploreFullscreenMap({
           </div>
         </div>
       ) : null}
-      <FloatingAiAssistant context={aiContext} storageKey="itinera-ai-explore" />
     </section>
   );
 }
