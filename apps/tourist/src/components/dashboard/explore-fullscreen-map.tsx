@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Locate, MapPin, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
+import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { getCategoryColor } from "@/lib/category-theme";
 import { createClient } from "@/lib/supabase/client";
 
@@ -254,6 +255,8 @@ function isRecommendationIntent(value: string) {
     "otras opciones",
     "otro lugar",
     "otros lugares",
+    "que hay",
+    "que lugares hay",
     "que mas hay",
     "que mas puedo ver",
     "algo mas",
@@ -265,6 +268,8 @@ function isRecommendationIntent(value: string) {
     "no se",
     "dame opciones",
     "mas opciones",
+    "mostrar mas",
+    "mas lugares",
   ];
   return phrases.some((phrase) => q.includes(phrase));
 }
@@ -442,13 +447,35 @@ function formatRouteSegments(meta: RouteMeta | null) {
 
 function normalizeCategorySlug(value: string) {
   const normalized = normalize(value);
-  if (normalized.includes("patrimonio") || normalized.includes("heritage")) return "patrimonio-cultural";
-  if (normalized.includes("naturaleza") || normalized.includes("nature")) return "naturaleza";
-  if (normalized.includes("aventura") || normalized.includes("adventure")) return "aventura";
-  if (normalized.includes("gastronomia") || normalized.includes("food")) return "gastronomia";
-  if (normalized.includes("religioso") || normalized.includes("religion")) return "religioso";
-  if (normalized.includes("playa") || normalized.includes("beach")) return "playa";
-  if (normalized.includes("arte") || normalized.includes("museo")) return "arte-y-museos";
+  if (normalized.includes("patrimonio") || normalized.includes("heritage")) return "heritage";
+  if (normalized.includes("naturaleza") || normalized.includes("nature")) return "nature";
+  if (normalized.includes("aventura") || normalized.includes("adventure")) return "adventure";
+  if (normalized.includes("gastronomia") || normalized.includes("food")) return "food";
+  if (normalized.includes("religioso") || normalized.includes("religion")) return "religion";
+  if (normalized.includes("playa") || normalized.includes("beach")) return "beach";
+  if (normalized.includes("arte") || normalized.includes("museo")) return "arts";
+  return "";
+}
+
+function normalizeRegionSlug(value: string) {
+  const normalized = normalize(value);
+  const regionMap: Record<string, string> = {
+    copan: "copan",
+    ruinas: "copan",
+    "islas de la bahia": "islas-de-la-bahia",
+    roatan: "islas-de-la-bahia",
+    "bay islands": "islas-de-la-bahia",
+    comayagua: "comayagua",
+    catedral: "comayagua",
+    "francisco morazan": "francisco-morazan",
+    tegucigalpa: "francisco-morazan",
+    cortes: "cortes",
+    "la ceiba": "cortes",
+    honduras: "",
+  };
+  for (const [keyword, slug] of Object.entries(regionMap)) {
+    if (normalized.includes(keyword)) return slug;
+  }
   return "";
 }
 
@@ -462,6 +489,22 @@ function cleanNaturalSearchQuery(value: string, categorySlug = "") {
   if (!normalized) return "";
 
   const inferredCategory = categorySlug || normalizeCategorySlug(value);
+  const inferredRegion = normalizeRegionSlug(value);
+  const regionWords = new Set([
+    "copan",
+    "ruinas",
+    "islas",
+    "bahia",
+    "roatan",
+    "comayagua",
+    "catedral",
+    "francisco",
+    "morazan",
+    "tegucigalpa",
+    "cortes",
+    "ceiba",
+  ]);
+
   if (inferredCategory) {
     const categoryWords = new Set([
       ...normalize(inferredCategory).split(" "),
@@ -523,7 +566,7 @@ function cleanNaturalSearchQuery(value: string, categorySlug = "") {
     ]);
     const meaningful = normalized
       .split(" ")
-      .filter((token) => token.length > 2 && !categoryWords.has(token) && !fillerWords.has(token));
+      .filter((token) => token.length > 2 && !categoryWords.has(token) && !fillerWords.has(token) && !regionWords.has(token));
     if (meaningful.length === 0) return "";
   }
 
@@ -589,7 +632,14 @@ export function ExploreFullscreenMap({
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
   const isRecommendationQuery = useMemo(() => isRecommendationIntent(query), [query]);
   const queryCategorySlug = useMemo(() => normalizeCategorySlug(query), [query]);
+  const queryRegionSlug = useMemo(() => normalizeRegionSlug(query), [query]);
   const semanticQuery = useMemo(() => cleanNaturalSearchQuery(query, queryCategorySlug), [query, queryCategorySlug]);
+
+  useEffect(() => {
+    if (queryRegionSlug && !activeRegion) {
+      setActiveRegion(queryRegionSlug);
+    }
+  }, [queryRegionSlug, activeRegion]);
 
   const filteredPlaces = useMemo(() => {
     const q = isRecommendationQuery ? "" : normalize(semanticQuery);
@@ -740,6 +790,35 @@ export function ExploreFullscreenMap({
       return true;
     });
   }, [activeCategory, activeRegion, aiChips, categories, minRating, queryCategorySlug, regionFilterOptions, savedOnly, searchIntent, semanticQuery, userLocation]);
+  const aiContext = useMemo(
+    () => ({
+      page: "explore",
+      placeSlug: selectedPlace?.slug,
+      placeName: selectedPlace ? getEs(selectedPlace.name_i18n, selectedPlace.slug) : undefined,
+      activeRouteSlugs: activeRoute?.stops.map((stop) => stop.slug) ?? [],
+      filters: {
+        query: semanticQuery,
+        category: activeCategory || queryCategorySlug || undefined,
+        region: activeRegion || undefined,
+        minRating: minRating || undefined,
+        savedOnly: savedOnly || undefined,
+        nearby: Boolean(userLocation) || undefined,
+      },
+      visibleSlugs: Array.from(visibleSlugs).slice(0, 30),
+    }),
+    [
+      activeCategory,
+      activeRegion,
+      activeRoute,
+      minRating,
+      queryCategorySlug,
+      savedOnly,
+      selectedPlace,
+      semanticQuery,
+      userLocation,
+      visibleSlugs,
+    ]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1762,6 +1841,7 @@ export function ExploreFullscreenMap({
           </div>
         </div>
       ) : null}
+      <FloatingAiAssistant context={aiContext} storageKey="itinera-ai-explore" />
     </section>
   );
 }

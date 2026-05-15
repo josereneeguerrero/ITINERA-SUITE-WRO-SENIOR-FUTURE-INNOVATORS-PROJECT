@@ -14,6 +14,9 @@ export interface ChatContext {
   storySlug?:  string;
   placeName?:  string;
   storyTitle?: string;
+  activeRouteSlugs?: string[];
+  filters?: Record<string, unknown>;
+  visibleSlugs?: string[];
 }
 
 export interface UIAction {

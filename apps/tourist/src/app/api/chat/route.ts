@@ -10,6 +10,9 @@ function getDB()   { return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, 
 interface AgentContext {
   page?: string; placeSlug?: string; storySlug?: string;
   placeName?: string; storyTitle?: string;
+  activeRouteSlugs?: string[];
+  filters?: Record<string, unknown>;
+  visibleSlugs?: string[];
 }
 
 type GazetteerEntry = {
@@ -22,6 +25,21 @@ type Gazetteer = {
   regions: GazetteerEntry[];
   places: GazetteerEntry[];
   categories: GazetteerEntry[];
+};
+
+type SemanticMatch = {
+  entity_type: string;
+  slug: string;
+  title: string;
+  summary?: string;
+  category_slug?: string | null;
+  category_name?: string | null;
+  region_slug?: string | null;
+  region_name?: string | null;
+  rating?: number | null;
+  metadata?: Record<string, unknown>;
+  combined_score?: number;
+  match_reason?: string;
 };
 
 const REGION_ALIASES: Array<{ slug: string; terms: string[] }> = [
@@ -219,13 +237,13 @@ function labelFromSlug(slug: string) {
 
 function normalizeCategoryParam(value?: string) {
   const normalized = normalizeText(value ?? "");
-  if (normalized.includes("heritage") || normalized.includes("patrimonio")) return "patrimonio-cultural";
-  if (normalized.includes("nature") || normalized.includes("naturaleza")) return "naturaleza";
-  if (normalized.includes("food") || normalized.includes("gastronomia")) return "gastronomia";
-  if (normalized.includes("adventure") || normalized.includes("aventura")) return "aventura";
-  if (normalized.includes("beach") || normalized.includes("playa")) return "playa";
-  if (normalized.includes("relig")) return "religioso";
-  if (normalized.includes("museum") || normalized.includes("museo") || normalized.includes("arte")) return "arte-y-museos";
+  if (normalized.includes("heritage") || normalized.includes("patrimonio")) return "heritage";
+  if (normalized.includes("nature") || normalized.includes("naturaleza")) return "nature";
+  if (normalized.includes("food") || normalized.includes("gastronomia")) return "food";
+  if (normalized.includes("adventure") || normalized.includes("aventura")) return "adventure";
+  if (normalized.includes("beach") || normalized.includes("playa")) return "beach";
+  if (normalized.includes("relig")) return "religion";
+  if (normalized.includes("museum") || normalized.includes("museo") || normalized.includes("arte")) return "arts";
   return value ?? "";
 }
 
@@ -284,6 +302,75 @@ Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}`;
 }
 
 // ─── Intent extraction (step 1) ──────────────────────────────────────────────
+async function searchSemanticPlaces(
+  params: Record<string, string>,
+  rawMessage: string
+): Promise<{ type: "places"; places: Array<Record<string, unknown>> } | null> {
+  const semanticSecret = process.env.SEMANTIC_REBUILD_SECRET;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!semanticSecret || !supabaseUrl) return null;
+
+  const categorySlug = normalizeCategoryParam(params.category);
+  const regionSlug = params.region ? inferRegionFromText(params.region) ?? params.region : "";
+  const searchQuery = cleanSearchQuery(params.query, {
+    region: regionSlug,
+    category: categorySlug,
+    slug: params.slug,
+  });
+  const query = [
+    searchQuery || params.query || rawMessage,
+    categorySlug ? labelFromSlug(categorySlug) : "",
+    regionSlug ? labelFromSlug(regionSlug) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (!query.trim()) return null;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/semantic-embeddings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-semantic-secret": semanticSecret,
+      },
+      body: JSON.stringify({
+        mode: "search",
+        query,
+        entityTypes: ["place"],
+        regionSlug: regionSlug || null,
+        categorySlug: categorySlug || null,
+        limit: 6,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const payload = (await res.json()) as { matches?: SemanticMatch[] };
+    const matches = payload.matches ?? [];
+    if (!matches.length) return null;
+
+    return {
+      type: "places",
+      places: matches.map((match) => ({
+        slug: match.slug,
+        name: match.title,
+        summary: match.summary,
+        rating: Number(match.rating ?? match.metadata?.rating ?? 0),
+        category: match.category_name,
+        categorySlug: match.category_slug,
+        region: match.region_name,
+        regionSlug: match.region_slug,
+        matchReason: match.match_reason,
+        score: match.combined_score,
+        url: `/places/${match.slug}`,
+      })),
+    };
+  } catch (error) {
+    console.error("semantic search error", error);
+    return null;
+  }
+}
+
 async function extractIntent(userMsg: string, ctx: AgentContext): Promise<{
   intent: "search_places" | "get_story" | "recommend_route" | "get_place" | "explain_sponsor" | "get_nearby" | "general";
   params: Record<string, string>;
@@ -336,11 +423,14 @@ IMPORTANT: If the user mentions ANY city, region or travel in Honduras → searc
 
 // ─── Data fetcher (step 2) ────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchData(intent: string, params: Record<string, string>, ctx: AgentContext): Promise<any> {
+async function fetchData(intent: string, params: Record<string, string>, ctx: AgentContext, rawMessage = ""): Promise<any> {
   const safeParams = params ?? {};
   const db = getDB();
 
   if (intent === "search_places") {
+    const semanticData = await searchSemanticPlaces(safeParams, rawMessage);
+    if (semanticData?.places.length) return semanticData;
+
     const searchQuery = cleanSearchQuery(safeParams.query, {
       region: safeParams.region,
       category: safeParams.category,
@@ -586,7 +676,13 @@ export async function POST(req: Request) {
         const inferredRegion = isExploreRecommendation ? null : groundedRegion?.slug ?? inferRegionFromText(groundingText);
         const asksForDirections = ["me indicas", "indicame", "como llegar", "como llego", "donde queda", "ubicacion"]
           .some((term) => normalizeText(lastUserMsg).includes(term));
-        const inferredPlaceSlug = isExploreRecommendation ? null : groundedPlace?.slug ?? (asksForDirections ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
+        const routePronounTarget = context.page === "explore"
+          && Boolean(context.placeSlug)
+          && ["agregala", "agregalo", "agrega ese", "agrega esa", "anadela", "anadelo", "incluyela", "incluyelo"]
+            .some((term) => normalizeText(lastUserMsg).includes(term));
+        const inferredPlaceSlug = isExploreRecommendation && !routePronounTarget
+          ? null
+          : groundedPlace?.slug ?? ((asksForDirections || routePronounTarget) ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
         if (isExploreRecommendation) {
           intent = "search_places";
           delete normalizedParams.slug;
@@ -615,7 +711,7 @@ export async function POST(req: Request) {
         normalizedParams.query = cleanSearchQuery(normalizedParams.query, normalizedParams);
 
         // Step 2: Fetch data from Supabase if needed
-        const dbData = await fetchData(intent, normalizedParams, context);
+        const dbData = await fetchData(intent, normalizedParams, context, lastUserMsg);
 
         const uiActions = deriveUIActions(intent, normalizedParams, dbData, lastUserMsg);
         const exploreActionText = context.page === "explore" ? buildExploreActionText(intent, dbData, uiActions.actions, lastUserMsg) : "";

@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
-import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { ExploreFullscreenMap } from "@/components/dashboard/explore-fullscreen-map";
 
 type Category = {
@@ -79,7 +78,7 @@ const FALLBACK_PLACES: Array<{
   {
     slug: "ruinas-copan",
     name: "Ruinas de Copan",
-    category: { name: "Patrimonio Cultural", icon_name: "landmark", slug: "patrimonio-cultural" },
+    category: { name: "Patrimonio Cultural", icon_name: "landmark", slug: "heritage" },
     region: { name: "Copan", slug: "copan" },
     lat: 14.84,
     lng: -89.14,
@@ -87,7 +86,7 @@ const FALLBACK_PLACES: Array<{
   {
     slug: "playa-west-bay-roatan",
     name: "Playa West Bay",
-    category: { name: "Playa", icon_name: "waves", slug: "playa" },
+    category: { name: "Playa", icon_name: "waves", slug: "beach" },
     region: { name: "Islas de la Bahia", slug: "islas-de-la-bahia" },
     lat: 16.279,
     lng: -86.592,
@@ -95,7 +94,7 @@ const FALLBACK_PLACES: Array<{
   {
     slug: "catedral-comayagua",
     name: "Catedral de Comayagua",
-    category: { name: "Religioso", icon_name: "church", slug: "religioso" },
+    category: { name: "Religioso", icon_name: "church", slug: "religion" },
     region: { name: "Comayagua", slug: "comayagua" },
     lat: 14.456,
     lng: -87.637,
@@ -103,7 +102,7 @@ const FALLBACK_PLACES: Array<{
   {
     slug: "parque-nacional-la-tigra",
     name: "Parque Nacional La Tigra",
-    category: { name: "Naturaleza", icon_name: "leaf", slug: "naturaleza" },
+    category: { name: "Naturaleza", icon_name: "leaf", slug: "nature" },
     region: { name: "Francisco Morazan", slug: "francisco-morazan" },
     lat: 14.153,
     lng: -87.151,
@@ -208,9 +207,6 @@ export default async function ExplorePage({
     <main className="min-h-screen w-full bg-white">
       <ExploreFullscreenMap places={finalPlaces} categories={categories} isGuest={isGuest} userId={user?.id ?? null} />
       <DashboardDockDemo isGuest={isGuest} />
-      <div id="ia">
-        <FloatingAiAssistant context={{ page: "explore" }} storageKey="itinera-ai-explore" />
-      </div>
     </main>
   );
 }
