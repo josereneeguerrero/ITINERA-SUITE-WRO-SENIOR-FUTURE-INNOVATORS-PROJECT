@@ -870,6 +870,15 @@ export function ExploreFullscreenMap({
     setShowFilters(false);
   }
 
+  const REGION_CENTERS: Record<string, { center: [number, number]; zoom: number }> = {
+    "comayagua":           { center: [-87.637, 14.456], zoom: 11 },
+    "copan":               { center: [-89.14,  14.84],  zoom: 11 },
+    "islas-de-la-bahia":   { center: [-86.55,  16.3],   zoom: 10 },
+    "francisco-morazan":   { center: [-87.192, 14.072], zoom: 11 },
+    "cortes":              { center: [-88.024, 15.506], zoom: 10 },
+    "la-ceiba":            { center: [-86.793, 15.781], zoom: 12 },
+  };
+
   const handleAiActions = useCallback((chunk: UIActionsChunk) => {
     for (const action of chunk.actions ?? []) {
       if (action.type === "filter_region" && action.slug) {
@@ -877,6 +886,11 @@ export function ExploreFullscreenMap({
         setQuery("");
         setActiveCategory("");
         setSelectedPlaceSlug(null);
+        const regionView = REGION_CENTERS[action.slug];
+        if (regionView) {
+          setMapCenter(regionView.center);
+          setMapZoom(regionView.zoom);
+        }
       }
       if (action.type === "show_place" && action.slug) {
         const place = places.find(p => p.slug === action.slug);
