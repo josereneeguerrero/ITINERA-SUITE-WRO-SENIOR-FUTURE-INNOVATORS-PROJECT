@@ -71,6 +71,15 @@ async function fetchPlaces(regionSlug: string | null): Promise<PlaceRow[]> {
   }));
 }
 
+// ─── Deterministic commands (no LLM needed) ──────────────────────────────────
+
+const CLEAR_COMMANDS = ["limpiar", "quitar filtros", "borrar filtros", "reset", "limpiar filtros", "clear", "reiniciar", "volver"];
+
+function isClearCommand(text: string): boolean {
+  const n = norm(text);
+  return CLEAR_COMMANDS.some(c => n.includes(c));
+}
+
 // ─── LLM response shape ───────────────────────────────────────────────────────
 
 type AiAction =
@@ -95,6 +104,15 @@ export async function POST(req: Request) {
       try {
         const lastMsg       = messages.filter(m => m.role === "user").slice(-1)[0]?.content ?? "";
         const recentContext = messages.filter(m => m.role === "user").slice(-4).map(m => m.content).join(" ");
+
+        // Step 0 — Deterministic commands bypass LLM entirely
+        if (isClearCommand(lastMsg)) {
+          emit({ type: "text-delta", textDelta: "Listo, quité todos los filtros." });
+          emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {} });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
 
         // Step 1 — Detect region deterministically (no LLM)
         const regionSlug = detectRegion(lastMsg) ?? detectRegion(recentContext);
