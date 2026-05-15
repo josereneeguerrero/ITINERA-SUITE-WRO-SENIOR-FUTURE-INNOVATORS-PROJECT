@@ -106,6 +106,40 @@ function detectCategory(text: string): string | null {
   return null;
 }
 
+// ─── Region name map (slug → display name) ───────────────────────────────────
+
+const REGION_NAMES: Record<string, string> = {
+  "comayagua":          "Comayagua",
+  "copan":              "Copán",
+  "bay-islands":        "Islas de la Bahía",
+  "tegucigalpa":        "Tegucigalpa",
+  "cortes":             "Cortés",
+  "la-ceiba":           "La Ceiba",
+  "atlantida":          "Atlántida",
+  "olancho":            "Olancho",
+  "santa-barbara":      "Santa Bárbara",
+  "choluteca":          "Choluteca",
+  "lempira":            "Lempira",
+  "intibuca":           "Intibucá",
+  "ocotepeque":         "Ocotepeque",
+  "yoro":               "Yoro",
+  "el-paraiso":         "El Paraíso",
+  "colon":              "Colón",
+};
+
+// Short orientation prompts — rotated to avoid sounding scripted
+const ORIENT_TEMPLATES = [
+  (name: string) => `${name} te espera en el mapa. ¿Qué tipo de experiencia buscas — historia y patrimonio, gastronomía, naturaleza, religioso, arte o aventura?`,
+  (name: string) => `El mapa ya muestra ${name}. ¿Qué te llama más — lugares históricos, buena comida, naturaleza, sitios religiosos o algo de aventura?`,
+  (name: string) => `Listo, estamos en ${name}. ¿Qué quieres explorar: patrimonio colonial, gastronomía local, naturaleza, arte o vida religiosa?`,
+];
+
+function buildOrientText(regionSlug: string): string {
+  const name = REGION_NAMES[regionSlug] ?? regionSlug;
+  const fn   = ORIENT_TEMPLATES[Math.floor(Math.random() * ORIENT_TEMPLATES.length)];
+  return fn(name);
+}
+
 // ─── Deterministic commands (no LLM needed) ──────────────────────────────────
 
 const CLEAR_COMMANDS = ["limpiar", "quitar filtros", "borrar filtros", "reset", "limpiar filtros", "clear", "reiniciar", "volver"];
@@ -175,43 +209,32 @@ export async function POST(req: Request) {
         const categorySlug = detectCategory(lastMsg) ?? null;
 
         // Two-step flow:
-        // Step A — Region only (no category) → orient user, ask what they want
-        // Step B — Region + category (or category alone) → fetch and show real places
+        // Step A — Region only → deterministic orient (no LLM, no DB)
+        // Step B — Region + category → fetch real places, LLM describes them
         const isRegionOnly = Boolean(regionSlug) && !categorySlug;
 
-        // Step 2 — Fetch places only when we have enough context (category or explicit place intent)
-        const places = isRegionOnly ? [] : await fetchPlaces(regionSlug, categorySlug);
-
-        // Step 3 — Build system prompt based on intent
-        let system: string;
-
         if (isRegionOnly) {
-          // Region-only: describe briefly, invite to explore by category
-          // IMPORTANT: do NOT pass history — prevents LLM from repeating specific places from prior turns
-          system = `Eres Itinera IA, guía turística de Honduras.
+          // Completely deterministic — no LLM, no DB fetch, no hallucination possible
+          emit({ type: "text-delta", textDelta: buildOrientText(regionSlug!) });
+          emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: regionSlug! }], entities: {} });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
 
-El usuario quiere explorar: ${regionSlug}.
+        // Step 2 — Fetch places (region-only already returned above)
+        const places = await fetchPlaces(regionSlug, categorySlug);
 
-Devuelve EXACTAMENTE este JSON (sin markdown, sin texto extra), solo cambia el valor de "text":
-{"text":"<tu respuesta>","action":{"type":"filter_region","slug":"${regionSlug}"}}
+        // Step 3 — Build system prompt with real place data
+        const placesText = places.length > 0
+          ? places.map(p =>
+              `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating} | ${p.category}${p.region ? ` | ${p.region}` : ""}`
+            ).join("\n")
+          : "Sin lugares registrados en la base de datos para esta búsqueda.";
 
-REGLAS ESTRICTAS para "text":
-- PROHIBIDO mencionar nombres de lugares, monumentos, restaurantes o sitios específicos.
-- Describe la región/ciudad en 1 frase (historia, naturaleza, cultura — lo que la hace especial).
-- En la siguiente frase pregunta qué tipo de experiencia busca: arquitectura/historia, gastronomía, naturaleza, religioso, arte, aventura.
-- Máximo 2 frases. Cálido y directo.
-- Responde en el idioma del usuario.`;
-        } else {
-          // Region + category (or category alone): fetch and show real places
-          const placesText = places.length > 0
-            ? places.map(p =>
-                `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating} | ${p.category}${p.region ? ` | ${p.region}` : ""}`
-              ).join("\n")
-            : "Sin lugares registrados en la base de datos para esta búsqueda.";
+        const contextLabel = [regionSlug, categorySlug].filter(Boolean).join(" + ") || "Honduras";
 
-          const contextLabel = [regionSlug, categorySlug].filter(Boolean).join(" + ") || "Honduras";
-
-          system = `Eres Itinera IA, guía turística de Honduras. Respondes SOLO con información real.
+        const system = `Eres Itinera IA, guía turística de Honduras. Respondes SOLO con información real.
 
 DATOS REALES (${contextLabel}):
 ${placesText}
@@ -233,18 +256,12 @@ REGLAS:
 4. Si el usuario pide un lugar específico por nombre → show_place con slug exacto de la lista.
 5. Si no hay datos → díselo honestamente.
 6. Máximo 3 frases. Responde en el idioma del usuario.`;
-        }
-
-        // For region-only: skip history so LLM can't repeat specific places from prior turns
-        const llmMessages = isRegionOnly
-          ? [{ role: "user" as const, content: lastMsg }]
-          : messages as { role: "user" | "assistant"; content: string }[];
 
         const result = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
           system,
-          messages: llmMessages,
+          messages: messages as { role: "user" | "assistant"; content: string }[],
           temperature: 0.25,
         });
 
@@ -263,9 +280,8 @@ REGLAS:
         // Step 5 — Emit
         emit({ type: "text-delta", textDelta: parsed.text });
 
-        // Emit tool-result cards only when we have specific places to show
-        // (never on region-only step — user hasn't specified what they want yet)
-        if (!isRegionOnly && places.length > 0 && parsed.action?.type !== "show_place") {
+        // Emit tool-result cards when we have specific places to show
+        if (places.length > 0 && parsed.action?.type !== "show_place") {
           emit({
             type: "tool-result",
             toolName: "search_places",
