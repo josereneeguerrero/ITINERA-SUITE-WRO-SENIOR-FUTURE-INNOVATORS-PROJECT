@@ -128,8 +128,8 @@ Acciones posibles:
 REGLAS ESTRICTAS:
 1. Solo menciona lugares que aparecen en DATOS REALES. Nunca inventes.
 2. Si hay lugares en la lista, descríbelos: nombre real, algo concreto de su summary, rating.
-3. Si el usuario menciona una región → acción filter_region con el slug de esa región.
-4. Si pide ver un lugar específico → acción show_place con el slug EXACTO de la lista.
+3. Si el usuario menciona solo una ciudad/región (ej. "Comayagua", "Copán", "ir a Roatán") → filter_region.
+4. Si el usuario pide ver, mostrar, abrir o navegar a un lugar ESPECÍFICO por nombre (ej. "muéstrame las Ruinas de Copán", "abre la Catedral", "llévame a West Bay") → show_place con el slug EXACTO de la lista. Nunca filter_region en este caso.
 5. Si no hay datos para lo que pide → díselo honestamente, sin inventar.
 6. Responde máximo 3 frases. Ve al punto.
 7. Responde en el mismo idioma que el usuario.

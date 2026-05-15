@@ -893,13 +893,15 @@ export function ExploreFullscreenMap({
         }
       }
       if (action.type === "show_place" && action.slug) {
-        const place = places.find(p => p.slug === action.slug);
+        const slug = action.slug as string;
+        const place = places.find(p => p.slug === slug)
+          ?? places.find(p => p.slug.includes(slug) || slug.includes(p.slug));
         if (place) {
           setSelectedPlaceSlug(place.slug);
           setShowFilters(false);
           if (typeof place.lng === "number" && typeof place.lat === "number") {
             setMapCenter([place.lng, place.lat]);
-            setMapZoom(13);
+            setMapZoom(14);
           }
         }
       }
