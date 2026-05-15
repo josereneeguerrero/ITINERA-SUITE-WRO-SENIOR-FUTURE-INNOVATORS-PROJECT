@@ -324,13 +324,14 @@ export function ExploreMap({
   }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, onSelectPlace]);
 
   useEffect(() => {
-    if (!map.current || !mapCenter) return;
+    if (!map.current) return;
+    if (!mapCenter) { fitAllPlaces(800); return; }
     map.current.flyTo({
       center: mapCenter,
       zoom: mapZoom ?? Math.max(map.current.getZoom(), 9),
       duration: 900,
     });
-  }, [mapCenter, mapZoom]);
+  }, [mapCenter, mapZoom, fitAllPlaces]);
 
   useEffect(() => {
     if (!map.current || !mapReady) return;
