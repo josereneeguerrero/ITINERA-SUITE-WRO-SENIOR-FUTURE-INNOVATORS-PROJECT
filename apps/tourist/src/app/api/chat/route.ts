@@ -11,12 +11,22 @@ function getDB()   { return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, 
 // ─── Region detection — deterministic, no LLM ────────────────────────────────
 
 const REGIONS: Array<{ slug: string; keywords: string[] }> = [
-  { slug: "comayagua",           keywords: ["comayagua"] },
-  { slug: "copan",               keywords: ["copan", "copán"] },
-  { slug: "islas-de-la-bahia",   keywords: ["roatan", "roatán", "utila", "guanaja", "islas de la bahia", "bay islands"] },
-  { slug: "francisco-morazan",   keywords: ["tegucigalpa", "tegus", "francisco morazan"] },
-  { slug: "cortes",              keywords: ["cortes", "cortés", "san pedro sula"] },
-  { slug: "la-ceiba",            keywords: ["la ceiba"] },
+  { slug: "comayagua",         keywords: ["comayagua"] },
+  { slug: "copan",             keywords: ["copan", "copán", "copan ruinas", "ruinas de copan"] },
+  { slug: "bay-islands",       keywords: ["roatan", "roatán", "utila", "guanaja", "islas de la bahia", "bay islands", "islas bahia"] },
+  { slug: "tegucigalpa",       keywords: ["tegucigalpa", "tegus", "francisco morazan", "morazan", "distrito central"] },
+  { slug: "cortes",            keywords: ["cortes", "cortés", "san pedro sula", "sps"] },
+  { slug: "la-ceiba",          keywords: ["la ceiba", "ceiba"] },
+  { slug: "olancho",           keywords: ["olancho", "juticalpa"] },
+  { slug: "santa-barbara",     keywords: ["santa barbara", "santa bárbara"] },
+  { slug: "choluteca",         keywords: ["choluteca"] },
+  { slug: "lempira",           keywords: ["lempira", "gracias"] },
+  { slug: "intibuca",          keywords: ["intibuca", "intibucá", "la esperanza"] },
+  { slug: "ocotepeque",        keywords: ["ocotepeque"] },
+  { slug: "yoro",              keywords: ["yoro"] },
+  { slug: "el-paraiso",        keywords: ["el paraiso", "el paraíso", "danli", "danlí"] },
+  { slug: "colon",             keywords: ["colon", "colón", "trujillo"] },
+  { slug: "atlantida",         keywords: ["atlantida", "atlántida", "la ceiba", "tela"] },
 ];
 
 function norm(text: string) {
@@ -172,7 +182,7 @@ REGLAS ESTRICTAS:
 6. Responde máximo 3 frases. Ve al punto.
 7. Responde en el mismo idioma que el usuario.
 
-Slugs de región válidos: comayagua, copan, islas-de-la-bahia, francisco-morazan, cortes, la-ceiba`;
+Slugs de región válidos: comayagua, copan, bay-islands, tegucigalpa, cortes, la-ceiba, atlantida, olancho, santa-barbara, choluteca, lempira, intibuca, ocotepeque, yoro, el-paraiso, colon`;
 
         const result = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

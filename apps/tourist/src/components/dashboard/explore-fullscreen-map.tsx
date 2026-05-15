@@ -871,12 +871,24 @@ export function ExploreFullscreenMap({
   }
 
   const REGION_CENTERS: Record<string, { center: [number, number]; zoom: number }> = {
-    "comayagua":           { center: [-87.637, 14.456], zoom: 11 },
-    "copan":               { center: [-89.14,  14.84],  zoom: 11 },
-    "islas-de-la-bahia":   { center: [-86.55,  16.3],   zoom: 10 },
-    "francisco-morazan":   { center: [-87.192, 14.072], zoom: 11 },
-    "cortes":              { center: [-88.024, 15.506], zoom: 10 },
-    "la-ceiba":            { center: [-86.793, 15.781], zoom: 12 },
+    "comayagua":       { center: [-87.637, 14.456], zoom: 11 },
+    "copan":           { center: [-89.14,  14.84],  zoom: 11 },
+    "bay-islands":     { center: [-86.55,  16.3],   zoom: 10 },
+    "islas-de-la-bahia": { center: [-86.55, 16.3],  zoom: 10 },
+    "tegucigalpa":     { center: [-87.192, 14.072], zoom: 11 },
+    "francisco-morazan": { center: [-87.192, 14.072], zoom: 11 },
+    "cortes":          { center: [-88.024, 15.506], zoom: 10 },
+    "la-ceiba":        { center: [-86.793, 15.781], zoom: 12 },
+    "atlantida":       { center: [-86.793, 15.781], zoom: 11 },
+    "olancho":         { center: [-85.76,  14.87],  zoom: 9  },
+    "santa-barbara":   { center: [-88.234, 14.917], zoom: 10 },
+    "choluteca":       { center: [-87.196, 13.3],   zoom: 10 },
+    "lempira":         { center: [-88.567, 14.467], zoom: 10 },
+    "intibuca":        { center: [-88.166, 14.316], zoom: 10 },
+    "ocotepeque":      { center: [-89.183, 14.433], zoom: 10 },
+    "yoro":            { center: [-87.133, 15.133], zoom: 10 },
+    "el-paraiso":      { center: [-86.583, 13.867], zoom: 10 },
+    "colon":           { center: [-85.9,   15.9],   zoom: 9  },
   };
 
   const handleAiActions = useCallback((chunk: UIActionsChunk) => {
