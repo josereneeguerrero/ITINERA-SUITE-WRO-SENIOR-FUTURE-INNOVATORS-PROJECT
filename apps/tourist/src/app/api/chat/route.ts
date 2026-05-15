@@ -89,13 +89,13 @@ async function fetchPlaces(regionSlug: string | null, categorySlug: string | nul
 // ─── Category detection — deterministic ──────────────────────────────────────
 
 const CATEGORIES: Array<{ slug: string; keywords: string[] }> = [
-  { slug: "beach",    keywords: ["playa", "playas", "mar", "caribe", "buceo", "snorkel", "arrecife", "costa", "beach"] },
-  { slug: "nature",   keywords: ["naturaleza", "parque nacional", "bosque", "sendero", "fauna", "flora", "reserva", "nature"] },
-  { slug: "heritage", keywords: ["patrimonio", "ruinas", "arqueologia", "arqueológico", "maya", "colonial", "historico", "historia"] },
-  { slug: "religion", keywords: ["iglesia", "catedral", "religioso", "templo", "basilica", "capilla", "santo", "virgen"] },
-  { slug: "food",     keywords: ["comida", "gastronomia", "restaurante", "comer", "tipico", "típico", "plato", "cocina", "food"] },
-  { slug: "adventure",keywords: ["aventura", "adrenalina", "senderismo", "escalada", "rapel", "tirolesa", "extremo"] },
-  { slug: "arts",     keywords: ["arte", "museo", "galeria", "galería", "artesania", "artesanía", "cultura"] },
+  { slug: "beach",     keywords: ["playa", "playas", "beach", "mar", "caribe", "buceo", "snorkel", "arrecife", "costa", "playa"] },
+  { slug: "nature",    keywords: ["naturaleza", "nature", "parque nacional", "parques", "bosque", "sendero", "fauna", "flora", "reserva", "ecoturismo", "verde"] },
+  { slug: "heritage",  keywords: ["patrimonio", "heritage", "ruinas", "arqueologia", "maya", "colonial", "historico", "historia", "historicos", "arqueologico", "prehispanico"] },
+  { slug: "religion",  keywords: ["religion", "religioso", "religiosos", "iglesia", "iglesias", "catedral", "catedrales", "capilla", "templo", "fe", "santo", "virgen", "basilica", "sagrado"] },
+  { slug: "food",      keywords: ["comida", "food", "gastronomia", "restaurante", "restaurantes", "comer", "tipico", "platos", "cocina", "gastronomico", "sabores"] },
+  { slug: "adventure", keywords: ["aventura", "adventure", "aventuras", "adrenalina", "senderismo", "escalada", "rapel", "tirolesa", "extremo", "outdoor"] },
+  { slug: "arts",      keywords: ["arte", "arts", "museo", "museos", "galeria", "artesania", "cultura", "exhibicion", "exposicion"] },
 ];
 
 function detectCategory(text: string): string | null {
@@ -209,9 +209,12 @@ export async function POST(req: Request) {
         const categorySlug = detectCategory(lastMsg) ?? null;
 
         // Two-step flow:
-        // Step A — Region only → deterministic orient (no LLM, no DB)
-        // Step B — Region + category → fetch real places, LLM describes them
-        const isRegionOnly = Boolean(regionSlug) && !categorySlug;
+        // Step A — Region only → orient (no LLM, no DB)
+        //   Triggers ONLY when: region detected in CURRENT message + no category
+        //   Does NOT trigger for follow-ups like "que hay ahí?", "religion", etc.
+        // Step B — Everything else → fetch places, LLM describes
+        const regionInCurrentMsg = Boolean(detectRegion(lastMsg));
+        const isRegionOnly = regionInCurrentMsg && !categorySlug;
 
         if (isRegionOnly) {
           // Completely deterministic — no LLM, no DB fetch, no hallucination possible
