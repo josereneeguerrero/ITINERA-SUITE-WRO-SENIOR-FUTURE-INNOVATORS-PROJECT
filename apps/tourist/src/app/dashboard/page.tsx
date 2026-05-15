@@ -5,17 +5,6 @@ import { redirect } from "next/navigation";
 
 import Link from "next/link";
 
-import {
-
-  Landmark,
-  Trees,
-  Utensils,
-  Tent,
-  Church,
-  Waves,
-  Palette,
-  type LucideIcon,
-} from "lucide-react";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 
 import {
@@ -36,7 +25,7 @@ import {
   type DashboardHomeStory,
 } from "@/components/dashboard/dashboard-home-stories";
 import { getCategoryColor, getCategoryKey } from "@/lib/category-theme";
-
+import { CategoryCarousel } from "@/components/dashboard/category-carousel";
 
 type Category = {
   id: string;
@@ -161,17 +150,6 @@ const UNSPLASH_IMAGE_POOL = [
   "https://plus.unsplash.com/premium_photo-1675705721263-0bbeec261c49?q=80&w=1940&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1524799526615-766a9833dec0?q=80&w=1935&auto=format&fit=crop",
 ];
-
-const iconBySlug: Record<string, LucideIcon> = {
-  heritage: Landmark,
-  nature: Trees,
-  food: Utensils,
-  adventure: Tent,
-  religious: Church,
-  beach: Waves,
-  arts: Palette,
-  default: Landmark,
-};
 
 function getText(value: Record<string, string> | null | undefined, fallback: string) {
   return value?.es ?? value?.en ?? fallback;
@@ -327,42 +305,10 @@ export default async function DashboardPage({
 
       <section className="mx-auto mt-10 w-full max-w-6xl px-6 md:mt-12 md:px-10">
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
-          Explorar por categorÃ­a
+          Explorar por categoría
         </h2>
-        <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
-          {categories.map((category) => {
-            const categoryLabel = getText(category.name_i18n, category.slug);
-            const categoryKey = getCategoryKey({
-              slug: category.slug,
-              iconName: category.icon_name,
-              label: categoryLabel,
-            });
-            const Icon = iconBySlug[categoryKey] ?? Landmark;
-            const categoryColor = getCategoryColor({
-              slug: category.slug,
-              iconName: category.icon_name,
-              label: categoryLabel,
-            });
-            return (
-              <Link
-                key={category.id}
-                href={isGuest ? `/explore?guest=true&category=${category.slug}` : `/explore?category=${category.slug}`}
-                className="group relative flex min-h-28 min-w-[188px] shrink-0 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                style={{ border: `1px solid ${categoryColor}44` }}
-              >
-                <span
-                  className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-                  style={{ backgroundColor: `${categoryColor}1F`, color: categoryColor }}
-                >
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="text-center font-inter text-sm font-semibold text-[#171d1c]">
-                  {categoryLabel}
-                </span>
-                <span className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full" style={{ backgroundColor: `${categoryColor}A6` }} />
-              </Link>
-            );
-          })}
+        <div className="relative mt-6 px-4">
+          <CategoryCarousel categories={categories} isGuest={isGuest} />
         </div>
       </section>
 
@@ -379,7 +325,7 @@ export default async function DashboardPage({
             href={isGuest ? "/explore?guest=true" : "/explore"}
             className="font-inter text-sm font-bold text-[#00685f] transition-opacity hover:opacity-80"
           >
-            Ver todos â†’
+            Ver todos →
           </Link>
         </div>
 
@@ -387,7 +333,7 @@ export default async function DashboardPage({
           <ImageAutoSlider items={sliderItems} durationSeconds={28} />
         ) : (
           <div className="rounded-xl border border-[#dee4e1] bg-white px-5 py-8 font-inter text-sm text-[#3d4947]">
-            AÃºn no hay destinos destacados publicados.
+            Aún no hay destinos destacados publicados.
           </div>
         )}
       </section>
