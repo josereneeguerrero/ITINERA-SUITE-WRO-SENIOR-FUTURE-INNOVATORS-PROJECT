@@ -80,6 +80,12 @@ function isClearCommand(text: string): boolean {
   return CLEAR_COMMANDS.some(c => n.includes(c));
 }
 
+const GREETING_PATTERN = /^(hola|hi|hey|hello|buenas|buen dia|buenos dias|buenas tardes|buenas noches|saludos|good morning|good afternoon|good evening|ey|epa|que tal|como estas|que hubo)[\s!?.,¡¿]*$/i;
+
+function isGreeting(text: string): boolean {
+  return GREETING_PATTERN.test(norm(text));
+}
+
 // ─── LLM response shape ───────────────────────────────────────────────────────
 
 type AiAction =
@@ -106,6 +112,13 @@ export async function POST(req: Request) {
         const recentContext = messages.filter(m => m.role === "user").slice(-4).map(m => m.content).join(" ");
 
         // Step 0 — Deterministic commands bypass LLM entirely
+        if (isGreeting(lastMsg)) {
+          emit({ type: "text-delta", textDelta: "¡Hola! ¿A dónde te gustaría ir en Honduras?" });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
         if (isClearCommand(lastMsg)) {
           emit({ type: "text-delta", textDelta: "Listo, quité todos los filtros." });
           emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {} });
