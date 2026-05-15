@@ -894,8 +894,10 @@ export function ExploreFullscreenMap({
       }
       if (action.type === "show_place" && action.slug) {
         const slug = action.slug as string;
+        console.log("[AI] show_place slug recibido:", slug, "| places disponibles:", places.map(p => p.slug));
         const place = places.find(p => p.slug === slug)
           ?? places.find(p => p.slug.includes(slug) || slug.includes(p.slug));
+        console.log("[AI] place encontrado:", place?.slug ?? "NINGUNO");
         if (place) {
           setSelectedPlaceSlug(place.slug);
           setShowFilters(false);
