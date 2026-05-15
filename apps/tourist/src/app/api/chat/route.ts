@@ -235,6 +235,23 @@ Slugs de región válidos: comayagua, copan, bay-islands, tegucigalpa, cortes, l
         // Step 5 — Emit
         emit({ type: "text-delta", textDelta: parsed.text });
 
+        // Emit places as tool-result cards when there are multiple results
+        if (places.length > 0 && parsed.action?.type !== "show_place") {
+          emit({
+            type: "tool-result",
+            toolName: "search_places",
+            result: {
+              places: places.map(p => ({
+                slug:     p.slug,
+                name:     p.name,
+                rating:   p.rating,
+                category: p.category,
+                url:      `/places/${p.slug}`,
+              })),
+            },
+          });
+        }
+
         if (parsed.action) {
           emit({
             type:    "ui-actions",
