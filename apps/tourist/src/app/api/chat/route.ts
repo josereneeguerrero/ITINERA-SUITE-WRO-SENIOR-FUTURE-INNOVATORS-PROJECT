@@ -174,43 +174,63 @@ export async function POST(req: Request) {
         const regionSlug   = detectRegion(lastMsg)   ?? detectRegion(recentContext);
         const categorySlug = detectCategory(lastMsg) ?? null;
 
-        // Step 2 — Fetch REAL places from DB before calling LLM
-        const places = await fetchPlaces(regionSlug, categorySlug);
+        // Two-step flow:
+        // Step A — Region only (no category) → orient user, ask what they want
+        // Step B — Region + category (or category alone) → fetch and show real places
+        const isRegionOnly = Boolean(regionSlug) && !categorySlug;
 
-        // Step 3 — Build context with real data embedded
-        const placesText = places.length > 0
-          ? places.map(p =>
-              `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating} | ${p.category}${p.region ? ` | ${p.region}` : ""}`
-            ).join("\n")
-          : "Sin lugares registrados en la base de datos para esta región.";
+        // Step 2 — Fetch places only when we have enough context (category or explicit place intent)
+        const places = isRegionOnly ? [] : await fetchPlaces(regionSlug, categorySlug);
 
-        const regionLabel = [regionSlug, categorySlug].filter(Boolean).join(" + ") || "Honduras";
+        // Step 3 — Build system prompt based on intent
+        let system: string;
 
-        const system = `Eres Itinera IA, guía turística de Honduras. Respondes SOLO con información real.
+        if (isRegionOnly) {
+          // Region-only: describe briefly, invite to explore by category
+          system = `Eres Itinera IA, guía turística de Honduras. El usuario mencionó una región o ciudad.
 
-DATOS REALES DE LA BASE DE DATOS (región: ${regionLabel}):
+Devuelve ÚNICAMENTE JSON válido (sin markdown, sin texto extra):
+{"text":"<respuesta>","action":{"type":"filter_region","slug":"${regionSlug}"}}
+
+INSTRUCCIONES:
+- La acción SIEMPRE es filter_region con el slug indicado.
+- En "text": describe la región en 1-2 frases con su esencia (historia, naturaleza, gastronomía, etc.).
+- Luego invita al usuario a explorar mencionando 2-3 tipos de experiencias disponibles (sin listar lugares específicos): por ejemplo "¿Te interesa la arquitectura colonial, la gastronomía local o la naturaleza?"
+- Máximo 3 frases en total. Cálido y directo.
+- Responde en el mismo idioma que el usuario.`;
+        } else {
+          // Region + category (or category alone): fetch and show real places
+          const placesText = places.length > 0
+            ? places.map(p =>
+                `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating} | ${p.category}${p.region ? ` | ${p.region}` : ""}`
+              ).join("\n")
+            : "Sin lugares registrados en la base de datos para esta búsqueda.";
+
+          const contextLabel = [regionSlug, categorySlug].filter(Boolean).join(" + ") || "Honduras";
+
+          system = `Eres Itinera IA, guía turística de Honduras. Respondes SOLO con información real.
+
+DATOS REALES (${contextLabel}):
 ${placesText}
 
-Devuelve ÚNICAMENTE JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+Devuelve ÚNICAMENTE JSON válido (sin markdown, sin texto extra):
 {"text":"<respuesta>","action":<acción o null>}
 
 Acciones posibles:
-  Filtrar región → {"type":"filter_region","slug":"<region-slug>"}
-  Abrir lugar   → {"type":"show_place","slug":"<slug-exacto-del-lugar>"}
-  Limpiar       → {"type":"clear"}
-  Sin acción    → null
+  Filtrar categoría → {"type":"filter_category","slug":"<slug>"}
+  Abrir lugar       → {"type":"show_place","slug":"<slug-exacto>"}
+  Filtrar región    → {"type":"filter_region","slug":"<slug>"}
+  Limpiar           → {"type":"clear"}
+  Sin acción        → null
 
-REGLAS ESTRICTAS:
-1. Solo menciona lugares que aparecen en DATOS REALES. Nunca inventes.
-2. Si hay lugares en la lista, descríbelos: nombre real, algo concreto de su summary, rating.
-3. Si el usuario menciona solo una ciudad/región (ej. "Comayagua", "Copán", "ir a Roatán") → filter_region.
-4. Si el usuario pide una categoría de lugar (ej. "playas", "iglesias", "naturaleza", "comida típica") → filter_category con el slug: beach, nature, heritage, religion, food, adventure, arts.
-5. Si el usuario pide ver, mostrar, abrir o navegar a un lugar ESPECÍFICO por nombre (ej. "muéstrame las Ruinas de Copán", "abre la Catedral", "llévame a West Bay") → show_place con el slug EXACTO de la lista. Nunca filter_region en este caso.
-5. Si no hay datos para lo que pide → díselo honestamente, sin inventar.
-6. Responde máximo 3 frases. Ve al punto.
-7. Responde en el mismo idioma que el usuario.
-
-Slugs de región válidos: comayagua, copan, bay-islands, tegucigalpa, cortes, la-ceiba, atlantida, olancho, santa-barbara, choluteca, lempira, intibuca, ocotepeque, yoro, el-paraiso, colon`;
+REGLAS:
+1. Solo menciona lugares en DATOS REALES. Nunca inventes.
+2. Si hay lugares: descríbelos por nombre con algo concreto de su summary y rating. Máximo 3.
+3. Si el usuario pide una categoría → filter_category.
+4. Si el usuario pide un lugar específico por nombre → show_place con slug exacto de la lista.
+5. Si no hay datos → díselo honestamente.
+6. Máximo 3 frases. Responde en el idioma del usuario.`;
+        }
 
         const result = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -235,8 +255,9 @@ Slugs de región válidos: comayagua, copan, bay-islands, tegucigalpa, cortes, l
         // Step 5 — Emit
         emit({ type: "text-delta", textDelta: parsed.text });
 
-        // Emit places as tool-result cards when there are multiple results
-        if (places.length > 0 && parsed.action?.type !== "show_place") {
+        // Emit tool-result cards only when we have specific places to show
+        // (never on region-only step — user hasn't specified what they want yet)
+        if (!isRegionOnly && places.length > 0 && parsed.action?.type !== "show_place") {
           emit({
             type: "tool-result",
             toolName: "search_places",
