@@ -954,20 +954,29 @@ export function ExploreFullscreenMap({
             typeof action.category === "string" ? normalizeCategorySlug(action.category) : "";
           const actionQuery =
             typeof action.query === "string" ? cleanNaturalSearchQuery(action.query, actionCategorySlug) : "";
+
+          // Always apply query — including clearing it when empty
           if (typeof action.query === "string") setQuery(actionQuery);
+
+          // Always apply category — including clearing it when empty (region switch)
           if (typeof action.category === "string") {
-            if (actionCategorySlug) setActiveCategory(actionCategorySlug);
+            setActiveCategory(actionCategorySlug);
           }
+
+          // Always apply region — replaces previous region
           if (typeof action.region === "string") {
-            const region = regionFilterOptions.find(
+            const matched = regionFilterOptions.find(
               (item) => item.slug === action.region || normalize(item.label) === normalize(action.region ?? "")
             );
-            setActiveRegion(region?.slug ?? action.region);
+            setActiveRegion(matched?.slug ?? action.region);
           }
+
           if (typeof action.minRating === "number") setMinRating(action.minRating);
           if (typeof action.savedOnly === "boolean") setSavedOnly(action.savedOnly);
+
           setAiChips((prev) => {
-            let next = [...prev];
+            // Start fresh with only the chips that still apply from this action
+            let next = prev.filter((chip) => chip.key !== "query" && chip.key !== "category" && chip.key !== "region");
             if (actionQuery) {
               next = upsertChip(next, { key: "query", label: `Búsqueda: ${actionQuery}` });
             }

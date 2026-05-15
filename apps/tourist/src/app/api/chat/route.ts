@@ -8,244 +8,143 @@ function getGroq() { return createGroq({ apiKey: process.env.GROQ_API_KEY! }); }
 function getDB()   { return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!); }
 
 interface AgentContext {
-  page?: string; placeSlug?: string; storySlug?: string;
-  placeName?: string; storyTitle?: string;
+  page?: string;
+  placeSlug?: string;
+  storySlug?: string;
+  placeName?: string;
+  storyTitle?: string;
   activeRouteSlugs?: string[];
   filters?: Record<string, unknown>;
   visibleSlugs?: string[];
 }
 
-type GazetteerEntry = {
-  slug: string;
-  terms: string[];
-  regionSlug?: string;
-};
+type ChatMessage = { role: string; content: string };
 
-type Gazetteer = {
-  regions: GazetteerEntry[];
-  places: GazetteerEntry[];
-  categories: GazetteerEntry[];
-};
+type Intent = "search_places" | "get_story" | "recommend_route" | "get_place" | "explain_sponsor" | "get_nearby" | "general";
+
+type GazetteerEntry = { slug: string; terms: string[]; regionSlug?: string };
+type Gazetteer = { regions: GazetteerEntry[]; places: GazetteerEntry[]; categories: GazetteerEntry[] };
 
 type SemanticMatch = {
-  entity_type: string;
-  slug: string;
-  title: string;
-  summary?: string;
-  category_slug?: string | null;
-  category_name?: string | null;
-  region_slug?: string | null;
-  region_name?: string | null;
-  rating?: number | null;
-  metadata?: Record<string, unknown>;
-  combined_score?: number;
-  match_reason?: string;
+  entity_type: string; slug: string; title: string; summary?: string;
+  category_slug?: string | null; category_name?: string | null;
+  region_slug?: string | null; region_name?: string | null;
+  rating?: number | null; metadata?: Record<string, unknown>;
+  combined_score?: number; match_reason?: string;
 };
 
+// ─── Region / Place aliases (used for fallback grounding when LLM misses) ────
+
 const REGION_ALIASES: Array<{ slug: string; terms: string[] }> = [
-  { slug: "copan", terms: ["copan", "copán"] },
-  { slug: "comayagua", terms: ["comayagua"] },
-  { slug: "san-pedro-sula", terms: ["san pedro sula", "sps"] },
-  { slug: "tegucigalpa", terms: ["tegucigalpa", "tegus"] },
-  { slug: "la-ceiba", terms: ["la ceiba"] },
-  { slug: "roatan", terms: ["roatan", "roatán"] },
+  { slug: "copan",           terms: ["copan", "copán"] },
+  { slug: "comayagua",       terms: ["comayagua"] },
+  { slug: "san-pedro-sula",  terms: ["san pedro sula", "sps"] },
+  { slug: "francisco-morazan", terms: ["francisco morazan", "tegucigalpa", "tegus", "morazan"] },
+  { slug: "cortes",          terms: ["cortes", "cortés", "la ceiba"] },
+  { slug: "islas-de-la-bahia", terms: ["islas de la bahia", "roatan", "roatán", "bay islands", "utila", "guanaja"] },
 ];
 
+const PLACE_ALIASES: Array<{ slug: string; terms: string[] }> = [
+  { slug: "catedral-comayagua",      terms: ["catedral de comayagua", "catedral comayagua"] },
+  { slug: "ruinas-copan",            terms: ["ruinas de copan", "ruinas de copán", "ruinas copan", "copan ruins"] },
+  { slug: "playa-west-bay-roatan",   terms: ["west bay", "playa west bay", "west bay roatan", "west bay roatán"] },
+  { slug: "parque-nacional-cusuco",  terms: ["cusuco", "parque nacional cusuco"] },
+  { slug: "parque-nacional-la-tigra",terms: ["la tigra", "parque nacional la tigra"] },
+];
+
+// ─── Text utilities ───────────────────────────────────────────────────────────
+
 function normalizeText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function uniqueTerms(...values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.filter(Boolean).map((value) => normalizeText(value as string)).filter(Boolean)));
+  return Array.from(new Set(values.filter(Boolean).map(v => normalizeText(v as string)).filter(Boolean)));
 }
+
+function labelFromSlug(slug: string) { return slug.replace(/-/g, " "); }
 
 function inferRegionFromText(text: string): string | null {
-  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  for (const region of REGION_ALIASES) {
-    if (region.terms.some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")))) {
-      return region.slug;
-    }
+  const n = normalizeText(text);
+  for (const r of REGION_ALIASES) {
+    if (r.terms.some(t => n.includes(normalizeText(t)))) return r.slug;
   }
   return null;
 }
-
-const PLACE_ALIASES: Array<{ slug: string; terms: string[] }> = [
-  { slug: "catedral-comayagua", terms: ["catedral de comayagua", "catedral comayagua"] },
-  { slug: "ruinas-copan", terms: ["ruinas de copan", "ruinas de copán", "copan ruins"] },
-  { slug: "playa-west-bay-roatan", terms: ["west bay", "playa west bay", "west bay roatan", "west bay roatán"] },
-  { slug: "parque-nacional-cusuco", terms: ["cusuco", "parque nacional cusuco"] },
-  { slug: "parque-nacional-la-tigra", terms: ["la tigra", "parque nacional la tigra"] },
-];
 
 function inferPlaceSlugFromText(text: string): string | null {
-  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  for (const place of PLACE_ALIASES) {
-    if (place.terms.some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")))) {
-      return place.slug;
-    }
+  const n = normalizeText(text);
+  for (const p of PLACE_ALIASES) {
+    if (p.terms.some(t => n.includes(normalizeText(t)))) return p.slug;
   }
   return null;
 }
 
-function looksLikePlaceSearch(text: string): boolean {
-  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  return [
-    "que lugares",
-    "qué lugares",
-    "recomienda",
-    "recomendame",
-    "donde ir",
-    "qué ver",
-    "que ver",
-    "lugares para visitar",
-    "me indicas",
-    "indicame",
-    "como llegar",
-    "como llego",
-    "donde queda",
-    "ubicacion",
-  ].some((term) => normalized.includes(term.normalize("NFD").replace(/[̀-ͯ]/g, "")));
+// Match a text against gazetteer entries — requires term length >= 4 to avoid false positives
+function inferEntryFromText(text: string, entries: GazetteerEntry[], minTermLength = 4): GazetteerEntry | null {
+  const n = normalizeText(text);
+  const hits = entries
+    .map(entry => {
+      const matched = entry.terms
+        .filter(t => t.length >= minTermLength && n.includes(t))
+        .sort((a, b) => b.length - a.length)[0];
+      return matched ? { entry, length: matched.length } : null;
+    })
+    .filter(Boolean) as Array<{ entry: GazetteerEntry; length: number }>;
+  return hits.sort((a, b) => b.length - a.length)[0]?.entry ?? null;
+}
+
+function normalizeCategoryParam(value?: string): string {
+  const n = normalizeText(value ?? "");
+  if (n.includes("heritage") || n.includes("patrimonio"))  return "heritage";
+  if (n.includes("nature")   || n.includes("naturaleza"))  return "nature";
+  if (n.includes("food")     || n.includes("gastronomia")) return "food";
+  if (n.includes("adventure")|| n.includes("aventura"))    return "adventure";
+  if (n.includes("beach")    || n.includes("playa"))       return "beach";
+  if (n.includes("relig"))                                  return "religion";
+  if (n.includes("museum")   || n.includes("museo") || n.includes("arte")) return "arts";
+  return value ?? "";
 }
 
 function isRecommendationRequest(text: string) {
-  const normalized = normalizeText(text);
-  return [
-    "otra opcion",
-    "otras opciones",
-    "otro lugar",
-    "otros lugares",
-    "que mas hay",
-    "que mas puedo ver",
-    "algo mas",
-    "algo diferente",
-    "alguna recomendacion",
-    "recomiendame algo",
-    "recomienda algo",
-    "dame opciones",
-    "mas opciones",
-    "no se",
-    "sorprendeme",
-  ].some((term) => normalized.includes(term));
+  const n = normalizeText(text);
+  return ["otra opcion","otras opciones","otro lugar","otros lugares","que mas hay","que mas puedo ver",
+    "algo mas","algo diferente","alguna recomendacion","recomiendame algo","recomienda algo",
+    "dame opciones","mas opciones","no se","sorprendeme",
+  ].some(t => n.includes(t));
 }
 
-// ─── System prompt ───────────────────────────────────────────────────────────
-function inferEntryFromText(text: string, entries: GazetteerEntry[]) {
-  const normalized = normalizeText(text);
-  const matches = entries
-    .map((entry) => {
-      const matchedTerm = entry.terms
-        .filter((term) => term.length >= 3 && normalized.includes(term))
-        .sort((a, b) => b.length - a.length)[0];
-      return matchedTerm ? { entry, length: matchedTerm.length } : null;
-    })
-    .filter(Boolean) as Array<{ entry: GazetteerEntry; length: number }>;
-  return matches.sort((a, b) => b.length - a.length)[0]?.entry ?? null;
+function looksLikePlaceSearch(text: string) {
+  const n = normalizeText(text);
+  return ["que lugares","que sitios","recomienda","recomendame","donde ir","que ver","lugares para visitar",
+    "me indicas","indicame","como llegar","como llego","donde queda","ubicacion",
+  ].some(t => n.includes(t));
 }
 
-function cleanSearchQuery(query?: string, grounding?: { region?: string; category?: string; slug?: string }) {
+function cleanSearchQuery(query?: string, grounding?: { region?: string; category?: string }): string {
   if (!query) return "";
-  let normalized = normalizeText(query);
-  for (const token of [grounding?.region, grounding?.category, grounding?.slug]) {
-    if (token) normalized = normalized.replaceAll(normalizeText(token), " ");
+  let n = normalizeText(query);
+  for (const token of [grounding?.region, grounding?.category]) {
+    if (token) n = n.replaceAll(normalizeText(token), " ");
   }
-  normalized = normalized.replace(/\s+/g, " ").trim();
-  if (grounding?.category) {
-    const fillerWords = new Set([
-      "tienes",
-      "tiene",
-      "hay",
-      "alguna",
-      "algun",
-      "otra",
-      "otro",
-      "opcion",
-      "opciones",
-      "bonita",
-      "bonito",
-      "linda",
-      "lindo",
-      "hermosa",
-      "hermoso",
-      "buena",
-      "buen",
-      "recomienda",
-      "recomendame",
-      "busco",
-      "quiero",
-      "para",
-      "visitar",
-      "conocer",
-      "destino",
-      "destinos",
-      "lugar",
-      "lugares",
-      "una",
-      "un",
-      "de",
-      "del",
-      "la",
-      "el",
-      "en",
-      "por",
-      "favor",
-      "playa",
-      "playas",
-      "beach",
-      "naturaleza",
-      "nature",
-      "patrimonio",
-      "cultural",
-      "gastronomia",
-      "comida",
-      "aventura",
-      "religioso",
-      "religion",
-      "arte",
-      "museo",
-      "museos",
-    ]);
-    const remaining = normalized.split(" ").filter((token) => token.length > 2 && !fillerWords.has(token));
-    if (remaining.length === 0) return "";
-  }
-  const genericTerms = [
-    "que lugares tiene",
-    "que lugares hay",
-    "que ver",
-    "donde ir",
-    "recomienda",
-    "recomendame",
-    "lugares",
-    "sitios",
-    "atracciones",
-    "me indicas",
-  ];
-  if (!normalized || genericTerms.some((term) => normalized === normalizeText(term) || normalized.includes(normalizeText(term)))) {
-    return "";
-  }
-  return query.trim();
+  n = n.replace(/\s+/g, " ").trim();
+
+  const fillerWords = new Set([
+    "tienes","tiene","hay","alguna","algun","otra","otro","opcion","opciones",
+    "bonita","bonito","linda","lindo","hermosa","hermoso","buena","buen",
+    "recomienda","recomendame","busco","quiero","para","visitar","conocer",
+    "destino","destinos","lugar","lugares","sitio","sitios","que","cuales",
+    "una","un","de","del","la","el","en","por","favor","con","hay","ahi",
+    "playa","playas","beach","naturaleza","nature","patrimonio","cultural",
+    "gastronomia","comida","aventura","religioso","religion","arte","museo","museos",
+  ]);
+  const remaining = n.split(" ").filter(t => t.length > 2 && !fillerWords.has(t));
+  if (remaining.length === 0) return "";
+
+  return remaining.join(" ");
 }
 
-function labelFromSlug(slug: string) {
-  return slug.replace(/-/g, " ");
-}
-
-function normalizeCategoryParam(value?: string) {
-  const normalized = normalizeText(value ?? "");
-  if (normalized.includes("heritage") || normalized.includes("patrimonio")) return "heritage";
-  if (normalized.includes("nature") || normalized.includes("naturaleza")) return "nature";
-  if (normalized.includes("food") || normalized.includes("gastronomia")) return "food";
-  if (normalized.includes("adventure") || normalized.includes("aventura")) return "adventure";
-  if (normalized.includes("beach") || normalized.includes("playa")) return "beach";
-  if (normalized.includes("relig")) return "religion";
-  if (normalized.includes("museum") || normalized.includes("museo") || normalized.includes("arte")) return "arts";
-  return value ?? "";
-}
+// ─── Gazetteer builder ────────────────────────────────────────────────────────
 
 async function buildGazetteer(): Promise<Gazetteer> {
   const db = getDB();
@@ -254,170 +153,121 @@ async function buildGazetteer(): Promise<Gazetteer> {
     db.from("places").select("slug,name_i18n,regions(slug)").eq("status", "published"),
     db.from("place_categories").select("slug,name_i18n"),
   ]);
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const regions = (regionsRes.data ?? []).map((region: any) => ({
-    slug: region.slug as string,
-    terms: uniqueTerms(region.slug, labelFromSlug(region.slug), region.name_i18n?.es, region.name_i18n?.en),
+  const regions = (regionsRes.data ?? []).map((r: any) => ({
+    slug: r.slug as string,
+    terms: uniqueTerms(r.slug, labelFromSlug(r.slug), r.name_i18n?.es, r.name_i18n?.en),
   }));
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const places = (placesRes.data ?? []).map((place: any) => ({
-    slug: place.slug as string,
-    regionSlug: place.regions?.slug as string | undefined,
-    terms: uniqueTerms(place.slug, labelFromSlug(place.slug), place.name_i18n?.es, place.name_i18n?.en),
+  const places = (placesRes.data ?? []).map((p: any) => ({
+    slug: p.slug as string,
+    regionSlug: p.regions?.slug as string | undefined,
+    terms: uniqueTerms(p.slug, labelFromSlug(p.slug), p.name_i18n?.es, p.name_i18n?.en),
   }));
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const categories = (categoriesRes.data ?? []).map((category: any) => ({
-    slug: category.slug as string,
-    terms: uniqueTerms(category.slug, labelFromSlug(category.slug), category.name_i18n?.es, category.name_i18n?.en),
+  const categories = (categoriesRes.data ?? []).map((c: any) => ({
+    slug: c.slug as string,
+    terms: uniqueTerms(c.slug, labelFromSlug(c.slug), c.name_i18n?.es, c.name_i18n?.en),
   }));
-
   return { regions, places, categories };
 }
 
+// ─── System prompt ────────────────────────────────────────────────────────────
+
 function buildSystem(ctx: AgentContext, dbData?: unknown, actionConfirmation?: string): string {
-  const ctxBlock = ctx.page
-    ? `\nCONTEXTO: Página=${ctx.page}${ctx.placeName ? ` Lugar="${ctx.placeName}"` : ""}${ctx.storyTitle ? ` Historia="${ctx.storyTitle}"` : ""}${ctx.activeRouteSlugs?.length ? ` Ruta activa con ${ctx.activeRouteSlugs.length} paradas` : ""}${ctx.filters ? ` Filtros: ${JSON.stringify(ctx.filters)}` : ""}${ctx.visibleSlugs?.length ? ` Mostrando ${ctx.visibleSlugs.length} lugares en mapa` : ""}`
-    : "";
-  const dataBlock = dbData
-    ? `\n\nDATA DEL SISTEMA (usa esta información para responder con detalle real):\n${JSON.stringify(dbData, null, 2)}`
-    : "";
-  const actionBlock = actionConfirmation
-    ? `\n\nACCIÓN UI YA EJECUTADA: "${actionConfirmation}" — NO la repitas. Complementa con información útil sobre los lugares encontrados o la región.`
-    : "";
-
-  return `Eres Itinera IA, guía turística de Honduras. Eres informativo, directo y específico.
-
-PERSONALIDAD: Directo y concreto. Cuando el usuario pregunta qué hay en una región, DESCRIBE los lugares reales de la DATA. No digas "puedes explorar" si ya tienes datos — di qué hay.
-Responde en 2-4 frases normalmente. No uses listas largas salvo que el usuario las pida.
-No repitas saludos. No digas "con gusto" ni "claro que sí". Ve al punto.
-
-IDIOMA: SIEMPRE responde en el mismo idioma que el usuario.
-
-CRÍTICO: SOLO menciona lugares en la DATA DEL SISTEMA. NUNCA inventes. Si no hay datos, dilo y sugiere explorar el mapa.
-
-CUANDO HAY DATA de lugares: menciona 2-3 específicamente por nombre con algo concreto de cada uno (qué es, qué tiene, por qué vale la pena). No seas genérico.
-
-Si la página es "place": actúa como guía del lugar actual únicamente.
-
-Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}${actionBlock}`;
-}
-
-// ─── Intent extraction (step 1) ──────────────────────────────────────────────
-async function searchSemanticPlaces(
-  params: Record<string, string>,
-  rawMessage: string
-): Promise<{ type: "places"; places: Array<Record<string, unknown>> } | null> {
-  const semanticSecret = process.env.SEMANTIC_REBUILD_SECRET;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!semanticSecret || !supabaseUrl) return null;
-
-  const categorySlug = normalizeCategoryParam(params.category);
-  const regionSlug = params.region ? inferRegionFromText(params.region) ?? params.region : "";
-  const searchQuery = cleanSearchQuery(params.query, {
-    region: regionSlug,
-    category: categorySlug,
-    slug: params.slug,
-  });
-  const query = [
-    searchQuery || params.query || rawMessage,
-    categorySlug ? labelFromSlug(categorySlug) : "",
-    regionSlug ? labelFromSlug(regionSlug) : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  if (!query.trim()) return null;
-
-  try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/semantic-embeddings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-semantic-secret": semanticSecret,
-      },
-      body: JSON.stringify({
-        mode: "search",
-        query,
-        entityTypes: ["place"],
-        regionSlug: regionSlug || null,
-        categorySlug: categorySlug || null,
-        limit: 6,
-      }),
-    });
-
-    if (!res.ok) return null;
-    const payload = (await res.json()) as { matches?: SemanticMatch[] };
-    const matches = payload.matches ?? [];
-    if (!matches.length) return null;
-
-    return {
-      type: "places",
-      places: matches.map((match) => ({
-        slug: match.slug,
-        name: match.title,
-        summary: match.summary,
-        rating: Number(match.rating ?? match.metadata?.rating ?? 0),
-        category: match.category_name,
-        categorySlug: match.category_slug,
-        region: match.region_name,
-        regionSlug: match.region_slug,
-        matchReason: match.match_reason,
-        score: match.combined_score,
-        url: `/places/${match.slug}`,
-      })),
-    };
-  } catch (error) {
-    console.error("semantic search error", error);
-    return null;
+  const ctxParts: string[] = [];
+  if (ctx.page)               ctxParts.push(`Página=${ctx.page}`);
+  if (ctx.placeName)          ctxParts.push(`LugarActivo="${ctx.placeName}"`);
+  if (ctx.storyTitle)         ctxParts.push(`Historia="${ctx.storyTitle}"`);
+  if (ctx.activeRouteSlugs?.length) ctxParts.push(`RutaActiva=${ctx.activeRouteSlugs.length} paradas: ${ctx.activeRouteSlugs.join(", ")}`);
+  if (ctx.filters && Object.keys(ctx.filters).some(k => ctx.filters![k])) {
+    const f = ctx.filters;
+    const filterStr = [
+      f.region    ? `región=${f.region}` : "",
+      f.category  ? `categoría=${f.category}` : "",
+      f.query     ? `búsqueda="${f.query}"` : "",
+      f.minRating ? `rating≥${f.minRating}` : "",
+      f.savedOnly ? "soloGuardados" : "",
+    ].filter(Boolean).join(", ");
+    if (filterStr) ctxParts.push(`FiltrosMapa=${filterStr}`);
   }
+  if (ctx.visibleSlugs?.length) ctxParts.push(`LugaresVisibles=${ctx.visibleSlugs.length}: ${ctx.visibleSlugs.slice(0, 8).join(", ")}`);
+
+  const ctxBlock   = ctxParts.length ? `\n\nCONTEXTO UI: ${ctxParts.join(" | ")}` : "";
+  const dataBlock  = dbData  ? `\n\nDATA REAL DEL SISTEMA:\n${JSON.stringify(dbData, null, 2)}` : "";
+  const actionNote = actionConfirmation
+    ? `\n\nACCIÓN YA EJECUTADA EN EL MAPA: "${actionConfirmation}" — no la repitas. Describe ahora los lugares encontrados con información concreta.`
+    : "";
+
+  return `Eres Itinera IA, guía turística inteligente de Honduras. Eres conversacional, informativo y útil.
+
+REGLAS DE RESPUESTA:
+- Ve directo al punto. Sin "con gusto", "claro que sí" ni introducciones vacías.
+- Usa la DATA REAL para responder. Si tienes lugares, descríbelos: nombre, qué son, por qué vale la pena. Menciona 2-3 máximo salvo que el usuario pida lista.
+- Si no tienes data real de algo, dilo honestamente y sugiere explorar el mapa.
+- NUNCA inventes lugares, precios, horarios ni hechos que no estén en la data.
+- En /explore la UI ya mueve el mapa — tú complementas con contexto rico sobre los lugares.
+- Responde en el MISMO IDIOMA que el usuario (español o inglés). Si mezclan, responde en español.
+- Si el usuario cambió de destino (ej. "mejor a Copán"), responde sobre el nuevo destino únicamente.
+- Si pide "qué hay", usa los datos para describir las opciones reales. No generalices.
+
+SI ESTÁS EN page=place: actúa como guía del lugar activo. No recomiendes otros destinos.
+
+Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}${actionNote}`;
 }
 
-async function extractIntent(userMsg: string, ctx: AgentContext): Promise<{
-  intent: "search_places" | "get_story" | "recommend_route" | "get_place" | "explain_sponsor" | "get_nearby" | "general";
-  params: Record<string, string>;
-}> {
-  const systemContext = ctx.placeName ? `El usuario está viendo el lugar: ${ctx.placeName}` : "";
-  const systemStory   = ctx.storyTitle ? `El usuario está leyendo: ${ctx.storyTitle}` : "";
+// ─── Intent extraction ────────────────────────────────────────────────────────
+
+async function extractIntent(
+  userMsg: string,
+  ctx: AgentContext,
+  recentHistory: ChatMessage[]
+): Promise<{ intent: Intent; params: Record<string, string> }> {
+  const historySnippet = recentHistory
+    .slice(-4)
+    .map(m => `${m.role === "user" ? "Usuario" : "IA"}: ${m.content.slice(0, 120)}`)
+    .join("\n");
+
+  const ctxHint = [
+    ctx.placeName  ? `Lugar visto actualmente: ${ctx.placeName}` : "",
+    ctx.storyTitle ? `Historia leída: ${ctx.storyTitle}` : "",
+    historySnippet ? `Conversación reciente:\n${historySnippet}` : "",
+  ].filter(Boolean).join("\n");
 
   try {
     const result = await generateText({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       model: (getGroq() as any)("llama-3.1-8b-instant"),
-      system: `Extract intent from user message. ${systemContext} ${systemStory}
-Return ONLY valid JSON (no markdown):
-{"intent":"search_places|get_story|recommend_route|get_place|explain_sponsor|get_nearby|general","params":{"query":"...","region":"copan|tegucigalpa|la-ceiba|roatan|comayagua|san-pedro-sula","category":"heritage|nature|food|adventure|beach","slug":"place-slug-here"}}
+      system: `Extrae el intent del último mensaje del usuario en el contexto de una app turística de Honduras.
+${ctxHint ? `\nContexto:\n${ctxHint}` : ""}
 
-Intent rules (be AGGRESSIVE classifying place/travel queries):
-- search_places: ANY mention of visiting, going to a city/region, "qué ver", "qué lugares", "recomienda", "recomendas", travel plans to Honduras
-- get_story: history, culture, traditions, how/why something happened
-- recommend_route: day plan, itinerary, "qué hacer en un día", route
-- get_place: asking about ONE specific place by name
-- explain_sponsor: sponsors, why places appear first, business model
-- get_nearby: nearby places, "cerca de mí", "near me", "alrededor"
-- general: ONLY pure greetings (Hola, Hi) or very abstract questions NOT about travel/places
+Devuelve SOLO JSON válido (sin markdown):
+{"intent":"<intent>","params":{"query":"<texto limpio>","region":"<slug-region>","category":"<slug-categoria>","slug":"<slug-lugar>"}}
 
-IMPORTANT: If the user mentions ANY city, region or travel in Honduras → search_places`,
+Slugs de región válidos: copan, comayagua, san-pedro-sula, francisco-morazan, cortes, islas-de-la-bahia
+Slugs de categoría válidos: heritage, nature, food, adventure, beach, religion, arts
+
+Reglas de intent:
+- search_places: menciona ciudad/región/departamento, "qué ver", "qué hay", "qué sitios", "recomienda", viajes, turismo
+- get_place: pregunta sobre UN lugar específico por nombre (ej. "Ruinas de Copán", "Catedral de Comayagua")
+- recommend_route: pide itinerario, ruta de un día, plan de viaje
+- get_story: pide historia, cultura, tradiciones, el porqué de algo
+- get_nearby: "cerca de mí", "alrededor", "nearby"
+- explain_sponsor: sponsors, por qué aparecen primero, modelo de negocio
+- general: solo saludos puros (Hola, Hi) o preguntas sin relación con viajes
+
+IMPORTANTE: Si el usuario menciona una ciudad o región de Honduras → search_places con region=<slug>.
+Si dice "mejor a X" o "prefiero ir a X" → search_places con region=<slug de X>.
+Si pregunta "qué hay ahí" después de mencionar una ciudad → search_places con esa región.`,
       messages: [{ role: "user", content: userMsg }],
     });
 
     const text = result.text.trim();
-    const json = text.startsWith("{") ? text : text.match(/\{[\s\S]*\}/)?.[0] ?? "{}";
+    const json = text.startsWith("{") ? text : (text.match(/\{[\s\S]*\}/)?.[0] ?? "{}");
     const parsed = JSON.parse(json) as { intent?: string; params?: Record<string, string> };
-    const allowedIntents = new Set([
-      "search_places",
-      "get_story",
-      "recommend_route",
-      "get_place",
-      "explain_sponsor",
-      "get_nearby",
-      "general",
-    ]);
-    const intent = allowedIntents.has(parsed.intent ?? "") ? parsed.intent : "general";
+    const allowed = new Set(["search_places","get_story","recommend_route","get_place","explain_sponsor","get_nearby","general"]);
     return {
-      intent: intent as "search_places" | "get_story" | "recommend_route" | "get_place" | "explain_sponsor" | "get_nearby" | "general",
+      intent: (allowed.has(parsed.intent ?? "") ? parsed.intent : "general") as Intent,
       params: parsed.params ?? {},
     };
   } catch {
@@ -425,66 +275,124 @@ IMPORTANT: If the user mentions ANY city, region or travel in Honduras → searc
   }
 }
 
-// ─── Data fetcher (step 2) ────────────────────────────────────────────────────
+// ─── Data fetcher ─────────────────────────────────────────────────────────────
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchData(intent: string, params: Record<string, string>, ctx: AgentContext, rawMessage = ""): Promise<any> {
-  const safeParams = params ?? {};
+async function fetchData(intent: Intent, params: Record<string, string>, ctx: AgentContext, rawMessage = ""): Promise<any> {
   const db = getDB();
 
   if (intent === "search_places") {
-    const semanticData = await searchSemanticPlaces(safeParams, rawMessage);
-    if (semanticData?.places.length) return semanticData;
+    // Try semantic search first
+    const semanticSecret = process.env.SEMANTIC_REBUILD_SECRET;
+    const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (semanticSecret && supabaseUrl) {
+      const categorySlug = normalizeCategoryParam(params.category);
+      const regionSlug   = params.region ? (inferRegionFromText(params.region) ?? params.region) : "";
+      const q = cleanSearchQuery(params.query, { region: regionSlug, category: categorySlug });
+      const queryStr = [q || rawMessage, categorySlug ? labelFromSlug(categorySlug) : "", regionSlug ? labelFromSlug(regionSlug) : ""].filter(Boolean).join(" ");
+      if (queryStr.trim()) {
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/semantic-embeddings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-semantic-secret": semanticSecret },
+            body: JSON.stringify({ mode: "search", query: queryStr, entityTypes: ["place"], regionSlug: regionSlug || null, categorySlug: categorySlug || null, limit: 6 }),
+          });
+          if (res.ok) {
+            const payload = await res.json() as { matches?: SemanticMatch[] };
+            const matches = payload.matches ?? [];
+            if (matches.length) {
+              return {
+                type: "places",
+                places: matches.map(m => ({
+                  slug: m.slug, name: m.title, summary: m.summary,
+                  rating: Number(m.rating ?? m.metadata?.rating ?? 0),
+                  category: m.category_name, categorySlug: m.category_slug,
+                  region: m.region_name, regionSlug: m.region_slug,
+                  url: `/places/${m.slug}`,
+                })),
+              };
+            }
+          }
+        } catch (e) { console.error("semantic search error", e); }
+      }
+    }
 
-    const searchQuery = cleanSearchQuery(safeParams.query, {
-      region: safeParams.region,
-      category: safeParams.category,
-      slug: safeParams.slug,
-    });
+    // Fallback: Supabase REST query
+    const regionSlug = params.region ? (inferRegionFromText(params.region) ?? params.region) : "";
+    const categorySlug = normalizeCategoryParam(params.category);
+    const searchQuery = cleanSearchQuery(params.query, { region: regionSlug, category: categorySlug });
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = db.from("places")
-      .select("slug,name_i18n,ai_summary_i18n,aggregated_rating,price_level,local_favorite,place_categories(name_i18n,slug),regions(name_i18n)")
-      .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(4);
-    if (searchQuery) q = q.textSearch("search_vector", searchQuery, { type: "websearch", config: "spanish" });
-    if (safeParams.region) {
-      const normalizedRegion = inferRegionFromText(safeParams.region) ?? safeParams.region;
-      const { data: r } = await db.from("regions").select("id").eq("slug", normalizedRegion).single();
-      if (r) q = q.eq("region_id", r.id);
-      else return { type: "places", places: [] };
+      .select("slug,name_i18n,ai_summary_i18n,aggregated_rating,price_level,local_favorite,place_categories(name_i18n,slug),regions(name_i18n,slug)")
+      .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(6);
+
+    if (regionSlug) {
+      const { data: regionRow } = await db.from("regions").select("id").eq("slug", regionSlug).single();
+      if (regionRow) q = q.eq("region_id", regionRow.id);
+      else {
+        // Region not found by slug — try ILIKE on name
+        const { data: regionFuzzy } = await db.from("regions").select("id").ilike("slug", `%${regionSlug.split("-")[0]}%`).limit(1).single();
+        if (regionFuzzy) q = q.eq("region_id", regionFuzzy.id);
+      }
     }
-    if (safeParams.category) {
-      const categorySlug = normalizeCategoryParam(safeParams.category);
-      const { data: c } = await db.from("place_categories").select("id").eq("slug", categorySlug).single();
-      if (c) q = q.eq("category_id", c.id);
+
+    if (categorySlug) {
+      const { data: catRow } = await db.from("place_categories").select("id").eq("slug", categorySlug).single();
+      if (catRow) q = q.eq("category_id", catRow.id);
     }
+
+    if (searchQuery) {
+      // Try full-text, fall back to ilike if that fails
+      const { data: ftData, error: ftError } = await q.textSearch("search_vector", searchQuery, { type: "websearch", config: "spanish" });
+      if (!ftError && ftData?.length) {
+        return {
+          type: "places",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          places: ftData.map((p: any) => ({
+            slug: p.slug, name: p.name_i18n?.es, summary: p.ai_summary_i18n?.es,
+            rating: Number(p.aggregated_rating), localFavorite: p.local_favorite,
+            category: p.place_categories?.name_i18n?.es, categorySlug: p.place_categories?.slug,
+            region: p.regions?.name_i18n?.es, regionSlug: p.regions?.slug,
+            url: `/places/${p.slug}`,
+          })),
+        };
+      }
+      // textSearch failed or returned empty — query without it
+    }
+
     const { data } = await q;
     return {
       type: "places",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       places: (data ?? []).map((p: any) => ({
-        slug: p.slug,
-        name: p.name_i18n?.es,
-        summary: p.ai_summary_i18n?.es,
-        rating: Number(p.aggregated_rating),
-        price: p.price_level,
-        localFavorite: p.local_favorite,
-        category: p.place_categories?.name_i18n?.es,
-        region: p.regions?.name_i18n?.es,
+        slug: p.slug, name: p.name_i18n?.es, summary: p.ai_summary_i18n?.es,
+        rating: Number(p.aggregated_rating), localFavorite: p.local_favorite,
+        category: p.place_categories?.name_i18n?.es, categorySlug: p.place_categories?.slug,
+        region: p.regions?.name_i18n?.es, regionSlug: p.regions?.slug,
         url: `/places/${p.slug}`,
       })),
     };
   }
 
   if (intent === "get_place") {
-    const slug = safeParams.slug ?? ctx.placeSlug;
+    const slug = params.slug ?? ctx.placeSlug;
     if (!slug) return null;
     const { data } = await db.from("places")
-      .select("slug,name_i18n,ai_summary_i18n,ai_tips_i18n,aggregated_rating,price_level,phone,website,place_categories(name_i18n),regions(name_i18n)")
+      .select("slug,name_i18n,ai_summary_i18n,ai_tips_i18n,aggregated_rating,price_level,phone,website,place_categories(name_i18n,slug),regions(name_i18n,slug)")
       .eq("slug", slug).eq("status", "published").single();
     if (!data) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = data as any;
     return {
       type: "place_detail",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      place: { slug: data.slug, name: (data as any).name_i18n?.es, summary: (data as any).ai_summary_i18n?.es, tips: (data as any).ai_tips_i18n?.es, rating: Number(data.aggregated_rating), price: data.price_level, phone: data.phone, website: data.website, category: (data as any).place_categories?.name_i18n?.es, region: (data as any).regions?.name_i18n?.es, url: `/places/${data.slug}` },
+      place: {
+        slug: p.slug, name: p.name_i18n?.es, summary: p.ai_summary_i18n?.es, tips: p.ai_tips_i18n?.es,
+        rating: Number(p.aggregated_rating), price: p.price_level, phone: p.phone, website: p.website,
+        category: p.place_categories?.name_i18n?.es, categorySlug: p.place_categories?.slug,
+        region: p.regions?.name_i18n?.es, regionSlug: p.regions?.slug,
+        url: `/places/${p.slug}`,
+      },
     };
   }
 
@@ -493,7 +401,7 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
     let q: any = db.from("stories")
       .select("slug,title_i18n,summary_i18n,body_markdown_i18n,audio_storage_path")
       .eq("status", "published").eq("moderation_status", "approved").limit(2);
-    if (safeParams.query) q = q.textSearch("search_vector", safeParams.query, { type: "websearch", config: "spanish" });
+    if (params.query) q = q.textSearch("search_vector", params.query, { type: "websearch", config: "spanish" });
     const { data } = await q;
     return {
       type: "stories",
@@ -503,17 +411,22 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   }
 
   if (intent === "recommend_route") {
-    const regionSlug = (safeParams.region ?? "copan").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
-    const { data: reg } = await db.from("regions").select("id").eq("slug", regionSlug).single();
+    const regionSlug = inferRegionFromText(params.region ?? "") ?? (params.region ?? "copan").toLowerCase().replace(/\s+/g, "-");
+    const { data: regionRow } = await db.from("regions").select("id").eq("slug", regionSlug).single();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = db.from("places").select("slug,name_i18n,place_categories(name_i18n)").eq("status","published").order("aggregated_rating",{ascending:false}).limit(4);
-    if (reg) q = q.eq("region_id", reg.id);
+    let q: any = db.from("places")
+      .select("slug,name_i18n,ai_summary_i18n,place_categories(name_i18n,slug)")
+      .eq("status", "published").order("aggregated_rating", { ascending: false }).limit(5);
+    if (regionRow) q = q.eq("region_id", regionRow.id);
     const { data } = await q;
     return {
-      type: "route",
-      region: safeParams.region ?? "Honduras",
+      type: "route", region: params.region ?? "Honduras",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      stops: (data ?? []).map((p: any, i: number) => ({ order: i+1, timeOfDay: ["morning","morning","afternoon","evening"][i], slug: p.slug, name: p.name_i18n?.es, category: p.place_categories?.name_i18n?.es, url: `/places/${p.slug}` })),
+      stops: (data ?? []).map((p: any, i: number) => ({
+        order: i + 1, timeOfDay: ["mañana","mañana","tarde","tarde","noche"][i],
+        slug: p.slug, name: p.name_i18n?.es, summary: p.ai_summary_i18n?.es,
+        category: p.place_categories?.name_i18n?.es, url: `/places/${p.slug}`,
+      })),
     };
   }
 
@@ -528,188 +441,209 @@ async function fetchData(intent: string, params: Record<string, string>, ctx: Ag
   return null;
 }
 
-function deriveUIActions(intent: string, params: Record<string, string>, dbData: unknown, rawMessage = "") {
-  const safeParams = params ?? {};
-  const normalizedMessage = normalizeText(rawMessage);
-  const recommendationRequest = isRecommendationRequest(rawMessage);
-  const data = dbData as {
-    places?: { slug?: string }[];
-    place?: { slug?: string };
-    region?: string;
-    stops?: Array<{ order: number; slug: string; name: string; timeOfDay?: string; url?: string }>;
-  };
+// ─── UI Actions ───────────────────────────────────────────────────────────────
+
+function deriveUIActions(
+  intent: Intent,
+  params: Record<string, string>,
+  dbData: unknown,
+  rawMessage = ""
+) {
+  const msg = normalizeText(rawMessage);
+  const isRec = isRecommendationRequest(rawMessage);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = dbData as any;
   const actions: Array<Record<string, unknown>> = [];
   const entities: Record<string, unknown> = {};
 
-  if (safeParams.query) entities.query = safeParams.query;
-  if (safeParams.category) entities.category = normalizeCategoryParam(safeParams.category);
-  if (safeParams.region) entities.region = safeParams.region;
-  if (safeParams.slug) entities.slug = safeParams.slug;
+  if (params.query)    entities.query    = params.query;
+  if (params.category) entities.category = normalizeCategoryParam(params.category);
+  if (params.region)   entities.region   = params.region;
+  if (params.slug)     entities.slug     = params.slug;
 
-  if (["limpiar filtros", "quitar filtros", "quita filtros", "reset filtros", "borrar filtros"].some((term) => normalizedMessage.includes(term))) {
+  // Explicit meta-commands
+  if (["limpiar filtros","quitar filtros","quita filtros","reset filtros","borrar filtros"].some(t => msg.includes(t))) {
     actions.push({ type: "clear_filters" });
   }
-
-  if (["limpiar ruta", "borrar ruta", "quitar ruta", "quita ruta", "reiniciar ruta"].some((term) => normalizedMessage.includes(term))) {
+  if (["limpiar ruta","borrar ruta","quitar ruta","quita ruta","reiniciar ruta"].some(t => msg.includes(t))) {
     actions.push({ type: "clear_route" });
   }
 
   if (intent === "search_places") {
-    if (recommendationRequest) {
-      return { intent, entities, actions };
-    }
-    const ratingMatch = normalizedMessage.match(/(?:rating|estrellas?|valoracion)\s*(?:de\s*)?([4-5](?:\.\d)?)/);
+    if (isRec) return { intent, entities, actions };
+
+    const ratingMatch = msg.match(/(?:rating|estrellas?|valoracion)\s*(?:de\s*)?([4-5](?:\.\d)?)/);
+    const category    = normalizeCategoryParam(params.category);
+    const region      = params.region ?? "";
+    const query       = cleanSearchQuery(params.query, { region, category });
+
+    // When switching region/category, apply fresh filter (UI listener handles replacing old state)
     actions.push({
       type: "apply_filter",
-      query: cleanSearchQuery(safeParams.query, safeParams) || "",
-      category: normalizeCategoryParam(safeParams.category) ?? "",
-      region: safeParams.region ?? "",
-      minRating: ratingMatch ? Number(ratingMatch[1]) : undefined,
-      savedOnly: ["guardados", "favoritos"].some((term) => normalizedMessage.includes(term)) || undefined,
+      query,
+      category,
+      region,
+      minRating:  ratingMatch ? Number(ratingMatch[1]) : undefined,
+      savedOnly:  ["guardados","favoritos"].some(t => msg.includes(t)) || undefined,
     });
-    // Only auto-select a place if the user explicitly asked for ONE specific place, not a list
-    const asksForSinglePlace = safeParams.slug && !safeParams.region && !safeParams.category;
-    if (asksForSinglePlace && data?.places?.[0]?.slug) {
-      actions.push({ type: "select_place", slug: data.places[0].slug });
+    // NEVER auto select_place in search_places — user must choose from map
+  }
+
+  if (intent === "get_place") {
+    const placeSlug = data?.place?.slug;
+    if (placeSlug) {
+      actions.push({ type: "select_place", slug: placeSlug });
+      const wantsAdd    = ["agrega","agregar","anade","añade","poner","mete","incluye"].some(t => msg.includes(t));
+      const wantsRemove = ["quita","quitar","elimina","eliminar","saca","remueve"].some(t => msg.includes(t));
+      if (msg.includes("ruta") && wantsAdd)    actions.push({ type: "add_route_stop",    slug: placeSlug });
+      if (msg.includes("ruta") && wantsRemove) actions.push({ type: "remove_route_stop", slug: placeSlug });
     }
   }
 
-  if (intent === "get_place" && data?.place?.slug) {
-    actions.push({ type: "select_place", slug: data.place.slug });
-    const mentionsRoute = normalizedMessage.includes("ruta");
-    const wantsAdd = ["agrega", "agregar", "anade", "añade", "poner", "mete", "incluye"].some((term) => normalizedMessage.includes(term));
-    const wantsRemove = ["quita", "quitar", "elimina", "eliminar", "saca", "remueve"].some((term) => normalizedMessage.includes(term));
-    if (mentionsRoute && wantsAdd) actions.push({ type: "add_route_stop", slug: data.place.slug });
-    if (mentionsRoute && wantsRemove) actions.push({ type: "remove_route_stop", slug: data.place.slug });
-  }
-
-  if (intent === "recommend_route" && Array.isArray(data?.stops)) {
+  if (intent === "recommend_route" && Array.isArray(data?.stops) && data.stops.length) {
     actions.push({
       type: "set_route",
-      title: `Ruta recomendada${data?.region ? ` · ${data.region}` : ""}`,
-      stops: data.stops.map((s) => ({
-        order: s.order,
-        slug: s.slug,
-        name: s.name,
-        timeOfDay: s.timeOfDay,
-        url: s.url,
+      title: `Ruta recomendada${data.region ? ` · ${data.region}` : ""}`,
+      stops: data.stops.map((s: { order: number; slug: string; name: string; timeOfDay?: string; url?: string }) => ({
+        order: s.order, slug: s.slug, name: s.name, timeOfDay: s.timeOfDay, url: s.url,
       })),
     });
   }
 
-  if (intent === "get_nearby") {
-    actions.push({ type: "get_nearby" });
-  }
+  if (intent === "get_nearby") actions.push({ type: "get_nearby" });
 
   return { intent, entities, actions };
 }
 
-function buildExploreActionText(actions: Array<Record<string, unknown>>) {
-  // Only short confirmations for purely mechanical operations — let LLM respond for everything else
-  const actionTypes = new Set(actions.map((action) => action.type));
-  if (actionTypes.has("clear_route")) return "Listo, limpié la ruta del mapa.";
-  if (actionTypes.has("clear_filters")) return "Listo, quité los filtros y dejé el mapa limpio.";
-  if (actionTypes.has("get_nearby")) return "Activé tu ubicación para ordenar destinos cercanos.";
-  if (actionTypes.has("add_route_stop")) return "Agregué ese lugar a tu ruta.";
-  if (actionTypes.has("remove_route_stop")) return "Quité esa parada de tu ruta.";
+// Only return a mechanical confirmation for pure state-mutation actions.
+// For everything else, the LLM generates a real informative response.
+function getMechanicalConfirmation(actions: Array<Record<string, unknown>>): string {
+  const types = new Set(actions.map(a => a.type));
+  if (types.has("clear_route"))        return "Limpié la ruta del mapa.";
+  if (types.has("clear_filters"))      return "Quité los filtros y dejé el mapa limpio.";
+  if (types.has("get_nearby"))         return "Activé tu ubicación para ordenar destinos cercanos.";
+  if (types.has("add_route_stop"))     return "Agregué ese lugar a tu ruta.";
+  if (types.has("remove_route_stop"))  return "Quité esa parada de tu ruta.";
   return "";
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
+
 export async function POST(req: Request) {
-  const { messages, context = {} } = await req.json() as {
-    messages: { role: string; content: string }[];
-    context?: AgentContext;
-  };
+  const { messages, context = {} } = await req.json() as { messages: ChatMessage[]; context?: AgentContext };
 
   const encoder = new TextEncoder();
-  const stream  = new ReadableStream({
+  const stream = new ReadableStream({
     async start(controller) {
       function emit(obj: unknown) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
       }
 
       try {
-        const lastUserMsg = messages.filter(m => m.role === "user").slice(-1)[0]?.content ?? "";
+        const lastUserMsg    = messages.filter(m => m.role === "user").slice(-1)[0]?.content ?? "";
+        const previousMsgs   = messages.slice(0, -1); // everything before last user message
+        const recentHistory  = previousMsgs.slice(-6); // last 6 messages (3 exchanges) for context
 
-        // Step 1: Extract intent (fast, cheap model)
-        const extracted = await extractIntent(lastUserMsg, context);
+        // Build grounding context from recent conversation (for region/category continuity)
+        const groundingText = recentHistory.filter(m => m.role === "user").map(m => m.content).join(" ");
+
+        // ── Step 1: Extract intent with conversation context ──────────────────
+        const extracted = await extractIntent(lastUserMsg, context, recentHistory);
         let intent = extracted.intent;
-        const params = extracted.params;
-        const normalizedParams = { ...(params ?? {}) };
-        const recentUserContext = messages
-          .filter((m) => m.role === "user")
-          .slice(-4)
-          .map((m) => m.content)
-          .join(" ");
-        const groundingText = `${recentUserContext} ${lastUserMsg}`;
-        const isExploreRecommendation = context.page === "explore" && isRecommendationRequest(lastUserMsg);
+        const params: Record<string, string> = { ...extracted.params };
+
+        const isExploreRec = context.page === "explore" && isRecommendationRequest(lastUserMsg);
+
+        if (isExploreRec) {
+          intent = "search_places";
+          delete params.slug;
+          delete params.region;
+          delete params.category;
+          params.query = "";
+        }
+
+        // ── Step 2: Grounding — enrich params from gazetteer ─────────────────
         const gazetteer = await buildGazetteer();
-        const currentPlace = inferEntryFromText(lastUserMsg, gazetteer.places);
-        const currentRegion = inferEntryFromText(lastUserMsg, gazetteer.regions);
-        // Only use history for region context, never to re-surface a stale place
-        const groundedRegion = isExploreRecommendation ? null : currentRegion ?? inferEntryFromText(groundingText, gazetteer.regions);
-        const groundedCategory = isExploreRecommendation ? null : inferEntryFromText(lastUserMsg, gazetteer.categories) ?? inferEntryFromText(groundingText, gazetteer.categories);
-        const inferredRegion = isExploreRecommendation ? null : groundedRegion?.slug ?? inferRegionFromText(groundingText);
-        const asksForDirections = ["me indicas", "indicame", "como llegar", "como llego", "donde queda", "ubicacion"]
-          .some((term) => normalizeText(lastUserMsg).includes(term));
-        const routePronounTarget = context.page === "explore"
-          && Boolean(context.placeSlug)
-          && ["agregala", "agregalo", "agrega ese", "agrega esa", "anadela", "anadelo", "incluyela", "incluyelo"]
-            .some((term) => normalizeText(lastUserMsg).includes(term));
-        // Only infer place slug from current message, not history — history causes stale place re-selection
-        const inferredPlaceSlug = isExploreRecommendation && !routePronounTarget
-          ? null
-          : currentPlace?.slug ?? ((asksForDirections || routePronounTarget) ? context.placeSlug : null) ?? inferPlaceSlugFromText(lastUserMsg);
-        if (isExploreRecommendation) {
-          intent = "search_places";
-          delete normalizedParams.slug;
-          delete normalizedParams.region;
-          delete normalizedParams.category;
-          normalizedParams.query = "";
+
+        // Always look for region in current message first, then history
+        const currentRegion   = inferEntryFromText(lastUserMsg, gazetteer.regions);
+        const historicRegion  = inferEntryFromText(groundingText, gazetteer.regions);
+        const groundedRegion  = isExploreRec ? null : (currentRegion ?? historicRegion);
+        const inferredRegion  = isExploreRec ? null : (groundedRegion?.slug ?? inferRegionFromText(lastUserMsg) ?? inferRegionFromText(groundingText));
+
+        // Category from current message only (don't inherit from history)
+        const groundedCategory = isExploreRec ? null : inferEntryFromText(lastUserMsg, gazetteer.categories);
+
+        // Specific place — ONLY when intent is explicitly get_place
+        // For search_places, a region mention should NEVER become a place slug
+        const asksForDirections  = ["me indicas","indicame","como llegar","como llego","donde queda","ubicacion"].some(t => normalizeText(lastUserMsg).includes(t));
+        const routePronounTarget = context.page === "explore" && Boolean(context.placeSlug)
+          && ["agregala","agregalo","agrega ese","agrega esa","anadela","anadelo","incluyela","incluyelo"].some(t => normalizeText(lastUserMsg).includes(t));
+
+        let inferredPlaceSlug: string | null = null;
+        if (!isExploreRec && intent !== "search_places") {
+          // Only resolve a specific place for get_place / directions / route pronouns
+          inferredPlaceSlug = inferEntryFromText(lastUserMsg, gazetteer.places)?.slug
+            ?? inferPlaceSlugFromText(lastUserMsg)
+            ?? ((asksForDirections || routePronounTarget) ? context.placeSlug ?? null : null);
+        } else if (routePronounTarget) {
+          inferredPlaceSlug = context.placeSlug ?? null;
         }
-        if (intent === "general" && looksLikePlaceSearch(groundingText)) {
+
+        // ── Step 3: Override intents based on context ─────────────────────────
+
+        if (intent === "general" && looksLikePlaceSearch(lastUserMsg + " " + groundingText)) {
           intent = "search_places";
         }
+
+        // If on a place page, treat search_places/general as get_place for that place
         if (context.page === "place" && (intent === "search_places" || intent === "general")) {
           intent = "get_place";
-          if (context.placeSlug) normalizedParams.slug = context.placeSlug;
+          if (context.placeSlug) params.slug = context.placeSlug;
         }
-        if (inferredPlaceSlug) {
+
+        // Promote to get_place if we resolved a specific place slug
+        if (inferredPlaceSlug && intent !== "recommend_route") {
           intent = "get_place";
-          normalizedParams.slug = inferredPlaceSlug;
-          if (!normalizedParams.region && groundedPlace?.regionSlug) normalizedParams.region = groundedPlace.regionSlug;
-        }
-        if (!normalizedParams.region && inferredRegion) {
-          normalizedParams.region = inferredRegion;
-        }
-        if (!normalizedParams.category && groundedCategory?.slug) {
-          normalizedParams.category = groundedCategory.slug;
-        }
-        normalizedParams.query = cleanSearchQuery(normalizedParams.query, normalizedParams);
-
-        // Step 2: Fetch data from Supabase if needed
-        const dbData = await fetchData(intent, normalizedParams, context, lastUserMsg);
-
-        const uiActions = deriveUIActions(intent, normalizedParams, dbData, lastUserMsg);
-        const exploreActionText = context.page === "explore" ? buildExploreActionText(uiActions.actions) : "";
-
-        if (exploreActionText) {
-          emit({ type: "text-delta", textDelta: exploreActionText });
+          params.slug = inferredPlaceSlug;
         }
 
-        // Always generate LLM response — even in /explore, for informative replies
-        const result = await generateText({
+        // Fill region if missing
+        if (!params.region && inferredRegion && !isExploreRec) {
+          params.region = inferredRegion;
+        }
+
+        // Fill category if missing
+        if (!params.category && groundedCategory?.slug) {
+          params.category = groundedCategory.slug;
+        }
+
+        // Clean query
+        params.query = cleanSearchQuery(params.query, { region: params.region, category: params.category });
+
+        // ── Step 4: Fetch data ────────────────────────────────────────────────
+        const dbData = await fetchData(intent, params, context, lastUserMsg);
+
+        // ── Step 5: Derive UI actions ─────────────────────────────────────────
+        const uiActions    = deriveUIActions(intent, params, dbData, lastUserMsg);
+        const mechanical   = context.page === "explore" ? getMechanicalConfirmation(uiActions.actions) : "";
+
+        if (mechanical) emit({ type: "text-delta", textDelta: mechanical + "\n\n" });
+
+        // ── Step 6: Generate full LLM response ───────────────────────────────
+        const llmResult = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
-          system: buildSystem(context, dbData, exploreActionText || undefined),
+          system: buildSystem(context, dbData, mechanical || undefined),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           messages: messages as any,
           temperature: 0.45,
+          maxTokens: 400,
         });
 
-        if (result.text) emit({ type: "text-delta", textDelta: result.text });
-        if (dbData)      emit({ type: "tool-result", toolName: intent, result: dbData });
+        if (llmResult.text) emit({ type: "text-delta", textDelta: llmResult.text });
+
+        if (dbData) emit({ type: "tool-result", toolName: intent, result: dbData });
         emit({ type: "ui-actions", ...uiActions });
 
       } catch (err) {
