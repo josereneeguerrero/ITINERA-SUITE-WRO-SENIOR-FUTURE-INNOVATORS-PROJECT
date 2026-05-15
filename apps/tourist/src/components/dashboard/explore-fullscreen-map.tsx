@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Locate, MapPin, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
+import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { getCategoryColor } from "@/lib/category-theme";
 import { createClient } from "@/lib/supabase/client";
+import type { UIActionsChunk } from "@/hooks/use-streaming-chat";
 
 type Place = {
   id: string;
@@ -868,6 +870,32 @@ export function ExploreFullscreenMap({
     setShowFilters(false);
   }
 
+  const handleAiActions = useCallback((chunk: UIActionsChunk) => {
+    for (const action of chunk.actions ?? []) {
+      if (action.type === "filter_region" && action.slug) {
+        setActiveRegion(action.slug);
+        setQuery("");
+        setActiveCategory("");
+        setSelectedPlaceSlug(null);
+      }
+      if (action.type === "show_place" && action.slug) {
+        const place = places.find(p => p.slug === action.slug);
+        if (place) {
+          setSelectedPlaceSlug(place.slug);
+          setShowFilters(false);
+          if (typeof place.lng === "number" && typeof place.lat === "number") {
+            setMapCenter([place.lng, place.lat]);
+            setMapZoom(13);
+          }
+        }
+      }
+      if (action.type === "clear") {
+        clearFilters();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places]);
+
   function applyNearby() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -1616,6 +1644,11 @@ export function ExploreFullscreenMap({
           </div>
         </div>
       ) : null}
+
+      <FloatingAiAssistant
+        storageKey="itinera-ai-explore"
+        onUIActions={handleAiActions}
+      />
     </section>
   );
 }

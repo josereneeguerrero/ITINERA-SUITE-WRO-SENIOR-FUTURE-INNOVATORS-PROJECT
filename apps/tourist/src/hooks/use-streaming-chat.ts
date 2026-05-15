@@ -20,10 +20,11 @@ export interface ChatContext {
 }
 
 export interface UIAction {
-  type: "apply_filter" | "select_place" | "set_route" | "get_nearby" | "clear_route" | "center_map";
+  type: string; // open-ended — backend drives the action type
   slug?: string;
   query?: string;
   category?: string;
+  region?: string;
   title?: string;
   center?: [number, number];
   zoom?: number;
