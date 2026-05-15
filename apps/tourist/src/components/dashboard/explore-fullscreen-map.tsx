@@ -909,6 +909,8 @@ export function ExploreFullscreenMap({
       }
       if (action.type === "clear") {
         clearFilters();
+        setMapCenter([-86.8, 15.2]);
+        setMapZoom(6.5);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
