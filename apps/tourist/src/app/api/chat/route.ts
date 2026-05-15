@@ -53,7 +53,7 @@ type PlaceRow = {
   regionSlug: string;
 };
 
-async function fetchPlaces(regionSlug: string | null): Promise<PlaceRow[]> {
+async function fetchPlaces(regionSlug: string | null, categorySlug: string | null = null): Promise<PlaceRow[]> {
   const db = getDB();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = db
@@ -68,6 +68,11 @@ async function fetchPlaces(regionSlug: string | null): Promise<PlaceRow[]> {
     if (region) q = q.eq("region_id", (region as { id: string }).id);
   }
 
+  if (categorySlug) {
+    const { data: cat } = await db.from("place_categories").select("id").eq("slug", categorySlug).single();
+    if (cat) q = q.eq("category_id", (cat as { id: string }).id);
+  }
+
   const { data } = await q;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((p: any): PlaceRow => ({
@@ -79,6 +84,26 @@ async function fetchPlaces(regionSlug: string | null): Promise<PlaceRow[]> {
     region:     p.regions?.name_i18n?.es ?? "",
     regionSlug: p.regions?.slug ?? "",
   }));
+}
+
+// ─── Category detection — deterministic ──────────────────────────────────────
+
+const CATEGORIES: Array<{ slug: string; keywords: string[] }> = [
+  { slug: "beach",    keywords: ["playa", "playas", "mar", "caribe", "buceo", "snorkel", "arrecife", "costa", "beach"] },
+  { slug: "nature",   keywords: ["naturaleza", "parque nacional", "bosque", "sendero", "fauna", "flora", "reserva", "nature"] },
+  { slug: "heritage", keywords: ["patrimonio", "ruinas", "arqueologia", "arqueológico", "maya", "colonial", "historico", "historia"] },
+  { slug: "religion", keywords: ["iglesia", "catedral", "religioso", "templo", "basilica", "capilla", "santo", "virgen"] },
+  { slug: "food",     keywords: ["comida", "gastronomia", "restaurante", "comer", "tipico", "típico", "plato", "cocina", "food"] },
+  { slug: "adventure",keywords: ["aventura", "adrenalina", "senderismo", "escalada", "rapel", "tirolesa", "extremo"] },
+  { slug: "arts",     keywords: ["arte", "museo", "galeria", "galería", "artesania", "artesanía", "cultura"] },
+];
+
+function detectCategory(text: string): string | null {
+  const n = norm(text);
+  for (const cat of CATEGORIES) {
+    if (cat.keywords.some(k => n.includes(norm(k)))) return cat.slug;
+  }
+  return null;
 }
 
 // ─── Deterministic commands (no LLM needed) ──────────────────────────────────
@@ -99,8 +124,9 @@ function isGreeting(text: string): boolean {
 // ─── LLM response shape ───────────────────────────────────────────────────────
 
 type AiAction =
-  | { type: "filter_region"; slug: string }
-  | { type: "show_place";    slug: string }
+  | { type: "filter_region";   slug: string }
+  | { type: "filter_category"; slug: string }
+  | { type: "show_place";      slug: string }
   | { type: "clear" };
 
 type AiResponse = { text: string; action: AiAction | null };
@@ -144,11 +170,12 @@ export async function POST(req: Request) {
           return;
         }
 
-        // Step 1 — Detect region deterministically (no LLM)
-        const regionSlug = detectRegion(lastMsg) ?? detectRegion(recentContext);
+        // Step 1 — Detect region and category deterministically (no LLM)
+        const regionSlug   = detectRegion(lastMsg)   ?? detectRegion(recentContext);
+        const categorySlug = detectCategory(lastMsg) ?? null;
 
         // Step 2 — Fetch REAL places from DB before calling LLM
-        const places = await fetchPlaces(regionSlug);
+        const places = await fetchPlaces(regionSlug, categorySlug);
 
         // Step 3 — Build context with real data embedded
         const placesText = places.length > 0
@@ -157,7 +184,7 @@ export async function POST(req: Request) {
             ).join("\n")
           : "Sin lugares registrados en la base de datos para esta región.";
 
-        const regionLabel = regionSlug ?? "Honduras";
+        const regionLabel = [regionSlug, categorySlug].filter(Boolean).join(" + ") || "Honduras";
 
         const system = `Eres Itinera IA, guía turística de Honduras. Respondes SOLO con información real.
 
@@ -177,7 +204,8 @@ REGLAS ESTRICTAS:
 1. Solo menciona lugares que aparecen en DATOS REALES. Nunca inventes.
 2. Si hay lugares en la lista, descríbelos: nombre real, algo concreto de su summary, rating.
 3. Si el usuario menciona solo una ciudad/región (ej. "Comayagua", "Copán", "ir a Roatán") → filter_region.
-4. Si el usuario pide ver, mostrar, abrir o navegar a un lugar ESPECÍFICO por nombre (ej. "muéstrame las Ruinas de Copán", "abre la Catedral", "llévame a West Bay") → show_place con el slug EXACTO de la lista. Nunca filter_region en este caso.
+4. Si el usuario pide una categoría de lugar (ej. "playas", "iglesias", "naturaleza", "comida típica") → filter_category con el slug: beach, nature, heritage, religion, food, adventure, arts.
+5. Si el usuario pide ver, mostrar, abrir o navegar a un lugar ESPECÍFICO por nombre (ej. "muéstrame las Ruinas de Copán", "abre la Catedral", "llévame a West Bay") → show_place con el slug EXACTO de la lista. Nunca filter_region en este caso.
 5. Si no hay datos para lo que pide → díselo honestamente, sin inventar.
 6. Responde máximo 3 frases. Ve al punto.
 7. Responde en el mismo idioma que el usuario.

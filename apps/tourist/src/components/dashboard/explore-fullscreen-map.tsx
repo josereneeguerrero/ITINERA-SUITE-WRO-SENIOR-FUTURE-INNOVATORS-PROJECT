@@ -904,6 +904,12 @@ export function ExploreFullscreenMap({
           setMapZoom(regionView.zoom);
         }
       }
+      if (action.type === "filter_category" && action.slug) {
+        setActiveCategory(action.slug as string);
+        setQuery("");
+        setSelectedPlaceSlug(null);
+      }
+
       if (action.type === "show_place" && action.slug) {
         const slug = action.slug as string;
         console.log("[AI] show_place slug recibido:", slug, "| places disponibles:", places.map(p => p.slug));
