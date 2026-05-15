@@ -116,9 +116,17 @@ function isRecommendationRequest(text: string) {
 
 function looksLikePlaceSearch(text: string) {
   const n = normalizeText(text);
-  return ["que lugares","que sitios","recomienda","recomendame","donde ir","que ver","lugares para visitar",
+  return [
+    "que lugares","que sitios","recomienda","recomendame","donde ir","que ver","lugares para visitar",
     "me indicas","indicame","como llegar","como llego","donde queda","ubicacion",
+    // conversational follow-ups that imply "show me / tell me about this place/region"
+    "que tienes","que hay","hay algo","muestrame","a ver","dime","cuales","cuales son","que tienen",
+    "y que","digame","cuentame","platícame","platicame","que puedo","puedo visitar",
   ].some(t => n.includes(t));
+}
+
+function isPureGreeting(text: string) {
+  return /^(hola|hi|hey|hello|buenas|buen dia|buenos dias|buenas tardes|buenas noches|saludos|good morning|good afternoon|good evening)[\s!?.,]*$/i.test(normalizeText(text));
 }
 
 function cleanSearchQuery(query?: string, grounding?: { region?: string; category?: string }): string {
@@ -194,26 +202,42 @@ function buildSystem(ctx: AgentContext, dbData?: unknown, actionConfirmation?: s
   if (ctx.visibleSlugs?.length) ctxParts.push(`LugaresVisibles=${ctx.visibleSlugs.length}: ${ctx.visibleSlugs.slice(0, 8).join(", ")}`);
 
   const ctxBlock   = ctxParts.length ? `\n\nCONTEXTO UI: ${ctxParts.join(" | ")}` : "";
-  const dataBlock  = dbData  ? `\n\nDATA REAL DEL SISTEMA:\n${JSON.stringify(dbData, null, 2)}` : "";
-  const actionNote = actionConfirmation
-    ? `\n\nACCIÓN YA EJECUTADA EN EL MAPA: "${actionConfirmation}" — no la repitas. Describe ahora los lugares encontrados con información concreta.`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const placesData = (dbData as any)?.places;
+  const hasPlaces  = Array.isArray(placesData) && placesData.length > 0;
+  const placeDetail = (dbData as any)?.place;
+
+  let dataBlock = "";
+  if (hasPlaces) {
+    dataBlock = `\n\nLUGARES REALES EN LA BASE DE DATOS (USA ESTO — no inventes nada adicional):\n${JSON.stringify(placesData, null, 2)}`;
+  } else if (placeDetail) {
+    dataBlock = `\n\nDETALLE DEL LUGAR (USA ESTO):\n${JSON.stringify(placeDetail, null, 2)}`;
+  } else if (dbData) {
+    dataBlock = `\n\nDATA:\n${JSON.stringify(dbData, null, 2)}`;
+  }
+
+  const noDataNote = dbData && !hasPlaces && !placeDetail && (dbData as any)?.type === "places"
+    ? "\n\nNOTA: No encontré lugares en la base de datos para esta búsqueda. Díselo al usuario claramente y sugiere explorar el mapa manualmente."
     : "";
 
-  return `Eres Itinera IA, guía turística inteligente de Honduras. Eres conversacional, informativo y útil.
+  const actionNote = actionConfirmation
+    ? `\n\nACCIÓN YA EJECUTADA EN EL MAPA: "${actionConfirmation}" — no la repitas. Complementa describiendo los lugares encontrados.`
+    : "";
 
-REGLAS DE RESPUESTA:
-- Ve directo al punto. Sin "con gusto", "claro que sí" ni introducciones vacías.
-- Usa la DATA REAL para responder. Si tienes lugares, descríbelos: nombre, qué son, por qué vale la pena. Menciona 2-3 máximo salvo que el usuario pida lista.
-- Si no tienes data real de algo, dilo honestamente y sugiere explorar el mapa.
-- NUNCA inventes lugares, precios, horarios ni hechos que no estén en la data.
-- En /explore la UI ya mueve el mapa — tú complementas con contexto rico sobre los lugares.
-- Responde en el MISMO IDIOMA que el usuario (español o inglés). Si mezclan, responde en español.
-- Si el usuario cambió de destino (ej. "mejor a Copán"), responde sobre el nuevo destino únicamente.
-- Si pide "qué hay", usa los datos para describir las opciones reales. No generalices.
+  return `Eres Itinera IA, guía turística de Honduras. Eres directo, concreto e informativo.
 
-SI ESTÁS EN page=place: actúa como guía del lugar activo. No recomiendes otros destinos.
+REGLAS ESTRICTAS:
+1. USA SIEMPRE la DATA REAL. Si tienes lugares en la data, descríbelos por nombre: qué son, qué tienen, por qué visitarlos.
+2. NUNCA inventes lugares, fechas, precios, horarios ni datos que no estén en la data. Si no tienes info, dilo.
+3. Si hay lugares en la data: menciona 2-3 con nombre específico y algo concreto de cada uno.
+4. Sin "con gusto", "claro que sí", introducciones vacías. Ve al punto.
+5. Si el usuario hace follow-up ("a ver", "y qué más", "aja"), describe los lugares disponibles en la data.
+6. Responde en el mismo idioma que el usuario.
+7. En /explore: la UI ya mueve el mapa — tú explicas los lugares con contexto real.
 
-Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}${actionNote}`;
+SI page=place: eres guía del lugar activo únicamente.
+
+Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}${noDataNote}${actionNote}`;
 }
 
 // ─── Intent extraction ────────────────────────────────────────────────────────
@@ -238,27 +262,25 @@ async function extractIntent(
     const result = await generateText({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       model: (getGroq() as any)("llama-3.1-8b-instant"),
-      system: `Extrae el intent del último mensaje del usuario en el contexto de una app turística de Honduras.
-${ctxHint ? `\nContexto:\n${ctxHint}` : ""}
+      system: `Eres un clasificador de intent para una app turística de Honduras. Analiza el último mensaje del usuario.
+${ctxHint ? `\nContexto de conversación:\n${ctxHint}` : ""}
 
 Devuelve SOLO JSON válido (sin markdown):
-{"intent":"<intent>","params":{"query":"<texto limpio>","region":"<slug-region>","category":"<slug-categoria>","slug":"<slug-lugar>"}}
+{"intent":"<intent>","params":{"query":"<texto limpio>","region":"<slug>","category":"<slug>","slug":"<slug-lugar>"}}
 
-Slugs de región válidos: copan, comayagua, san-pedro-sula, francisco-morazan, cortes, islas-de-la-bahia
-Slugs de categoría válidos: heritage, nature, food, adventure, beach, religion, arts
+Slugs de región: copan, comayagua, san-pedro-sula, francisco-morazan, cortes, islas-de-la-bahia
+Slugs de categoría: heritage, nature, food, adventure, beach, religion, arts
 
-Reglas de intent:
-- search_places: menciona ciudad/región/departamento, "qué ver", "qué hay", "qué sitios", "recomienda", viajes, turismo
-- get_place: pregunta sobre UN lugar específico por nombre (ej. "Ruinas de Copán", "Catedral de Comayagua")
-- recommend_route: pide itinerario, ruta de un día, plan de viaje
-- get_story: pide historia, cultura, tradiciones, el porqué de algo
+REGLAS DE INTENT:
+- search_places: ciudad/región, "qué ver/hay/tienen/tienes", "recomienda", viajes, turismo en Honduras. TAMBIÉN aplica para frases cortas de seguimiento ("a ver", "cuáles", "dime", "muestrame", "que tienes", "y qué", "aja") SI el historial habla de una ciudad/región → extrae esa región.
+- get_place: UN lugar específico por nombre ("Ruinas de Copán", "Catedral de Comayagua", "West Bay")
+- recommend_route: itinerario, ruta de un día, plan de viaje
+- get_story: historia, cultura, tradiciones, por qué algo pasó
 - get_nearby: "cerca de mí", "alrededor", "nearby"
-- explain_sponsor: sponsors, por qué aparecen primero, modelo de negocio
-- general: solo saludos puros (Hola, Hi) o preguntas sin relación con viajes
+- explain_sponsor: sponsors, modelo de negocio
+- general: SOLO saludos puros sin contexto (Hola, Hi, Buenas) — nada más
 
-IMPORTANTE: Si el usuario menciona una ciudad o región de Honduras → search_places con region=<slug>.
-Si dice "mejor a X" o "prefiero ir a X" → search_places con region=<slug de X>.
-Si pregunta "qué hay ahí" después de mencionar una ciudad → search_places con esa región.`,
+REGLA CRÍTICA: "Comayagua", "Copán", "Roatán" solos = search_places con esa región. Frases cortas de seguimiento con ciudad en historial = search_places con esa ciudad. La ciudad/región siempre va en params.region como slug.`,
       messages: [{ role: "user", content: userMsg }],
     });
 
@@ -594,6 +616,13 @@ export async function POST(req: Request) {
 
         if (intent === "general" && looksLikePlaceSearch(lastUserMsg + " " + groundingText)) {
           intent = "search_places";
+        }
+
+        // Key upgrade: if LLM returned "general" for a non-greeting message that has region context
+        // from history, treat it as a follow-up search in that region
+        if (intent === "general" && inferredRegion && !isPureGreeting(lastUserMsg)) {
+          intent = "search_places";
+          if (!params.region) params.region = inferredRegion;
         }
 
         // If on a place page, treat search_places/general as get_place for that place
