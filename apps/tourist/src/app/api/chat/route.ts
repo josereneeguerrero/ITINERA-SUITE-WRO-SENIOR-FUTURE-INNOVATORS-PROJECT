@@ -667,7 +667,7 @@ export async function POST(req: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           messages: messages as any,
           temperature: 0.45,
-          maxTokens: 400,
+          maxOutputTokens: 400,
         });
 
         if (llmResult.text) emit({ type: "text-delta", textDelta: llmResult.text });
