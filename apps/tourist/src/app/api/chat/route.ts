@@ -277,28 +277,32 @@ async function buildGazetteer(): Promise<Gazetteer> {
   return { regions, places, categories };
 }
 
-function buildSystem(ctx: AgentContext, dbData?: unknown): string {
+function buildSystem(ctx: AgentContext, dbData?: unknown, actionConfirmation?: string): string {
   const ctxBlock = ctx.page
-    ? `\nCONTEXTO: Página=${ctx.page}${ctx.placeName ? ` Lugar="${ctx.placeName}"` : ""}${ctx.storyTitle ? ` Historia="${ctx.storyTitle}"` : ""}`
+    ? `\nCONTEXTO: Página=${ctx.page}${ctx.placeName ? ` Lugar="${ctx.placeName}"` : ""}${ctx.storyTitle ? ` Historia="${ctx.storyTitle}"` : ""}${ctx.activeRouteSlugs?.length ? ` Ruta activa con ${ctx.activeRouteSlugs.length} paradas` : ""}${ctx.filters ? ` Filtros: ${JSON.stringify(ctx.filters)}` : ""}${ctx.visibleSlugs?.length ? ` Mostrando ${ctx.visibleSlugs.length} lugares en mapa` : ""}`
     : "";
   const dataBlock = dbData
-    ? `\n\nDATA DEL SISTEMA (ÚSALA para responder con detalle):\n${JSON.stringify(dbData, null, 2)}`
+    ? `\n\nDATA DEL SISTEMA (usa esta información para responder con detalle real):\n${JSON.stringify(dbData, null, 2)}`
+    : "";
+  const actionBlock = actionConfirmation
+    ? `\n\nACCIÓN UI YA EJECUTADA: "${actionConfirmation}" — NO la repitas. Complementa con información útil sobre los lugares encontrados o la región.`
     : "";
 
-  return `Eres Itinera IA, guía cultural de Honduras.
+  return `Eres Itinera IA, guía turística de Honduras. Eres informativo, directo y específico.
 
-PERSONALIDAD: Cálido, atento y directo. Adaptable totalmente al usuario.
-Evita repetir introducciones; responde primero a la solicitud concreta del usuario.
-En /explore, si la UI ya abre destino, aplica filtro o crea ruta, responde en 1-2 frases máximo.
-No repitas saludos ni cierres largos. No uses listas largas salvo que el usuario las pida.
+PERSONALIDAD: Directo y concreto. Cuando el usuario pregunta qué hay en una región, DESCRIBE los lugares reales de la DATA. No digas "puedes explorar" si ya tienes datos — di qué hay.
+Responde en 2-4 frases normalmente. No uses listas largas salvo que el usuario las pida.
+No repitas saludos. No digas "con gusto" ni "claro que sí". Ve al punto.
 
-IDIOMA: Responde SIEMPRE en el mismo idioma que el usuario (español o inglés).
+IDIOMA: SIEMPRE responde en el mismo idioma que el usuario.
 
-CRÍTICO: SOLO menciona lugares que estén en la DATA DEL SISTEMA. NUNCA inventes lugares, negocios o atracciones. Si no tienes data de una región, dilo honestamente y sugiere explorar el mapa.
+CRÍTICO: SOLO menciona lugares en la DATA DEL SISTEMA. NUNCA inventes. Si no hay datos, dilo y sugiere explorar el mapa.
 
-Si CONTEXTO indica Pagina=place, responde como guia del lugar actual: no recomiendes listas de otros destinos ni devuelvas "lugares que tiene"; esa exploracion pertenece al mapa /dashboard.
+CUANDO HAY DATA de lugares: menciona 2-3 específicamente por nombre con algo concreto de cada uno (qué es, qué tiene, por qué vale la pena). No seas genérico.
 
-Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}`;
+Si la página es "place": actúa como guía del lugar actual únicamente.
+
+Hoy: ${new Date().toLocaleDateString("es-HN")}${ctxBlock}${dataBlock}${actionBlock}`;
 }
 
 // ─── Intent extraction (step 1) ──────────────────────────────────────────────
@@ -557,13 +561,15 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
     const ratingMatch = normalizedMessage.match(/(?:rating|estrellas?|valoracion)\s*(?:de\s*)?([4-5](?:\.\d)?)/);
     actions.push({
       type: "apply_filter",
-      query: cleanSearchQuery(safeParams.query, safeParams) || (safeParams.region ? labelFromSlug(safeParams.region) : ""),
+      query: cleanSearchQuery(safeParams.query, safeParams) || "",
       category: normalizeCategoryParam(safeParams.category) ?? "",
       region: safeParams.region ?? "",
       minRating: ratingMatch ? Number(ratingMatch[1]) : undefined,
       savedOnly: ["guardados", "favoritos"].some((term) => normalizedMessage.includes(term)) || undefined,
     });
-    if (data?.places?.[0]?.slug) {
+    // Only auto-select a place if the user explicitly asked for ONE specific place, not a list
+    const asksForSinglePlace = safeParams.slug && !safeParams.region && !safeParams.category;
+    if (asksForSinglePlace && data?.places?.[0]?.slug) {
       actions.push({ type: "select_place", slug: data.places[0].slug });
     }
   }
@@ -598,43 +604,14 @@ function deriveUIActions(intent: string, params: Record<string, string>, dbData:
   return { intent, entities, actions };
 }
 
-function buildExploreActionText(intent: string, dbData: unknown, actions: Array<Record<string, unknown>>, rawMessage = "") {
-  const data = dbData as {
-    places?: Array<{ name?: string; region?: string }>;
-    place?: { name?: string; region?: string };
-    stops?: Array<{ name?: string }>;
-  } | null;
+function buildExploreActionText(actions: Array<Record<string, unknown>>) {
+  // Only short confirmations for purely mechanical operations — let LLM respond for everything else
   const actionTypes = new Set(actions.map((action) => action.type));
-  const recommendationRequest = isRecommendationRequest(rawMessage);
-
-  if (!actions.length && intent === "search_places" && recommendationRequest) {
-    const count = data?.places?.length ?? 0;
-    return count > 0
-      ? "Te sugiero estas opciones reales disponibles. Puedes abrir cualquiera para verla en el mapa."
-      : "No encontré opciones reales disponibles ahora mismo.";
-  }
-
-  if (!actions.length) return "";
-
   if (actionTypes.has("clear_route")) return "Listo, limpié la ruta del mapa.";
   if (actionTypes.has("clear_filters")) return "Listo, quité los filtros y dejé el mapa limpio.";
-  if (actionTypes.has("get_nearby")) return "Voy a usar tu ubicación para ordenar los destinos cercanos.";
-  if (actionTypes.has("set_route")) {
-    const count = data?.stops?.length ?? 0;
-    return count > 0 ? `Listo, armé una ruta con ${count} paradas reales.` : "No encontré suficientes paradas reales para esa ruta.";
-  }
-  if (actionTypes.has("add_route_stop")) return "Listo, agregué ese lugar a tu ruta.";
-  if (actionTypes.has("remove_route_stop")) return "Listo, quité esa parada de tu ruta.";
-  if (actionTypes.has("select_place")) {
-    const name = data?.place?.name ?? data?.places?.[0]?.name;
-    return name ? `Abrí ${name} en el mapa.` : "Abrí el destino más relevante en el mapa.";
-  }
-  if (intent === "search_places") {
-    const count = data?.places?.length ?? 0;
-    if (count === 0) return "No encontré eso como destino real. Te puedo sugerir otras opciones disponibles.";
-    return `Encontré ${count} destino${count === 1 ? "" : "s"} y enfoqué el más relevante.`;
-  }
-
+  if (actionTypes.has("get_nearby")) return "Activé tu ubicación para ordenar destinos cercanos.";
+  if (actionTypes.has("add_route_stop")) return "Agregué ese lugar a tu ruta.";
+  if (actionTypes.has("remove_route_stop")) return "Quité esa parada de tu ruta.";
   return "";
 }
 
@@ -670,7 +647,7 @@ export async function POST(req: Request) {
         const gazetteer = await buildGazetteer();
         const currentPlace = inferEntryFromText(lastUserMsg, gazetteer.places);
         const currentRegion = inferEntryFromText(lastUserMsg, gazetteer.regions);
-        const groundedPlace = isExploreRecommendation ? null : currentPlace ?? (currentRegion ? null : inferEntryFromText(groundingText, gazetteer.places));
+        // Only use history for region context, never to re-surface a stale place
         const groundedRegion = isExploreRecommendation ? null : currentRegion ?? inferEntryFromText(groundingText, gazetteer.regions);
         const groundedCategory = isExploreRecommendation ? null : inferEntryFromText(lastUserMsg, gazetteer.categories) ?? inferEntryFromText(groundingText, gazetteer.categories);
         const inferredRegion = isExploreRecommendation ? null : groundedRegion?.slug ?? inferRegionFromText(groundingText);
@@ -680,9 +657,10 @@ export async function POST(req: Request) {
           && Boolean(context.placeSlug)
           && ["agregala", "agregalo", "agrega ese", "agrega esa", "anadela", "anadelo", "incluyela", "incluyelo"]
             .some((term) => normalizeText(lastUserMsg).includes(term));
+        // Only infer place slug from current message, not history — history causes stale place re-selection
         const inferredPlaceSlug = isExploreRecommendation && !routePronounTarget
           ? null
-          : groundedPlace?.slug ?? ((asksForDirections || routePronounTarget) ? context.placeSlug : null) ?? inferPlaceSlugFromText(groundingText);
+          : currentPlace?.slug ?? ((asksForDirections || routePronounTarget) ? context.placeSlug : null) ?? inferPlaceSlugFromText(lastUserMsg);
         if (isExploreRecommendation) {
           intent = "search_places";
           delete normalizedParams.slug;
@@ -714,23 +692,23 @@ export async function POST(req: Request) {
         const dbData = await fetchData(intent, normalizedParams, context, lastUserMsg);
 
         const uiActions = deriveUIActions(intent, normalizedParams, dbData, lastUserMsg);
-        const exploreActionText = context.page === "explore" ? buildExploreActionText(intent, dbData, uiActions.actions, lastUserMsg) : "";
+        const exploreActionText = context.page === "explore" ? buildExploreActionText(uiActions.actions) : "";
 
         if (exploreActionText) {
           emit({ type: "text-delta", textDelta: exploreActionText });
-        } else {
-          // Step 3: Generate response with data context
-          const result = await generateText({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            model: (getGroq() as any)("llama-3.3-70b-versatile"),
-            system: buildSystem(context, dbData),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            messages: messages as any,
-            temperature: 0.45,
-          });
-
-          if (result.text) emit({ type: "text-delta", textDelta: result.text });
         }
+
+        // Always generate LLM response — even in /explore, for informative replies
+        const result = await generateText({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          model: (getGroq() as any)("llama-3.3-70b-versatile"),
+          system: buildSystem(context, dbData, exploreActionText || undefined),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          messages: messages as any,
+          temperature: 0.45,
+        });
+
+        if (result.text) emit({ type: "text-delta", textDelta: result.text });
         if (dbData)      emit({ type: "tool-result", toolName: intent, result: dbData });
         emit({ type: "ui-actions", ...uiActions });
 
