@@ -113,7 +113,14 @@ export async function POST(req: Request) {
 
         // Step 0 — Deterministic commands bypass LLM entirely
         if (isGreeting(lastMsg)) {
-          emit({ type: "text-delta", textDelta: "¡Hola! ¿A dónde te gustaría ir en Honduras?" });
+          const greetResult = await generateText({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            model: (getGroq() as any)("llama-3.3-70b-versatile"),
+            system: `Eres Itinera IA, guía turística de Honduras. El usuario te saludó. Responde con UN saludo breve y cálido (máximo 1 frase) y pregunta adónde quiere ir o qué quiere explorar. Varía el tono: a veces entusiasta, a veces relajado. NUNCA listes lugares. Responde en el mismo idioma del usuario.`,
+            messages: [{ role: "user", content: lastMsg }],
+            temperature: 0.9,
+          });
+          emit({ type: "text-delta", textDelta: greetResult.text });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
           return;
