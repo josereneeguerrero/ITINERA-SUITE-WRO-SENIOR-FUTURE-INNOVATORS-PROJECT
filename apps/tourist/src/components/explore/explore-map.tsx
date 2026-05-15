@@ -505,6 +505,7 @@ export function ExploreMap({
       setCardVisible(false);
       return;
     }
+    setCardVisible(true);
     setDescriptionExpanded(false);
   }, [selectedPlace]);
 
