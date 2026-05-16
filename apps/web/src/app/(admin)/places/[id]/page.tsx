@@ -41,6 +41,7 @@ export default async function EditPlacePage({
         address_es:     addr?.es ?? "",
         phone:          place.phone ?? "",
         website:        place.website ?? "",
+        hours:          (place.hours as Record<string, string>)?.es ?? "",
         price_level:    String(place.price_level ?? 2),
         accessibility:  place.accessibility ?? false,
         local_favorite: place.local_favorite ?? false,
