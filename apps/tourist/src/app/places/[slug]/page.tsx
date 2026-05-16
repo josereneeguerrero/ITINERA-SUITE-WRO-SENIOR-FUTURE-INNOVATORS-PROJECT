@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
-import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 import { PlaceHero } from "@/components/place/place-hero";
 import { PlaceContent } from "@/components/place/place-content";
 import { PlaceAIPanel } from "@/components/place/place-ai-panel";
-import { Footer } from "@/components/layout/footer";
+import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 
 export const revalidate = 0;
 
@@ -47,7 +46,7 @@ export default async function PlacePage({
       .eq("place_id", place.id),
     supabase
       .from("reviews")
-      .select("id, rating, body_i18n, source, created_at, profiles(display_name)")
+      .select("id, rating, body_i18n, created_at, profiles(display_name)")
       .eq("place_id", place.id)
       .eq("moderation_status", "approved")
       .eq("visibility", "full")
@@ -55,19 +54,40 @@ export default async function PlacePage({
       .limit(10),
   ]);
 
-  const placeName = (place.name_i18n as Record<string, string>)?.es ?? slug;
+  // Flatten category / region
+  const cat    = Array.isArray(place.place_categories) ? place.place_categories[0] : place.place_categories;
+  const region = Array.isArray(place.regions) ? place.regions[0] : place.regions;
+  const name   = (place.name_i18n as Record<string, string>)?.es ?? slug;
+  const catName = (cat?.name_i18n as Record<string, string>)?.es ?? "";
+  const catSlug = (cat?.icon_name ?? "").toLowerCase();
+  const regName = (region?.name_i18n as Record<string, string>)?.es ?? "";
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    // ── Same root pattern as /dashboard ──────────────────────────────────
+    <main className="min-h-screen w-full bg-[#f0f5f2] pb-28">
 
-      {/* Hero — full width, name inside, no top navbar offset needed */}
-      <PlaceHero place={place as never} isGuest={isGuest} />
+      {/* ── 1. BANNER — AuroraBackground, same as dashboard hero ── */}
+      <PlaceHero
+        id={place.id}
+        slug={slug}
+        name={name}
+        catName={catName}
+        catSlug={catSlug}
+        regName={regName}
+        rating={Number(place.aggregated_rating ?? 0)}
+        reviewCount={place.review_count ?? 0}
+        priceLevel={place.price_level ?? 0}
+        accessibility={place.accessibility ?? false}
+        localFavorite={place.local_favorite ?? false}
+        featured={place.featured ?? false}
+        isGuest={isGuest}
+      />
 
-      {/* Main layout — max-w-6xl centered */}
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-20">
-        <div className="flex gap-8 items-start">
+      {/* ── 2. CONTENT — max-w-6xl like dashboard sections ── */}
+      <section className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
+        <div className="flex gap-6 items-start">
 
-          {/* Left: content (tabs) */}
+          {/* Left — tabs (Info / Historias / Reseñas) */}
           <div className="flex-1 min-w-0">
             <PlaceContent
               place={place as never}
@@ -76,25 +96,24 @@ export default async function PlacePage({
             />
           </div>
 
-          {/* Right: AI panel sticky (desktop only) */}
+          {/* Right — AI Panel sticky (desktop) */}
           <aside className="w-[340px] shrink-0 hidden lg:block">
-            <div className="sticky top-20">
+            <div className="sticky top-6">
               <PlaceAIPanel place={place as never} />
             </div>
           </aside>
+
         </div>
-      </div>
+      </section>
 
-      {/* Mobile AI panel — shown below content */}
-      <div className="lg:hidden mx-auto max-w-6xl px-4 sm:px-6 pb-20">
+      {/* Mobile — AI panel below content */}
+      <section className="lg:hidden mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
         <PlaceAIPanel place={place as never} />
-      </div>
+      </section>
 
-      <Footer />
+      {/* ── 3. DOCK — identical to /dashboard ── */}
       <DashboardDockDemo isGuest={isGuest} />
-      <AIFloatingButton
-        context={{ page: "place", placeSlug: slug, placeName }}
-      />
-    </div>
+      <AIFloatingButton context={{ page: "place", placeSlug: slug, placeName: name }} />
+    </main>
   );
 }
