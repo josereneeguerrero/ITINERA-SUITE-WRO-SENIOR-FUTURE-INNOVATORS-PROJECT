@@ -17,6 +17,52 @@ function getDB() {
   );
 }
 
+// ── Semantic search via pgvector ──────────────────────────────────────────
+
+interface SemanticPlace {
+  slug: string;
+  name_es: string;
+  summary_es: string;
+  category_es: string;
+  region_es: string;
+  aggregated_rating: number;
+  similarity: number;
+}
+
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data[0].embedding as number[];
+  } catch {
+    return null;
+  }
+}
+
+async function semanticSearch(query: string): Promise<SemanticPlace[]> {
+  const embedding = await generateEmbedding(query);
+  if (!embedding) return [];
+  try {
+    const db = getDB();
+    const { data, error } = await db.rpc("match_places_semantic", {
+      query_embedding: embedding,
+      match_count: 5,
+      min_similarity: 0.55,
+    });
+    if (error || !data) return [];
+    return data as SemanticPlace[];
+  } catch {
+    return [];
+  }
+}
+
 // ── Normalization ──────────────────────────────────────────────────────
 
 function norm(text: string): string {
@@ -568,7 +614,43 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
           }
         }
 
-        // ── 7. Default: use LLM to guide ───────────────────────────────────
+        // ── 7. Semantic search (pgvector) ──────────────────────────────────
+        // Fallback before generic LLM: embed the user query and find semantically
+        // similar places. Only runs when OPENAI_API_KEY is set.
+
+        const semanticPlaces = await semanticSearch(lastMsg);
+
+        if (semanticPlaces.length > 0) {
+          await logInteraction("semantic_search", { query: lastMsg, resultCount: semanticPlaces.length }, semanticPlaces.map(p => p.slug));
+
+          if (semanticPlaces.length === 1) {
+            const p = semanticPlaces[0];
+            emit({ type: "text-delta", textDelta: `${p.name_es} — ${p.summary_es || p.category_es} ⭐${Number(p.aggregated_rating ?? 0).toFixed(1)}` });
+            emit({ type: "tool-result", toolName: "search_places", result: { places: [{ slug: p.slug, name: p.name_es, url: `/places/${p.slug}` }] } });
+            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: p.slug }], entities: {} });
+          } else {
+            const placesText = semanticPlaces.map(p =>
+              `• ${p.name_es} (${p.category_es}${p.region_es ? ", " + p.region_es : ""}) — ${p.summary_es || ""} | ⭐${Number(p.aggregated_rating ?? 0).toFixed(1)}`
+            ).join("\n");
+
+            const semanticResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: `Eres Itinera IA, guía de Honduras. El usuario buscó en lenguaje natural y encontramos estos lugares relevantes:\n\n${placesText}\n\nDescribe brevemente estos lugares. Máximo 3 frases. Solo información real. Responde en español.`,
+              messages: [{ role: "user", content: lastMsg }],
+              temperature: 0.3,
+            });
+
+            emit({ type: "text-delta", textDelta: semanticResult.text });
+            emit({ type: "tool-result", toolName: "search_places", result: { places: semanticPlaces.map(p => ({ slug: p.slug, name: p.name_es, url: `/places/${p.slug}` })) } });
+          }
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
+        // ── 8. Default: use LLM to guide ───────────────────────────────────
 
         const defaultResult = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
