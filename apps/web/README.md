@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Itinera Admin Web
 
-## Getting Started
+Panel admin para operar contenido Itinera. Maneja lugares, historias, resenas, sponsors, dispositivos y datos pa web turistica y terminal.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Supabase SSR/client
+
+## Comandos
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Responsabilidad del admin
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Crear/editar lugares.
+- Crear/editar historias.
+- Revisar contenido y resenas.
+- Mantener datos listos pa consumo publico.
+- Sig fase: monitorear calidad semantica de entidades.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Relacion con IA semantica
 
-## Learn More
+Admin = punto entrada pa datos nuevos. Cada lugar, historia, region o categoria debe poder alimentar capa semantica sin cambiar codigo.
 
-To learn more about Next.js, take a look at the following resources:
+Automatizacion v1:
+- Cada guardar/editar en places y stories dispara `POST /api/semantic/rebuild` (server-side).
+- Los toggles Publicar/Ocultar tambien disparan rebuild en modo `changed`.
+- Endpoint interno llama `supabase/functions/v1/semantic-embeddings` con `x-semantic-secret`, sin exponer secreto en cliente.
+- Dashboard admin incluye panel de observabilidad semantica (total/ready/pending/error + ultima ejecucion + botones Sync changed / Backfill).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Cobertura admin (hoy)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Controlado desde panel:
+- Lugares: crear, editar, publicar/ocultar.
+- Historias: crear, editar, publicar/ocultar, relacionar lugares.
+- Resenas: moderacion.
+- Sponsors: vista operativa basica.
+- Terminales: estado y actividad.
+- Semantica: observabilidad en dashboard + ejecucion manual `changed/backfill`.
 
-## Deploy on Vercel
+Brechas detectadas:
+- Regiones y categorias no tienen CRUD dedicado en admin (hoy dependen de DB directa).
+- No existe historial persistente de corridas semanticas (solo estado actual + ultimo resultado en UI).
+- Falta vista de salud semantica por entidad (ej: top errores por `entity_type`).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Roadmap:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`../../docs/ITINERA_AI_SEMANTIC_ROADMAP.md`](../../docs/ITINERA_AI_SEMANTIC_ROADMAP.md)

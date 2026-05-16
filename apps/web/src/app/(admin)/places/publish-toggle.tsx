@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { triggerSemanticRebuild } from "@/lib/semantic/rebuild-client";
 
 export function PublishToggle({
   placeId,
@@ -21,6 +22,7 @@ export function PublishToggle({
     const newStatus = status === "published" ? "draft" : "published";
     await supabase.from("places").update({ status: newStatus }).eq("id", placeId);
     setStatus(newStatus);
+    await triggerSemanticRebuild({ mode: "changed", limit: 5 });
     router.refresh();
     setLoading(false);
   }

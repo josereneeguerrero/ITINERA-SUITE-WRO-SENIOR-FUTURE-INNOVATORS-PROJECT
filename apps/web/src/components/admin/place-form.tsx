@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { triggerSemanticRebuild } from "@/lib/semantic/rebuild-client";
 import { Save, ArrowLeft, MapPin } from "lucide-react";
 import Link from "next/link";
 
@@ -100,6 +101,7 @@ export function PlaceForm({ mode, placeId, initialData, categories, regions }: P
     }
 
     if (err) { setError(err.message); setSaving(false); return; }
+    await triggerSemanticRebuild({ mode: "changed", limit: 5 });
     router.push("/places");
     router.refresh();
   }

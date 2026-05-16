@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { triggerSemanticRebuild } from "@/lib/semantic/rebuild-client";
 import { Save, ArrowLeft, BookOpen } from "lucide-react";
 import Link from "next/link";
 
@@ -97,6 +98,7 @@ export function StoryForm({ mode, storyId, initialData, places }: StoryFormProps
       }
     }
 
+    await triggerSemanticRebuild({ mode: "changed", limit: 5 });
     router.push("/stories");
     router.refresh();
   }

@@ -9,9 +9,11 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import { SemanticRebuildPanel } from "@/components/admin/semantic-rebuild-panel";
 
 async function getStats() {
   const supabase = await createClient();
+  const nowMs = Date.now();
 
   const [
     placesRes,
@@ -31,10 +33,7 @@ async function getStats() {
     supabase
       .from("sponsor_impressions")
       .select("id", { count: "exact", head: true })
-      .gte(
-        "occurred_at",
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      ),
+      .gte("occurred_at", new Date(nowMs - 24 * 60 * 60 * 1000).toISOString()),
     supabase
       .from("interaction_events")
       .select("intent, selected_place_id, occurred_at, places!selected_place_id(name_i18n)")
@@ -44,6 +43,38 @@ async function getStats() {
 
   const places = placesRes.data ?? [];
   const stories = storiesRes.data ?? [];
+
+  let semanticTotal = 0;
+  let semanticReady = 0;
+  let semanticPending = 0;
+  let semanticError = 0;
+  let semanticLastEmbeddedAt: string | null = null;
+  let semanticAvailable = false;
+
+  const semanticResults = await Promise.all([
+    supabase.from("semantic_documents").select("id", { count: "exact", head: true }),
+    supabase.from("semantic_documents").select("id", { count: "exact", head: true }).eq("embedding_status", "ready"),
+    supabase.from("semantic_documents").select("id", { count: "exact", head: true }).eq("embedding_status", "pending"),
+    supabase.from("semantic_documents").select("id", { count: "exact", head: true }).eq("embedding_status", "error"),
+    supabase
+      .from("semantic_documents")
+      .select("last_embedded_at")
+      .not("last_embedded_at", "is", null)
+      .order("last_embedded_at", { ascending: false })
+      .limit(1),
+  ]);
+
+  const semanticHasError = semanticResults.some((res) => Boolean(res.error));
+  if (!semanticHasError) {
+    semanticAvailable = true;
+    semanticTotal = semanticResults[0].count ?? 0;
+    semanticReady = semanticResults[1].count ?? 0;
+    semanticPending = semanticResults[2].count ?? 0;
+    semanticError = semanticResults[3].count ?? 0;
+    semanticLastEmbeddedAt =
+      (semanticResults[4].data?.[0] as { last_embedded_at?: string } | undefined)
+        ?.last_embedded_at ?? null;
+  }
 
   return {
     totalPlaces: places.length,
@@ -55,11 +86,20 @@ async function getStats() {
     lastSync: devicesRes.data?.[0]?.last_sync_at ?? null,
     impressions24h: impressionsRes.count ?? 0,
     recentEvents: recentEventsRes.data ?? [],
+    semantic: {
+      total: semanticTotal,
+      ready: semanticReady,
+      pending: semanticPending,
+      error: semanticError,
+      lastEmbeddedAt: semanticLastEmbeddedAt,
+      available: semanticAvailable,
+    },
+    nowMs,
   };
 }
 
-function timeSince(date: string) {
-  const ms = Date.now() - new Date(date).getTime();
+function timeSince(date: string, nowMs: number) {
+  const ms = nowMs - new Date(date).getTime();
   const mins = Math.floor(ms / 60000);
   if (mins < 60) return `hace ${mins}m`;
   const hrs = Math.floor(mins / 60);
@@ -88,9 +128,9 @@ export default async function DashboardPage() {
       bgColor: "rgba(59,130,246,0.08)",
     },
     {
-      label: "RESEÑAS PENDIENTES",
+      label: "RESENAS PENDIENTES",
       value: stats.pendingReviews,
-      sub: "requieren moderación",
+      sub: "requieren moderacion",
       icon: Star,
       color: stats.pendingReviews > 0 ? "#F59E0B" : "#6B7280",
       bgColor:
@@ -101,7 +141,7 @@ export default async function DashboardPage() {
     {
       label: "TERMINALES",
       value: stats.totalDevices,
-      sub: stats.lastSync ? timeSince(stats.lastSync) : "sin sync",
+      sub: stats.lastSync ? timeSince(stats.lastSync, stats.nowMs) : "sin sync",
       icon: Monitor,
       color: "#8B5CF6",
       bgColor: "rgba(139,92,246,0.08)",
@@ -109,7 +149,7 @@ export default async function DashboardPage() {
     {
       label: "IMPRESIONES HOY",
       value: stats.impressions24h,
-      sub: "últimas 24 horas",
+      sub: "ultimas 24 horas",
       icon: TrendingUp,
       color: "#F97316",
       bgColor: "rgba(249,115,22,0.08)",
@@ -118,15 +158,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-7">
-
-      {/* ── Header ── */}
       <div>
         <p className="font-inter text-xs mb-2" style={{ color: "#6B7280" }}>
           Dashboard
         </p>
-        <h1
-          className="font-jakarta font-bold text-[32px] leading-none text-white"
-        >
+        <h1 className="font-jakarta font-bold text-[32px] leading-none text-white">
           Dashboard
         </h1>
         <p className="font-inter text-sm mt-1.5" style={{ color: "#6B7280" }}>
@@ -134,7 +170,6 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* ── Stats grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {cards.map(({ label, value, sub, icon: Icon, color, bgColor }) => (
           <div
@@ -161,21 +196,17 @@ export default async function DashboardPage() {
             </div>
             <p
               className="font-jakarta font-bold text-[36px] leading-none"
-              style={{ color: label === "RESEÑAS PENDIENTES" && value > 0 ? color : "#F9FAFB" }}
+              style={{ color: label === "RESENAS PENDIENTES" && value > 0 ? color : "#F9FAFB" }}
             >
               {value}
             </p>
-            <p
-              className="font-inter text-xs mt-1.5"
-              style={{ color: "#6B7280" }}
-            >
+            <p className="font-inter text-xs mt-1.5" style={{ color: "#6B7280" }}>
               {sub}
             </p>
           </div>
         ))}
       </div>
 
-      {/* ── Pending reviews warning ── */}
       {stats.pendingReviews > 0 && (
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-lg"
@@ -184,43 +215,30 @@ export default async function DashboardPage() {
             border: "1px solid rgba(245,158,11,0.25)",
           }}
         >
-          <AlertTriangle
-            className="w-4 h-4 shrink-0"
-            style={{ color: "#F59E0B" }}
-          />
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "#F59E0B" }} />
           <p className="font-inter text-sm flex-1" style={{ color: "#F59E0B" }}>
             <span className="font-semibold">{stats.pendingReviews}</span>{" "}
-            reseña{stats.pendingReviews > 1 ? "s" : ""} esperando moderación
+            resena{stats.pendingReviews > 1 ? "s" : ""} esperando moderacion
           </p>
           <Link
             href="/reviews"
             className="flex items-center gap-1 font-inter font-medium text-xs transition-opacity hover:opacity-80"
             style={{ color: "#F59E0B" }}
           >
-            Ir a moderación
+            Ir a moderacion
             <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       )}
 
-      {/* ── Recent activity ── */}
       <div>
-        <h2
-          className="font-jakarta font-semibold text-base text-white mb-3"
-        >
+        <h2 className="font-jakarta font-semibold text-base text-white mb-3">
           Actividad reciente
         </h2>
-        <div
-          className="rounded-lg overflow-hidden"
-          style={{ border: "1px solid #1F2937" }}
-        >
-          {/* Table header */}
+        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #1F2937" }}>
           <div
             className="grid grid-cols-3 px-4 py-2.5"
-            style={{
-              backgroundColor: "#0D1117",
-              borderBottom: "1px solid #1F2937",
-            }}
+            style={{ backgroundColor: "#0D1117", borderBottom: "1px solid #1F2937" }}
           >
             {["HORA", "INTENT", "LUGAR SELECCIONADO"].map((h) => (
               <span
@@ -233,12 +251,8 @@ export default async function DashboardPage() {
             ))}
           </div>
 
-          {/* Rows */}
           {stats.recentEvents.length === 0 ? (
-            <div
-              className="px-4 py-6 text-center font-inter text-sm"
-              style={{ color: "#6B7280" }}
-            >
+            <div className="px-4 py-6 text-center font-inter text-sm" style={{ color: "#6B7280" }}>
               Sin actividad reciente
             </div>
           ) : (
@@ -250,19 +264,13 @@ export default async function DashboardPage() {
                   className="row-activity-hover grid grid-cols-3 px-4 py-3"
                   style={{ borderBottom: i < stats.recentEvents.length - 1 ? "1px solid #1F2937" : "none" }}
                 >
-                  <span
-                    className="font-mono text-xs"
-                    style={{ color: "#0D9488" }}
-                  >
+                  <span className="font-mono text-xs" style={{ color: "#0D9488" }}>
                     {new Date(ev.occurred_at).toLocaleTimeString("es-HN", {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </span>
-                  <span
-                    className="font-mono text-xs"
-                    style={{ color: "#F59E0B" }}
-                  >
+                  <span className="font-mono text-xs" style={{ color: "#F59E0B" }}>
                     {ev.intent ?? "—"}
                   </span>
                   <span className="font-inter text-xs text-white">
@@ -274,6 +282,27 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {stats.semantic.available ? (
+        <SemanticRebuildPanel
+          total={stats.semantic.total}
+          ready={stats.semantic.ready}
+          pending={stats.semantic.pending}
+          failed={stats.semantic.error}
+          lastEmbeddedAt={stats.semantic.lastEmbeddedAt}
+        />
+      ) : (
+        <div
+          className="px-4 py-3 rounded-lg font-inter text-sm"
+          style={{
+            backgroundColor: "rgba(245,158,11,0.08)",
+            border: "1px solid rgba(245,158,11,0.3)",
+            color: "#F59E0B",
+          }}
+        >
+          Tabla semantic_documents no disponible todavia en este entorno.
+        </div>
+      )}
     </div>
   );
 }

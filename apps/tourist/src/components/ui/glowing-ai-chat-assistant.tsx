@@ -43,7 +43,7 @@ export function FloatingAiAssistant({
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const { messages, isLoading, send } = useStreamingChat(context, {
+  const { messages, isLoading, send, clear } = useStreamingChat(context, {
     storageKey,
     onUIActions: (chunk) => {
       onUIActions?.(chunk);
