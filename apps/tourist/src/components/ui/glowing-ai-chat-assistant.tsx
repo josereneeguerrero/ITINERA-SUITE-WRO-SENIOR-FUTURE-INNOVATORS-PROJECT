@@ -97,13 +97,15 @@ export function FloatingAiAssistant({
     },
   });
   // Auto-open chat and send initialMessage (e.g. from category card click)
+  // Clear previous history first so old category messages don't affect future queries
   useEffect(() => {
     if (!initialMessage || !deviceId || didAutoSend.current) return;
     didAutoSend.current = true;
     const timer = setTimeout(() => {
+      clear(); // wipe old history before sending category auto-message
       setIsChatOpen(true);
       send(initialMessage);
-    }, 600); // slight delay so map finishes loading
+    }, 600);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, initialMessage]);
