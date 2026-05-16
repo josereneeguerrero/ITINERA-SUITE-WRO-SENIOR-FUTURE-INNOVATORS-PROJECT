@@ -871,15 +871,15 @@ export function ExploreFullscreenMap({
   }
 
   const REGION_CENTERS: Record<string, { center: [number, number]; zoom: number }> = {
-    "comayagua":         { center: [-87.637, 14.456], zoom: 13 },
-    "copan":             { center: [-89.14,  14.84],  zoom: 13 },
-    "bay-islands":       { center: [-86.55,  16.3],   zoom: 12 },
-    "islas-de-la-bahia": { center: [-86.55,  16.3],   zoom: 12 },
+    "comayagua":         { center: [-87.637, 14.456], zoom: 12 },
+    "copan":             { center: [-89.14,  14.84],  zoom: 12 },
+    "bay-islands":       { center: [-86.55,  16.3],   zoom: 11 },
+    "islas-de-la-bahia": { center: [-86.55,  16.3],   zoom: 11 },
     "tegucigalpa":       { center: [-87.192, 14.072], zoom: 12 },
     "francisco-morazan": { center: [-87.192, 14.072], zoom: 12 },
     "cortes":            { center: [-88.024, 15.506], zoom: 12 },
-    "la-ceiba":          { center: [-86.793, 15.781], zoom: 13 },
-    "atlantida":         { center: [-86.793, 15.781], zoom: 12 },
+    "la-ceiba":          { center: [-86.793, 15.781], zoom: 12 },
+    "atlantida":         { center: [-86.793, 15.781], zoom: 11 },
     "olancho":           { center: [-85.76,  14.87],  zoom: 10 },
     "santa-barbara":     { center: [-88.234, 14.917], zoom: 11 },
     "choluteca":         { center: [-87.196, 13.3],   zoom: 11 },

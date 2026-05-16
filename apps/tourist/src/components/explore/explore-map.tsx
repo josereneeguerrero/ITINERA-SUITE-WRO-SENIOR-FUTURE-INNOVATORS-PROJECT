@@ -270,8 +270,8 @@ export function ExploreMap({
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
       cluster: true,
-      clusterMaxZoom: 11,   // clusters collapse at zoom > 11
-      clusterRadius: 45,
+      clusterMaxZoom: 14,   // clusters visible until zoom 14, then expand to individuals
+      clusterRadius: 55,
     });
 
     // Cluster bubble (teal, grows with count)
