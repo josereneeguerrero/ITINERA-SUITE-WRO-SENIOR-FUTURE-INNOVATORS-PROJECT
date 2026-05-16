@@ -322,16 +322,11 @@ export async function POST(req: Request) {
 
           // If user had a category in mind, search directly with region + that category
           if (historyCategory) {
-            // Fall through to PATH 5 with this region + historyCategory
-            // We do this by setting category to historyCategory and falling through
             const places = await fetchPlaces(region, historyCategory);
 
-            emit({
-              type: "ui-actions",
-              intent: "filter_region",
-              actions: [{ type: "filter_region", slug: region }],
-              entities: { region },
-            });
+            // Apply both region and category filters on the map
+            emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: region }], entities: { region } });
+            emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: historyCategory }], entities: { category: historyCategory } });
 
             if (places.length === 0) {
               emit({ type: "text-delta", textDelta: `No encontré lugares de ese tipo en ${REGION_NAMES[region] || region}.` });
@@ -399,6 +394,12 @@ export async function POST(req: Request) {
 
           const places = await fetchPlaces(searchRegion, category);
 
+          // ── Always apply map filters for region + category ─────────────────
+          if (searchRegion) {
+            emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: searchRegion }], entities: { region: searchRegion } });
+          }
+          emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: category }], entities: { category } });
+
           // ── Zero results ──────────────────────────────────────────────────
           if (places.length === 0) {
             emit({ type: "text-delta", textDelta: "No encontré lugares registrados para esa búsqueda en Honduras." });
@@ -410,21 +411,13 @@ export async function POST(req: Request) {
           // ── Single result → deterministically open the card ───────────────
           if (places.length === 1) {
             const place = places[0];
-            const text = `${place.name} — ${place.summary || "Atracción turística"} ⭐${place.rating}`;
-            emit({ type: "text-delta", textDelta: text });
+            emit({ type: "text-delta", textDelta: `${place.name} — ${place.summary || "Atracción turística"} ⭐${place.rating}` });
             emit({
               type: "tool-result",
               toolName: "search_places",
-              result: {
-                places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }],
-              },
+              result: { places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }] },
             });
-            emit({
-              type: "ui-actions",
-              intent: "show_place",
-              actions: [{ type: "show_place", slug: place.slug }],
-              entities: {},
-            });
+            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
             return;
