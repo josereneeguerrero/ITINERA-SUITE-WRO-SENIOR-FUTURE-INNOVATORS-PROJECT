@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { Navbar } from "@/components/layout/navbar";
+import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 import { PlaceHero } from "@/components/place/place-hero";
 import { PlaceContent } from "@/components/place/place-content";
@@ -59,9 +59,8 @@ export default async function PlacePage({
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      <Navbar />
 
-      {/* Hero — full width, name inside */}
+      {/* Hero — full width, name inside, no top navbar offset needed */}
       <PlaceHero place={place as never} isGuest={isGuest} />
 
       {/* Main layout — max-w-6xl centered */}
@@ -92,6 +91,7 @@ export default async function PlacePage({
       </div>
 
       <Footer />
+      <DashboardDockDemo isGuest={isGuest} />
       <AIFloatingButton
         context={{ page: "place", placeSlug: slug, placeName }}
       />

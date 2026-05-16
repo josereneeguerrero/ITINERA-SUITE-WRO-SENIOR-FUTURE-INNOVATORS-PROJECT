@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   MapPin, Star, Landmark, Leaf, Utensils, Waves, Tent, Church, Palette,
-  type LucideIcon,
+  ArrowLeft, type LucideIcon,
 } from "lucide-react";
 import { PlaceActions } from "./place-actions";
 
@@ -77,7 +77,7 @@ export function PlaceHero({ place, isGuest }: { place: Place; isGuest?: boolean 
 
   return (
     <div
-      className="relative mt-16 overflow-hidden"
+      className="relative overflow-hidden"
       style={{ minHeight: "480px", background: gradient }}
     >
       {/* Dot pattern overlay */}
@@ -90,19 +90,29 @@ export function PlaceHero({ place, isGuest }: { place: Place; isGuest?: boolean 
       />
 
       {/* ── TOP BAR ── */}
-      <div className="relative z-10 flex items-center justify-between px-6 pt-6">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-white/60 font-inter text-xs">
-          <Link href="/dashboard" className="hover:text-white transition-colors">Inicio</Link>
-          <span>/</span>
-          <Link href="/explore" className="hover:text-white transition-colors">Explorar</Link>
-          {catName && (
-            <>
-              <span>/</span>
-              <span className="text-white/70">{catName}</span>
-            </>
-          )}
-        </nav>
+      <div className="relative z-10 flex items-center justify-between px-5 pt-5">
+        {/* Back button + breadcrumb */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/explore"
+            className="flex items-center justify-center w-9 h-9 rounded-full transition-colors hover:bg-white/20 cursor-pointer"
+            style={{ backgroundColor: "rgba(0,0,0,0.2)", backdropFilter: "blur(8px)" }}
+            aria-label="Volver al mapa"
+          >
+            <ArrowLeft className="w-4 h-4 text-white" />
+          </Link>
+          <nav className="hidden sm:flex items-center gap-1.5 text-white/55 font-inter text-xs">
+            <Link href="/dashboard" className="hover:text-white/90 transition-colors">Inicio</Link>
+            <span>/</span>
+            <Link href="/explore" className="hover:text-white/90 transition-colors">Explorar</Link>
+            {catName && (
+              <>
+                <span>/</span>
+                <span className="text-white/70">{catName}</span>
+              </>
+            )}
+          </nav>
+        </div>
 
         {/* Region badge */}
         {regName && (
@@ -111,7 +121,7 @@ export function PlaceHero({ place, isGuest }: { place: Place; isGuest?: boolean 
             style={{ backgroundColor: "rgba(0,0,0,0.25)", backdropFilter: "blur(8px)" }}
           >
             <MapPin className="w-3 h-3 text-white/70" />
-            {regName}
+            {regName}, Honduras
           </div>
         )}
       </div>
