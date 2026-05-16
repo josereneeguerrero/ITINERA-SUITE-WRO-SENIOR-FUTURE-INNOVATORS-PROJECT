@@ -400,7 +400,7 @@ export async function POST(req: Request) {
 
           // No category in history either — orient the user and ask
           const regionName = REGION_NAMES[region] || region;
-          const text = `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas — playas, naturaleza, patrimonio, religioso, gastronomía, aventura o arte?`;
+          const text = `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas?`;
 
           // Log region-only search (awaiting category)
           await logInteraction("search_region_only", { region });
@@ -411,6 +411,17 @@ export async function POST(req: Request) {
             intent: "filter_region",
             actions: [{ type: "filter_region", slug: region }],
             entities: { region },
+          });
+          emit({
+            type: "suggestions",
+            suggestions: [
+              { label: "Restaurantes",  value: "restaurantes" },
+              { label: "Iglesias",      value: "iglesias" },
+              { label: "Naturaleza",    value: "naturaleza" },
+              { label: "Playas",        value: "playas" },
+              { label: "Patrimonio",    value: "patrimonio" },
+              { label: "Aventura",      value: "aventura" },
+            ],
           });
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));

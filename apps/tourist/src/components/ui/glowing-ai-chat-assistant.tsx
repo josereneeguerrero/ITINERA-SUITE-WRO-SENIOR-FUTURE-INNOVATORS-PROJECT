@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Send, Bot, X } from "lucide-react";
-import { useStreamingChat, type ChatContext, type UIActionsChunk } from "@/hooks/use-streaming-chat";
+import { useStreamingChat, type ChatContext, type UIActionsChunk, type Suggestion } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 
 function ToolButton({
@@ -70,7 +70,7 @@ export function FloatingAiAssistant({
     setDeviceId(getOrCreateDeviceId());
   }, []);
 
-  const { messages, isLoading, send, clear } = useStreamingChat(context, {
+  const { messages, isLoading, send, clear, suggestions } = useStreamingChat(context, {
     storageKey,
     deviceId,
     onUIActions: (chunk) => {
@@ -114,6 +114,11 @@ export function FloatingAiAssistant({
       e.preventDefault();
       void handleSend();
     }
+  };
+
+  const handleSuggestion = async (s: Suggestion) => {
+    if (isLoading) return;
+    await send(s.value);
   };
 
   useEffect(() => {
@@ -229,6 +234,21 @@ export function FloatingAiAssistant({
                 </div>
               )}
             </div>
+
+            {suggestions.length > 0 && !isLoading && (
+              <div className="shrink-0 flex gap-1.5 overflow-x-auto px-3.5 py-2 scrollbar-none">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => void handleSuggestion(s)}
+                    className="shrink-0 rounded-full border border-[#0D9488] px-3 py-1 text-xs font-semibold text-[#0D9488] transition-colors hover:bg-[#0D9488] hover:text-white"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="shrink-0 border-t border-[#E2E8F0]/80 px-3.5 pb-3 pt-2.5">
               <div className="flex min-h-11 items-end gap-2 rounded-2xl border border-[#D9E5E2] bg-white/90 px-2.5 py-1.5 shadow-inner">

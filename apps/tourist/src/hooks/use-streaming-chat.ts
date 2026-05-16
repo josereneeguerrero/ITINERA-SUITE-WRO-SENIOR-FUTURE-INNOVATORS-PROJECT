@@ -39,6 +39,11 @@ export interface UIActionsChunk {
   actions: UIAction[];
 }
 
+export interface Suggestion {
+  label: string;
+  value: string;
+}
+
 export function useStreamingChat(
   context: ChatContext = {},
   opts?: {
@@ -47,6 +52,7 @@ export function useStreamingChat(
     deviceId?: string;
   }
 ) {
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [messages,  setMessages]  = useState<ChatMessage[]>(() => {
     if (!opts?.storageKey || typeof window === "undefined") return [];
     try {
@@ -76,6 +82,7 @@ export function useStreamingChat(
     const userMsg: ChatMessage = { role: "user", content: text };
     const history = [...messages, userMsg];
     setMessages(history);
+    setSuggestions([]); // clear chips on every new send
     setIsLoading(true);
 
     abortRef.current?.abort();
@@ -145,6 +152,10 @@ export function useStreamingChat(
                 actions: chunk.actions ?? [],
               });
             }
+
+            if (chunk.type === "suggestions" && Array.isArray(chunk.suggestions)) {
+              setSuggestions(chunk.suggestions as Suggestion[]);
+            }
           } catch { /* ignore parse errors on partial chunks */ }
         }
       }
@@ -167,7 +178,7 @@ export function useStreamingChat(
     }
   }, [messages, isLoading, context, opts]);
 
-  const clear = useCallback(() => setMessages([]), []);
+  const clear = useCallback(() => { setMessages([]); setSuggestions([]); }, []);
 
-  return { messages, isLoading, send, clear };
+  return { messages, isLoading, send, clear, suggestions };
 }
