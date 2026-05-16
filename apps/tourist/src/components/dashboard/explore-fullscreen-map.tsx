@@ -550,14 +550,16 @@ export function ExploreFullscreenMap({
   categories,
   isGuest,
   userId,
+  initialCategory = "",
 }: {
   places: Place[];
   categories: Category[];
   isGuest: boolean;
   userId: string | null;
+  initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("");
+  const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [activeRegion, setActiveRegion] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [savedOnly, setSavedOnly] = useState(false);

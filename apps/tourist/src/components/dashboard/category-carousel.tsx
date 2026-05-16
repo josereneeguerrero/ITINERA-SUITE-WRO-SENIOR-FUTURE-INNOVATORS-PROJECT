@@ -95,11 +95,12 @@ export function CategoryCarousel({
             <Link
               key={cat.id}
               href={href}
-              className="group relative flex min-h-28 min-w-[180px] shrink-0 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md cursor-pointer"
+              title={`Ver lugares de ${label} en el mapa`}
+              className="group relative flex min-h-28 min-w-[160px] shrink-0 flex-col items-center justify-center rounded-xl bg-white px-4 py-5 shadow-sm transition-all duration-200 hover:-translate-y-1.5 hover:shadow-lg cursor-pointer active:scale-95"
               style={{ border: `1px solid ${color}44` }}
             >
               <span
-                className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 group-hover:scale-110"
+                className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 group-hover:scale-115 group-hover:shadow-md"
                 style={{ backgroundColor: `${color}1F`, color }}
               >
                 <Icon className="h-5 w-5" aria-hidden />
@@ -107,8 +108,15 @@ export function CategoryCarousel({
               <span className="text-center font-inter text-sm font-semibold text-[#171d1c]">
                 {label}
               </span>
+              {/* Map hint badge — visible on hover */}
               <span
-                className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full transition-all duration-200 group-hover:inset-x-2"
+                className="absolute top-2 right-2 rounded-full px-1.5 py-0.5 font-inter text-[9px] font-bold uppercase tracking-wide opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                style={{ backgroundColor: `${color}18`, color }}
+              >
+                Ver mapa →
+              </span>
+              <span
+                className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full transition-all duration-200 group-hover:inset-x-1"
                 style={{ backgroundColor: `${color}A6` }}
               />
             </Link>

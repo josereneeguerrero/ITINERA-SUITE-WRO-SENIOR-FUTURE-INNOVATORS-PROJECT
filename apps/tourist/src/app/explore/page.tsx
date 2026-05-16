@@ -140,9 +140,9 @@ function withFallbackCoordinates(place: ExplorePlace): ExplorePlace {
 export default async function ExplorePage({
   searchParams,
 }: {
-  searchParams: Promise<{ guest?: string }>;
+  searchParams: Promise<{ guest?: string; category?: string }>;
 }) {
-  const { guest } = await searchParams;
+  const { guest, category } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -207,7 +207,7 @@ export default async function ExplorePage({
 
   return (
     <main className="min-h-screen w-full bg-white">
-      <ExploreFullscreenMap places={finalPlaces} categories={categories} isGuest={isGuest} userId={user?.id ?? null} />
+      <ExploreFullscreenMap places={finalPlaces} categories={categories} isGuest={isGuest} userId={user?.id ?? null} initialCategory={category ?? ""} />
       <DashboardDockDemo isGuest={isGuest} />
     </main>
   );
