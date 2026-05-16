@@ -459,15 +459,17 @@ export function ExploreMap({
   }, [mapReady, places, selectedPlace, visibleSlugs]);
 
   // ── Fly to region ─────────────────────────────────────────────────────────────
+  // mapReady included so this re-fires once the map loads (handles initialPlace/initialCategory
+  // params set before the map was ready)
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapReady) return;
     if (!mapCenter) { fitAllPlaces(800); return; }
     map.current.flyTo({
       center: mapCenter,
       zoom: mapZoom ?? Math.max(map.current.getZoom(), 9),
       duration: 900,
     });
-  }, [mapCenter, mapZoom, fitAllPlaces]);
+  }, [mapCenter, mapZoom, mapReady, fitAllPlaces]);
 
   // ── Initial fit ───────────────────────────────────────────────────────────────
   useEffect(() => {
