@@ -560,6 +560,14 @@ export function ExploreFullscreenMap({
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategory);
+
+  // Build AI initial message from category slug → category name
+  const initialAiMessage = useMemo(() => {
+    if (!initialCategory) return undefined;
+    const cat = categories.find(c => c.slug === initialCategory);
+    const name = cat ? (cat.name_i18n as Record<string, string>)?.es ?? initialCategory : initialCategory;
+    return `Muéstrame lugares de ${name}`;
+  }, [initialCategory, categories]);
   const [activeRegion, setActiveRegion] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [savedOnly, setSavedOnly] = useState(false);
@@ -1764,6 +1772,7 @@ export function ExploreFullscreenMap({
       <FloatingAiAssistant
         storageKey="itinera-ai-explore"
         onUIActions={handleAiActions}
+        initialMessage={initialAiMessage}
       />
     </section>
   );

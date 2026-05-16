@@ -100,7 +100,7 @@ export function CategoryCarousel({
               style={{ border: `1px solid ${color}44` }}
             >
               <span
-                className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 group-hover:scale-115 group-hover:shadow-md"
+                className="mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 group-hover:scale-110 group-hover:shadow-sm"
                 style={{ backgroundColor: `${color}1F`, color }}
               >
                 <Icon className="h-5 w-5" aria-hidden />
@@ -108,13 +108,14 @@ export function CategoryCarousel({
               <span className="text-center font-inter text-sm font-semibold text-[#171d1c]">
                 {label}
               </span>
-              {/* Map hint badge — visible on hover */}
+              {/* "Explorar →" hint — fades in below label on hover, no clash */}
               <span
-                className="absolute top-2 right-2 rounded-full px-1.5 py-0.5 font-inter text-[9px] font-bold uppercase tracking-wide opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                style={{ backgroundColor: `${color}18`, color }}
+                className="mt-1 font-inter text-[10px] font-semibold opacity-0 transition-all duration-200 group-hover:opacity-100"
+                style={{ color }}
               >
-                Ver mapa →
+                Explorar con IA →
               </span>
+              {/* Bottom color bar */}
               <span
                 className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full transition-all duration-200 group-hover:inset-x-1"
                 style={{ backgroundColor: `${color}A6` }}

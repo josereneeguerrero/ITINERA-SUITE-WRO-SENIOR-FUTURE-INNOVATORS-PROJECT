@@ -52,10 +52,12 @@ export function FloatingAiAssistant({
   context = {},
   storageKey = "itinera-ai-floating",
   onUIActions,
+  initialMessage,
 }: {
   context?: ChatContext;
   storageKey?: string;
   onUIActions?: (chunk: UIActionsChunk) => void;
+  initialMessage?: string;
 }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -64,6 +66,7 @@ export function FloatingAiAssistant({
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const didAutoSend = useRef(false);
 
   // Initialize device ID on mount
   useEffect(() => {
@@ -93,6 +96,18 @@ export function FloatingAiAssistant({
       }
     },
   });
+  // Auto-open chat and send initialMessage (e.g. from category card click)
+  useEffect(() => {
+    if (!initialMessage || !deviceId || didAutoSend.current) return;
+    didAutoSend.current = true;
+    const timer = setTimeout(() => {
+      setIsChatOpen(true);
+      send(initialMessage);
+    }, 600); // slight delay so map finishes loading
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId, initialMessage]);
+
   const hasConversation = messages.length > 0;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
