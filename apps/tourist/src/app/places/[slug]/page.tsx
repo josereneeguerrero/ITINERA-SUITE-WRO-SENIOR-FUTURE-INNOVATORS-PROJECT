@@ -41,7 +41,7 @@ export default async function PlacePage({
 
   if (!place) notFound();
 
-  const [{ data: linkedStories }, { data: placeReviews }] = await Promise.all([
+  const [{ data: linkedStories }, { data: placeReviews }, { data: photos }] = await Promise.all([
     supabase
       .from("story_places")
       .select("stories(id, slug, title_i18n, summary_i18n, audio_storage_path, status, moderation_status)")
@@ -54,6 +54,13 @@ export default async function PlacePage({
       .eq("visibility", "full")
       .order("created_at", { ascending: false })
       .limit(10),
+    supabase
+      .from("media_assets")
+      .select("id, storage_bucket, storage_path, alt_i18n, sort_order")
+      .eq("entity_type", "place")
+      .eq("entity_id", place.id)
+      .eq("kind", "photo")
+      .order("sort_order", { ascending: true }),
   ]);
 
   // Flatten category / region
@@ -123,9 +130,12 @@ export default async function PlacePage({
         />
       </section>
 
-      {/* ── Photo slider — full width section, all screens ── */}
+      {/* ── Photo slider — fotos reales del lugar desde media_assets ── */}
       <section className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
-        <PlacePhotoSlider categorySlug={catSlug} placeName={name} />
+        <PlacePhotoSlider
+          photos={(photos ?? []) as never}
+          placeName={name}
+        />
       </section>
 
       {/* ── 3. DOCK — identical to /dashboard ── */}
