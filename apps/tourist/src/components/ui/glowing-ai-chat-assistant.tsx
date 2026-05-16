@@ -28,6 +28,26 @@ function ToolButton({
   );
 }
 
+function generateDeviceId(): string {
+  // Simple UUID v4-like ID for session tracking
+  return `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function getOrCreateDeviceId(): string {
+  if (typeof window === "undefined") return "";
+  const key = "itinera-device-id";
+  let id = window.sessionStorage.getItem(key);
+  if (!id) {
+    id = generateDeviceId();
+    try {
+      window.sessionStorage.setItem(key, id);
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return id;
+}
+
 export function FloatingAiAssistant({
   context = {},
   storageKey = "itinera-ai-floating",
@@ -40,12 +60,33 @@ export function FloatingAiAssistant({
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [charCount, setCharCount] = useState(0);
+  const [deviceId, setDeviceId] = useState("");
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize device ID on mount
+  useEffect(() => {
+    setDeviceId(getOrCreateDeviceId());
+  }, []);
+
   const { messages, isLoading, send, clear } = useStreamingChat(context, {
     storageKey,
+    deviceId,
     onUIActions: (chunk) => {
+      // Save region/category to session memory
+      if (typeof window !== "undefined") {
+        try {
+          if (chunk.entities?.region) {
+            window.sessionStorage.setItem("itinera-last-region", chunk.entities.region as string);
+          }
+          if (chunk.entities?.category) {
+            window.sessionStorage.setItem("itinera-last-category", chunk.entities.category as string);
+          }
+        } catch {
+          // ignore storage errors
+        }
+      }
       onUIActions?.(chunk);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("itinera:ui-actions", { detail: chunk }));

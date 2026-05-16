@@ -44,6 +44,7 @@ export function useStreamingChat(
   opts?: {
     onUIActions?: (chunk: UIActionsChunk) => void;
     storageKey?: string;
+    deviceId?: string;
   }
 ) {
   const [messages,  setMessages]  = useState<ChatMessage[]>(() => {
@@ -87,6 +88,7 @@ export function useStreamingChat(
         body:    JSON.stringify({
           messages: history.map((m) => ({ role: m.role, content: m.content })),
           context,
+          deviceId: opts?.deviceId,
         }),
         signal: abortRef.current.signal,
       });

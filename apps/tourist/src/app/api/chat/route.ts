@@ -253,8 +253,37 @@ function findNamedPlace(msg: string, places: PlaceRow[]): PlaceRow | null {
 
 // ── Main Handler ────────────────────────────────────────────────────────
 
+// ── Logging interaction events ──────────────────────────────────────────────
+
+async function logInteraction(
+  intent: string,
+  entities: Record<string, unknown>,
+  placesShown: string[] = [],
+  selectedPlace: string | null = null
+) {
+  try {
+    const db = getDB();
+    const deviceId = (globalThis as any).currentDeviceId;
+
+    await db.from("interaction_events").insert({
+      event_id: `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      device_id: deviceId,
+      intent,
+      entities,
+      place_ids_shown: placesShown,
+      selected_place_id: selectedPlace,
+    });
+  } catch (err) {
+    console.error("[Chat Logging Error]", err);
+    // Don't throw; logging failure shouldn't break chat
+  }
+}
+
 export async function POST(req: Request) {
-  const { messages } = await req.json() as { messages: { role: string; content: string }[] };
+  const { messages, deviceId } = await req.json() as { messages: { role: string; content: string }[]; deviceId?: string };
+
+  // Store device ID for logging (thread-local alternative to params)
+  (globalThis as any).currentDeviceId = deviceId;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -324,6 +353,13 @@ export async function POST(req: Request) {
           if (historyCategory) {
             const places = await fetchPlaces(region, historyCategory);
 
+            // Log the search
+            await logInteraction("search_region_category", {
+              region,
+              category: historyCategory,
+              resultCount: places.length,
+            }, places.map(p => p.slug));
+
             // Apply both region and category filters on the map
             emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: region }], entities: { region } });
             emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: historyCategory }], entities: { category: historyCategory } });
@@ -339,6 +375,8 @@ export async function POST(req: Request) {
                 result: { places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }] },
               });
               emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
+              // Log selection
+              await logInteraction("select_place", { region, category: historyCategory, place: place.slug }, [], place.slug);
             } else {
               const llmResult = await generateText({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -363,6 +401,9 @@ export async function POST(req: Request) {
           // No category in history either — orient the user and ask
           const regionName = REGION_NAMES[region] || region;
           const text = `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas — playas, naturaleza, patrimonio, religioso, gastronomía, aventura o arte?`;
+
+          // Log region-only search (awaiting category)
+          await logInteraction("search_region_only", { region });
 
           emit({ type: "text-delta", textDelta: text });
           emit({
@@ -394,6 +435,13 @@ export async function POST(req: Request) {
 
           const places = await fetchPlaces(searchRegion, category);
 
+          // Log the search
+          await logInteraction("search_category", {
+            region: searchRegion,
+            category,
+            resultCount: places.length,
+          }, places.map(p => p.slug));
+
           // ── Always apply map filters for region + category ─────────────────
           if (searchRegion) {
             emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: searchRegion }], entities: { region: searchRegion } });
@@ -418,6 +466,8 @@ export async function POST(req: Request) {
               result: { places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }] },
             });
             emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
+            // Log selection
+            await logInteraction("select_place", { region: searchRegion, category, place: place.slug }, [], place.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
             return;
@@ -434,6 +484,8 @@ export async function POST(req: Request) {
               result: { places: [{ slug: namedPlace.slug, name: namedPlace.name, rating: namedPlace.rating, url: `/places/${namedPlace.slug}` }] },
             });
             emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: namedPlace.slug }], entities: {} });
+            // Log selection from multiple results
+            await logInteraction("select_place", { region: searchRegion, category, place: namedPlace.slug }, [], namedPlace.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
             return;
@@ -496,6 +548,8 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
               result: { places: [{ slug: match.slug, name: match.name, rating: match.rating, url: `/places/${match.slug}` }] },
             });
             emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: match.slug }], entities: {} });
+            // Log direct place search
+            await logInteraction("search_place_by_name", { place: match.slug }, [], match.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
             return;
