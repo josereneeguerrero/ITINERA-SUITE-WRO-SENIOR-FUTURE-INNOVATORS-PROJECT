@@ -608,28 +608,23 @@ export function ExploreMap({
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
       {selectedPlace ? (
         <div
-          className="pointer-events-auto absolute left-4 top-20 z-30 flex w-[min(340px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[340px]"
+          className="pointer-events-auto absolute left-4 top-20 z-30 w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[340px]"
           style={{
             opacity: cardVisible ? 1 : 0,
             transform: cardVisible ? "translateY(0)" : "translateY(8px)",
             pointerEvents: cardVisible ? "auto" : "none",
-            // Fixed max-height that always reserves space for: top bar + dock + route panel
-            // top-20 (80px) + dock (80px) + route panel (64px) + buffer (16px) = 240px
-            maxHeight: "calc(100vh - 240px)",
           }}
         >
           <button type="button" aria-label="Cerrar" onClick={closeSelectedPlace}
             className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50">
             <X className="h-4 w-4" />
           </button>
-          {/* Image — fixed height, doesn't scroll */}
-          <div className="h-[160px] w-full shrink-0 bg-[#ECFDF5] p-2 pb-0 sm:h-[176px]">
+          <div className="h-[170px] w-full bg-[#ECFDF5] p-2 pb-0 sm:h-[184px] md:h-[196px]">
             <img src={selectedImage} alt={selectedPlace.name_i18n?.es ?? selectedPlace.slug}
               className="h-full w-full rounded-xl object-cover" loading="lazy"
               onError={e => { e.currentTarget.src = categoryFallbackImage; }} />
           </div>
-          {/* Content — scrollable when card is constrained */}
-          <div className="flex-1 overflow-y-auto overscroll-contain space-y-3 p-4 pt-3">
+          <div className="space-y-3 p-4 pt-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-jakarta text-[34px] font-bold leading-[1.1] tracking-[-0.01em] text-[#0F172A]">

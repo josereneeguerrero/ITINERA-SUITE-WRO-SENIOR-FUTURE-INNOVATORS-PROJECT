@@ -1132,28 +1132,28 @@ export function ExploreFullscreenMap({
   }
 
   function addToRoute(place: Place) {
-    // Use functional update — single source of truth avoids race condition on rapid adds
-    let isNew = true;
+    const alreadyInRoute = activeRoute?.stops.some((stop) => stop.slug === place.slug) ?? false;
+    setRouteFeedback({
+      kind: alreadyInRoute ? "exists" : "added",
+      placeSlug: place.slug,
+      message: alreadyInRoute ? "Ya está en tu ruta" : "Agregado a tu ruta",
+    });
+
+    if (alreadyInRoute) return;
+
     setActiveRoute((prev) => {
-      const exists = prev?.stops.some((stop) => stop.slug === place.slug) ?? false;
-      isNew = !exists;
-      if (exists) return prev ?? null;
       if (!prev) {
         return {
           title: "Ruta personalizada",
           stops: [{ order: 1, slug: place.slug, name: getEs(place.name_i18n, place.slug) }],
         };
       }
+      // Double-check inside callback to prevent race on rapid successive clicks
+      if (prev.stops.some((stop) => stop.slug === place.slug)) return prev;
       const nextStops = [...prev.stops, { order: prev.stops.length + 1, slug: place.slug, name: getEs(place.name_i18n, place.slug) }];
       return { ...prev, stops: nextStops };
     });
-    // Feedback after state update (isNew is set synchronously inside the callback above)
-    setRouteFeedback({
-      kind: isNew ? "added" : "exists",
-      placeSlug: place.slug,
-      message: isNew ? "Agregado a tu ruta" : "Ya está en tu ruta",
-    });
-    if (isNew) setRoutePanelExpanded(false);
+    setRoutePanelExpanded(false);
   }
 
   const previewPlace = uiMode === "idle" && query.trim().length > 0 ? searchSuggestions[0] ?? null : null;
