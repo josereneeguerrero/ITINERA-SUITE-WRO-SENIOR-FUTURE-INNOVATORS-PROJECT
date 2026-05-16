@@ -17,7 +17,7 @@ function getDB() {
   );
 }
 
-// ── Semantic search via pgvector ──────────────────────────────────────────
+// ── Semantic search via Supabase AI (gte-small embeddings) ────────────────
 
 interface SemanticPlace {
   slug: string;
@@ -29,35 +29,52 @@ interface SemanticPlace {
   similarity: number;
 }
 
-async function generateEmbedding(text: string): Promise<number[] | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.data[0].embedding as number[];
-  } catch {
-    return null;
-  }
+interface SemanticDocumentResult {
+  slug: string;
+  title: string;
+  summary: string;
+  category_name: string;
+  region_name: string;
+  rating: number;
+  combined_score: number;
 }
 
 async function semanticSearch(query: string): Promise<SemanticPlace[]> {
-  const embedding = await generateEmbedding(query);
-  if (!embedding) return [];
   try {
+    // Hybrid search: combines semantic + full-text + metadata scoring
+    // Uses Supabase AI gte-small embeddings (384 dimensions) stored in semantic_documents
+    // Gracefully falls back to full-text search if no embeddings available
     const db = getDB();
-    const { data, error } = await db.rpc("match_places_semantic", {
-      query_embedding: embedding,
-      match_count: 5,
-      min_similarity: 0.55,
+
+    // Call the hybrid RPC: combines semantic similarity + full-text search + metadata
+    // p_query: text search (matches against title + content via tsvector)
+    // p_query_embedding: can be null, RPC handles text-only search
+    // Scoring: 70% semantic + 90% text_rank + title match bonus + rating boost
+    const { data, error } = await db.rpc("search_semantic_documents", {
+      p_query: query,
+      p_query_embedding: null, // RPC handles text-only fallback
+      p_entity_types: ["place"],
+      p_region_slug: null,
+      p_category_slug: null,
+      p_locale: "es",
+      p_match_count: 5,
+      p_match_threshold: 0.18,
     });
+
     if (error || !data) return [];
-    return data as SemanticPlace[];
+
+    // Map semantic_documents RPC result to SemanticPlace interface
+    return (data as SemanticDocumentResult[]).map(doc => ({
+      slug: doc.slug,
+      name_es: doc.title,
+      summary_es: doc.summary || "",
+      category_es: doc.category_name || "",
+      region_es: doc.region_name || "",
+      aggregated_rating: doc.rating || 0,
+      // combined_score from RPC: title match (2.0) + semantic (0.7) + text rank (0.9) + rating (0.15)
+      // Normalize to 0-1 range for display
+      similarity: Math.max(0, Math.min(1, (doc.combined_score || 0) / 4.75)),
+    }));
   } catch {
     return [];
   }
