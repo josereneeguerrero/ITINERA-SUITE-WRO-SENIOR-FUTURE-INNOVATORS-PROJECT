@@ -1,6 +1,17 @@
 "use client";
 
-import { MapPin, BookOpen, ChevronRight, Plus, ArrowRight, Star } from "lucide-react";
+import { MapPin, BookOpen, ChevronRight, Plus, ArrowRight, Star, Map } from "lucide-react";
+
+function showOnMap(slug: string) {
+  window.dispatchEvent(
+    new CustomEvent("itinera:ui-actions", {
+      detail: {
+        intent: "show_place",
+        actions: [{ type: "show_place", slug }],
+      },
+    })
+  );
+}
 
 export function ToolResultInline({ toolName, result }: { toolName: string; result: unknown }) {
   const data = result as Record<string, unknown>;
@@ -57,19 +68,21 @@ export function ToolResultInline({ toolName, result }: { toolName: string; resul
     return (
       <div className="space-y-1.5">
         {places.slice(0, 3).map((p) => (
-          <a
+          <div
             key={p.slug}
-            href={p.url}
             className="flex items-center gap-2 rounded-xl p-2 transition-all hover:shadow-sm"
             style={{ backgroundColor: "white", border: "1px solid #E2E8F0" }}
           >
+            {/* Icon */}
             <div
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
               style={{ backgroundColor: "rgba(13,148,136,0.08)" }}
             >
               <MapPin className="h-3.5 w-3.5" style={{ color: "#0D9488" }} />
             </div>
-            <div className="min-w-0 flex-1">
+
+            {/* Info — click lleva a /places */}
+            <a href={p.url} className="min-w-0 flex-1">
               <p className="truncate font-jakarta text-[11px] font-semibold text-[#0F172A]">{p.name}</p>
               <p className="flex items-center gap-1 font-inter text-[10px]" style={{ color: "#0D9488" }}>
                 {p.category}
@@ -81,9 +94,23 @@ export function ToolResultInline({ toolName, result }: { toolName: string; resul
                   </>
                 ) : null}
               </p>
-            </div>
-            <ChevronRight className="h-3 w-3 shrink-0" style={{ color: "#0D9488" }} />
-          </a>
+            </a>
+
+            {/* Ver en mapa */}
+            <button
+              onClick={() => showOnMap(p.slug)}
+              title="Ver en el mapa"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-teal-50"
+              style={{ color: "#0D9488" }}
+            >
+              <Map className="h-3.5 w-3.5" />
+            </button>
+
+            {/* Ver detalle → /places */}
+            <a href={p.url} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-gray-50">
+              <ChevronRight className="h-3 w-3" style={{ color: "#94A3B8" }} />
+            </a>
+          </div>
         ))}
       </div>
     );

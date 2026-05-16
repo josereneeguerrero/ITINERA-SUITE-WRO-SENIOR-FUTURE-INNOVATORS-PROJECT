@@ -969,6 +969,15 @@ export function ExploreFullscreenMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [places]);
 
+  // Listen for global itinera:ui-actions events (emitted by chat cards, etc.)
+  useEffect(() => {
+    function onGlobalAction(e: Event) {
+      handleAiActions((e as CustomEvent).detail as UIActionsChunk);
+    }
+    window.addEventListener("itinera:ui-actions", onGlobalAction);
+    return () => window.removeEventListener("itinera:ui-actions", onGlobalAction);
+  }, [handleAiActions]);
+
   function applyNearby() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
