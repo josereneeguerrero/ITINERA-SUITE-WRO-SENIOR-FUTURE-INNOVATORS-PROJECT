@@ -613,10 +613,9 @@ export function ExploreMap({
             opacity: cardVisible ? 1 : 0,
             transform: cardVisible ? "translateY(0)" : "translateY(8px)",
             pointerEvents: cardVisible ? "auto" : "none",
-            // Shrink when route panel (≈64px) + dock (≈80px) are visible at bottom
-            maxHeight: routeStops.length > 0
-              ? "calc(100vh - 256px)"
-              : "calc(100vh - 192px)",
+            // Fixed max-height that always reserves space for: top bar + dock + route panel
+            // top-20 (80px) + dock (80px) + route panel (64px) + buffer (16px) = 240px
+            maxHeight: "calc(100vh - 240px)",
           }}
         >
           <button type="button" aria-label="Cerrar" onClick={closeSelectedPlace}
