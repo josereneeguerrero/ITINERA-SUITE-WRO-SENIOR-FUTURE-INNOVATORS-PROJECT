@@ -22,6 +22,7 @@ export interface ChatContext {
 export interface UIAction {
   type: string; // open-ended — backend drives the action type
   slug?: string;
+  slugs?: string[]; // for show_places (multiple semantic results)
   query?: string;
   category?: string;
   region?: string;
