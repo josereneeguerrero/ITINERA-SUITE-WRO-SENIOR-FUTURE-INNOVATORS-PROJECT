@@ -265,76 +265,70 @@ export async function POST(req: Request) {
 
           const places = await fetchPlaces(searchRegion, category);
 
-          const placesText =
-            places.length > 0
-              ? places.map(p => `• ${p.name} — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")
-              : "No hay lugares registrados para esta búsqueda.";
-
-          const context = [searchRegion, category].filter(Boolean).join(" + ") || "Honduras";
-
-          const systemPrompt = `Eres Itinera IA, guía de Honduras.
-
-Datos disponibles (${context}):
-${placesText}
-
-INSTRUCCIONES:
-1. Responde SOLO con info real de los datos.
-2. Menciona lugares por nombre con algo de su resumen.
-3. Máximo 3 frases, máximo 2-3 lugares.
-4. Responde en español.
-
-ACCIONES (devuelve JSON):
-- Si hay UN lugar claro/obvio para abrir → {"type":"show_place","slug":"slug-exacto"}
-- Si el usuario pidió MÚLTIPLES lugares → mostrar lista, action: null
-- Si hay cero lugares → {"text":"No encontré lugares para esto","action":null}
-
-Responde SIEMPRE en formato JSON válido:
-{"text":"tu respuesta aquí","action":null o objeto acción}`;
-
-          const llmResult = await generateText({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            model: (getGroq() as any)("llama-3.3-70b-versatile"),
-            system: systemPrompt,
-            messages: messages as { role: "user" | "assistant"; content: string }[],
-            temperature: 0.3,
-          });
-
-          let parsed = { text: llmResult.text, action: null };
-          try {
-            const json = llmResult.text.includes("{") ? llmResult.text.match(/\{[\s\S]*\}/)?.[0] : null;
-            if (json) {
-              const obj = JSON.parse(json);
-              if (obj.text) parsed = obj;
-            }
-          } catch {
-            // Ignore parse errors
+          // ── Zero results ──────────────────────────────────────────────────
+          if (places.length === 0) {
+            emit({ type: "text-delta", textDelta: "No encontré lugares registrados para esa búsqueda en Honduras." });
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
           }
 
-          emit({ type: "text-delta", textDelta: parsed.text });
-
-          if (places.length > 0) {
+          // ── Single result → deterministically open the card ───────────────
+          if (places.length === 1) {
+            const place = places[0];
+            const text = `${place.name} — ${place.summary || "Atracción turística"} ⭐${place.rating}`;
+            emit({ type: "text-delta", textDelta: text });
             emit({
               type: "tool-result",
               toolName: "search_places",
               result: {
-                places: places.map(p => ({
-                  slug: p.slug,
-                  name: p.name,
-                  rating: p.rating,
-                  url: `/places/${p.slug}`,
-                })),
+                places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }],
               },
             });
-          }
-
-          if (parsed.action && typeof parsed.action === "object" && "type" in parsed.action) {
             emit({
               type: "ui-actions",
-              intent: (parsed.action as { type: string }).type,
-              actions: [parsed.action],
+              intent: "show_place",
+              actions: [{ type: "show_place", slug: place.slug }],
               entities: {},
             });
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
           }
+
+          // ── Multiple results → LLM describes, list shown ──────────────────
+          const placesText = places
+            .map(p => `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`)
+            .join("\n");
+
+          const context = [searchRegion, category].filter(Boolean).join(" + ") || "Honduras";
+
+          const llmResult = await generateText({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            model: (getGroq() as any)("llama-3.3-70b-versatile"),
+            system: `Eres Itinera IA, guía de Honduras.
+
+Lugares encontrados (${context}):
+${placesText}
+
+Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo información real. Responde en español. No inventes.`,
+            messages: messages as { role: "user" | "assistant"; content: string }[],
+            temperature: 0.3,
+          });
+
+          emit({ type: "text-delta", textDelta: llmResult.text });
+          emit({
+            type: "tool-result",
+            toolName: "search_places",
+            result: {
+              places: places.map(p => ({
+                slug: p.slug,
+                name: p.name,
+                rating: p.rating,
+                url: `/places/${p.slug}`,
+              })),
+            },
+          });
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
