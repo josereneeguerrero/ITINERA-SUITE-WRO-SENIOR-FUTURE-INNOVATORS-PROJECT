@@ -174,6 +174,42 @@ async function fetchPlaces(regionSlug: string | null, categorySlug: string | nul
   }));
 }
 
+// ── Direct place search by name ─────────────────────────────────────────
+// Used when user asks for a specific place without category/region keywords.
+// Searches using the most significant word (4+ chars) from the message.
+
+async function fetchPlaceByName(msg: string): Promise<PlaceRow[]> {
+  const db = getDB();
+  const cleaned = norm(msg)
+    .replace(/\b(muestrame|ensename|abre|ver|quiero|llevame|ir|pon|ponme|muestra|otro|otros|otra|otras|el|la|los|las|un|una|de|del|en|y|o)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const significantWords = cleaned.split(" ").filter(w => w.length >= 4);
+  if (significantWords.length === 0) return [];
+
+  // Use the longest word as main search term (most distinctive)
+  const mainWord = significantWords.sort((a, b) => b.length - a.length)[0];
+
+  const { data } = await db
+    .from("places")
+    .select("slug,name_i18n,ai_summary_i18n,aggregated_rating,place_categories(name_i18n,slug),regions(name_i18n,slug)")
+    .eq("status", "published")
+    .ilike("name_i18n->>es", `%${mainWord}%`)
+    .order("aggregated_rating", { ascending: false })
+    .limit(10);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((p: any): PlaceRow => ({
+    slug: p.slug,
+    name: p.name_i18n?.es ?? p.slug,
+    summary: p.ai_summary_i18n?.es ?? "",
+    rating: Number(p.aggregated_rating ?? 0),
+    category: p.place_categories?.name_i18n?.es ?? "",
+    region: p.regions?.name_i18n?.es ?? "",
+  }));
+}
+
 // ── Named place detection ───────────────────────────────────────────────
 // Checks if the user mentioned a specific place name from the result list.
 // Words with 4+ chars are compared; if most match, treat it as named-place request.
@@ -449,7 +485,31 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
           return;
         }
 
-        // ── 6. Default: use LLM to guide ───────────────────────────────────
+        // ── 6. Direct place-name search (no category/region detected) ─────────
+        // Handles "Muestrame La Atoniana Gastro Pub", "el otro El Torito", etc.
+        // Uses navigation-intent words as signal, then searches DB by name.
+
+        const NAV_WORDS = ["muestrame", "ensename", "muestra", "abre", "quiero", "ver", "otro", "otra"];
+        const hasNavIntent = NAV_WORDS.some(w => wordIn(w, norm(lastMsg)));
+
+        if (hasNavIntent) {
+          const candidates = await fetchPlaceByName(lastMsg);
+          if (candidates.length > 0) {
+            const match = findNamedPlace(lastMsg, candidates) ?? candidates[0];
+            emit({ type: "text-delta", textDelta: `${match.name} — ${match.summary || "Atracción turística"} ⭐${match.rating}` });
+            emit({
+              type: "tool-result",
+              toolName: "search_places",
+              result: { places: [{ slug: match.slug, name: match.name, rating: match.rating, url: `/places/${match.slug}` }] },
+            });
+            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: match.slug }], entities: {} });
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
+        }
+
+        // ── 7. Default: use LLM to guide ───────────────────────────────────
 
         const defaultResult = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
