@@ -137,7 +137,7 @@ const ORIENT_TEMPLATES = [
 function buildOrientText(regionSlug: string): string {
   const name = REGION_NAMES[regionSlug] ?? regionSlug;
   const fn   = ORIENT_TEMPLATES[Math.floor(Math.random() * ORIENT_TEMPLATES.length)];
-  return fn(name);
+  return fn(name); // v3-deploy-check
 }
 
 // ─── Deterministic commands (no LLM needed) ──────────────────────────────────
