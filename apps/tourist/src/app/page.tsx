@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import {
   ArrowRight,
   Bot,
@@ -197,11 +198,11 @@ function LandingNav() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <Link className="hidden font-inter text-sm font-semibold text-white/70 transition-colors hover:text-white sm:inline-flex" href="/login">
-            Conectar
+          <Link className="font-inter text-sm font-semibold text-white/70 transition-colors hover:text-white" href="/login">
+            Entrar
           </Link>
           <Link
-            className="hidden min-h-10 items-center rounded-lg bg-[#00685f] px-5 py-2 font-inter text-sm font-bold text-white shadow-lg shadow-teal-950/30 transition-colors duration-200 hover:bg-[#008378] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#89f5e7] sm:inline-flex"
+            className="inline-flex min-h-10 items-center rounded-lg bg-[#00685f] px-4 py-2 font-inter text-sm font-bold text-white shadow-lg shadow-teal-950/30 transition-colors duration-200 hover:bg-[#008378] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#89f5e7] sm:px-5"
             href="/bienvenida?redirect=/dashboard"
           >
             Empezar
@@ -409,22 +410,21 @@ export default async function HomePage() {
 
       <section className="relative bg-[#0F172A] px-4 py-24 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <div className="itinera-reveal text-center">
+          <ScrollReveal className="text-center">
             <SectionEyebrow dark>El problema</SectionEyebrow>
             <h2 className="font-jakarta text-3xl font-bold text-white sm:text-4xl">Siempre los mismos lugares</h2>
-          </div>
+          </ScrollReveal>
           <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {PROBLEM_CARDS.map(({ title, description, icon: Icon, tone }) => (
-              <article
-                key={title}
-                className="itinera-reveal rounded-xl border border-white/10 bg-[#1E293B] p-8 shadow-lg shadow-black/10 transition-colors duration-200 hover:border-white/20"
-              >
-                <div className={`mb-6 flex h-12 w-12 items-center justify-center rounded-lg border ${tone}`}>
-                  <Icon className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <h3 className="font-jakarta text-xl font-bold text-white">{title}</h3>
-                <p className="mt-4 font-inter text-sm leading-6 text-white/62">{description}</p>
-              </article>
+            {PROBLEM_CARDS.map(({ title, description, icon: Icon, tone }, i) => (
+              <ScrollReveal key={title} delay={i * 120}>
+                <article className="h-full rounded-xl border border-white/10 bg-[#1E293B] p-8 shadow-lg shadow-black/10 transition-colors duration-200 hover:border-white/20">
+                  <div className={`mb-6 flex h-12 w-12 items-center justify-center rounded-lg border ${tone}`}>
+                    <Icon className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  <h3 className="font-jakarta text-xl font-bold text-white">{title}</h3>
+                  <p className="mt-4 font-inter text-sm leading-6 text-white/62">{description}</p>
+                </article>
+              </ScrollReveal>
             ))}
           </div>
         </div>
@@ -432,13 +432,13 @@ export default async function HomePage() {
 
       <section id="demo" className="overflow-hidden bg-white px-4 py-28 sm:px-6 lg:py-32">
         <div className="mx-auto max-w-7xl text-center">
-          <div className="itinera-reveal mb-12">
+          <ScrollReveal className="mb-12">
             <SectionEyebrow>Como funciona</SectionEyebrow>
             <h2 className="font-jakarta text-3xl font-bold text-[#171d1c] sm:text-4xl">Tu companero inteligente de viaje</h2>
-          </div>
-          <div className="itinera-reveal">
+          </ScrollReveal>
+          <ScrollReveal delay={100}>
             <ProductMockup />
-          </div>
+          </ScrollReveal>
           <div className="mt-12 flex flex-wrap justify-center gap-4">
             {[
               { icon: Map, label: "Mapa en tiempo real" },
@@ -481,8 +481,9 @@ export default async function HomePage() {
             <h2 className="font-jakarta text-3xl font-bold sm:text-4xl">Un ecosistema completo</h2>
           </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {INNOVATION_CARDS.map(({ title, description, badge, icon: Icon, color }) => (
-              <article key={title} className="itinera-reveal relative overflow-hidden rounded-xl border border-white/10 bg-[#1E293B] p-8 shadow-lg shadow-black/10 transition-colors duration-200 hover:border-white/20">
+            {INNOVATION_CARDS.map(({ title, description, badge, icon: Icon, color }, i) => (
+              <ScrollReveal key={title} delay={i * 130}>
+              <article className="relative h-full overflow-hidden rounded-xl border border-white/10 bg-[#1E293B] p-8 shadow-lg shadow-black/10 transition-colors duration-200 hover:border-white/20">
                 {badge ? (
                   <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded border border-amber-400/25 bg-amber-500/15 px-2 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
                     <Cpu className="h-3 w-3" aria-hidden="true" />
@@ -493,6 +494,7 @@ export default async function HomePage() {
                 <h3 className="font-jakarta text-2xl font-bold">{title}</h3>
                 <p className="mt-3 font-inter text-sm leading-6 text-white/62">{description}</p>
               </article>
+              </ScrollReveal>
             ))}
           </div>
         </div>
@@ -501,7 +503,7 @@ export default async function HomePage() {
       <section className="relative overflow-hidden bg-gradient-to-br from-[#00685f] to-[#004d46] px-4 py-24 text-center text-white sm:px-6">
         <div className="absolute -left-56 -top-56 h-[520px] w-[520px] rounded-full border border-white/8" />
         <div className="absolute -bottom-72 -right-72 h-[760px] w-[760px] rounded-full border border-white/8" />
-        <div className="itinera-reveal relative z-10 mx-auto flex max-w-3xl flex-col items-center">
+        <ScrollReveal className="relative z-10 mx-auto flex max-w-3xl flex-col items-center">
           <ShieldCheck className="mb-6 h-12 w-12 text-[#89f5e7]" aria-hidden="true" />
           <h2 className="font-jakarta text-[40px] font-extrabold leading-tight sm:text-[52px]">Listo para descubrir Honduras?</h2>
           <p className="mt-5 max-w-2xl font-inter text-base leading-7 text-white/72">
@@ -513,7 +515,7 @@ export default async function HomePage() {
           >
             Empezar ahora <Navigation className="h-4 w-4" aria-hidden="true" />
           </Link>
-        </div>
+        </ScrollReveal>
         <footer className="relative z-10 mx-auto mt-24 flex max-w-7xl flex-col items-center justify-between gap-6 border-t border-white/10 pt-10 md:flex-row">
           <p className="font-inter text-sm text-white/70">WRO 2026 · INNOVAKERS · UNICAH · Honduras</p>
           <div className="flex gap-6">

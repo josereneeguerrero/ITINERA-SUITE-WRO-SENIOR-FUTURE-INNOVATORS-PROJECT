@@ -23,30 +23,20 @@ interface DockIconButtonProps {
   className?: string;
 }
 
-const floatingAnimation = {
-  initial: { y: 0 },
-  animate: {
-    y: [-2, 2, -2],
-    transition: {
-      duration: 4,
-      repeat: Infinity,
-      ease: "easeInOut" as const,
-    },
-  },
-};
-
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
   ({ icon: Icon, label, onClick, active, className }, ref) => {
     return (
       <motion.button
         ref={ref}
-        whileHover={active ? undefined : { scale: 1.1, y: -2 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={active ? undefined : { scale: 1.12, y: -3 }}
+        whileTap={{ scale: 0.93 }}
         onClick={onClick}
+        title={label}
+        aria-label={label}
         className={cn(
-          "relative rounded-lg p-3 text-[#0F766E]",
-          "transition-colors",
-          active ? "" : "hover:bg-[#0D9488]/18",
+          "relative flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 cursor-pointer",
+          "transition-colors duration-150",
+          active ? "" : "hover:bg-[#0D9488]/15",
           className
         )}
         type="button"
@@ -54,18 +44,15 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
         {active ? (
           <motion.span
             layoutId="dock-active-indicator"
-            className="absolute inset-0 rounded-lg bg-[#0D9488]/22"
-            transition={{ type: "spring", stiffness: 340, damping: 30, mass: 0.55 }}
+            className="absolute inset-0 rounded-xl bg-[#0D9488]/20"
+            transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.5 }}
           />
         ) : null}
-        <Icon className={cn("relative z-10 h-5 w-5 text-[#0F766E]", active ? "text-[#065F46]" : "")} />
-        <span
-          className={cn(
-            "pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap",
-            "rounded bg-[#0D9488] px-2 py-1 text-xs text-white",
-            "opacity-0 transition-opacity group-hover:opacity-100"
-          )}
-        >
+        <Icon className={cn("relative z-10 h-5 w-5", active ? "text-[#065F46]" : "text-[#0F766E]")} />
+        <span className={cn(
+          "relative z-10 font-inter text-[10px] font-semibold",
+          active ? "text-[#065F46]" : "text-[#0F766E]/70"
+        )}>
           {label}
         </span>
       </motion.button>
@@ -79,22 +66,17 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
     return (
       <div ref={ref} className={cn("flex w-full items-end justify-center p-0", className)}>
         <div className="relative flex w-full max-w-4xl items-end justify-center rounded-2xl">
-          <motion.div
-            initial="initial"
-            animate="animate"
-            variants={floatingAnimation}
+          <div
             className={cn(
-              "flex items-center gap-1 rounded-2xl p-2",
-              "border border-[#0D9488]/35 bg-[#0D9488]/12 shadow-[0_10px_28px_rgba(13,148,136,0.25)] backdrop-blur-lg",
-              "transition-shadow duration-300 hover:shadow-xl"
+              "flex items-center gap-0.5 rounded-2xl px-2 py-1.5",
+              "border border-[#0D9488]/35 bg-[#0D9488]/10 shadow-[0_8px_24px_rgba(13,148,136,0.2)] backdrop-blur-lg",
+              "transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(13,148,136,0.28)]"
             )}
           >
             {items.map((item) => (
-              <div key={item.label} className="group">
-                <DockIconButton {...item} />
-              </div>
+              <DockIconButton key={item.label} {...item} />
             ))}
-          </motion.div>
+          </div>
         </div>
       </div>
     );
