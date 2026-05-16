@@ -4,6 +4,8 @@ import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { PlaceHero } from "@/components/place/place-hero";
 import { PlaceContent } from "@/components/place/place-content";
 import { PlaceAIPanel } from "@/components/place/place-ai-panel";
+import { PlaceWeatherWidget } from "@/components/place/place-weather-widget";
+import { PlacePhotoSlider } from "@/components/place/place-photo-slider";
 import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 
 export const revalidate = 0;
@@ -29,7 +31,7 @@ export default async function PlacePage({
       ai_summary_i18n, ai_tips_i18n, address_i18n, hours,
       aggregated_rating, review_count,
       price_level, accessibility, local_favorite, featured,
-      phone, website, hours,
+      phone, website, lat, lng,
       place_categories(name_i18n, icon_name),
       regions(name_i18n)
     `)
@@ -96,19 +98,34 @@ export default async function PlacePage({
             />
           </div>
 
-          {/* Right — AI Panel sticky (desktop) */}
-          <aside className="w-[340px] shrink-0 hidden lg:block">
-            <div className="sticky top-6">
+          {/* Right — AI Panel + Weather (desktop sticky) */}
+          <aside className="w-[340px] shrink-0 hidden lg:block space-y-4">
+            <div className="sticky top-6 space-y-4">
               <PlaceAIPanel place={place as never} />
+              <PlaceWeatherWidget
+                lat={place.lat as number | null}
+                lng={place.lng as number | null}
+                placeName={name}
+              />
             </div>
           </aside>
 
         </div>
       </section>
 
-      {/* Mobile — AI panel below content */}
-      <section className="lg:hidden mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
+      {/* Mobile — AI panel + weather below content */}
+      <section className="lg:hidden mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6 space-y-4">
         <PlaceAIPanel place={place as never} />
+        <PlaceWeatherWidget
+          lat={place.lat as number | null}
+          lng={place.lng as number | null}
+          placeName={name}
+        />
+      </section>
+
+      {/* ── Photo slider — full width section, all screens ── */}
+      <section className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
+        <PlacePhotoSlider categorySlug={catSlug} placeName={name} />
       </section>
 
       {/* ── 3. DOCK — identical to /dashboard ── */}
