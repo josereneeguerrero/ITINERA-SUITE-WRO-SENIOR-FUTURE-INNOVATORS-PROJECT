@@ -174,6 +174,32 @@ async function fetchPlaces(regionSlug: string | null, categorySlug: string | nul
   }));
 }
 
+// ── Named place detection ───────────────────────────────────────────────
+// Checks if the user mentioned a specific place name from the result list.
+// Words with 4+ chars are compared; if most match, treat it as named-place request.
+
+function findNamedPlace(msg: string, places: PlaceRow[]): PlaceRow | null {
+  const n = norm(msg)
+    .replace(/^(muestrame|ensename|abre|ver|quiero ver|llevame a|ir a|pon|ponme|muestra)\s+/i, "")
+    .replace(/\b(el|la|los|las|un|una|de|del|en)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  for (const place of places) {
+    const nameNorm = norm(place.name)
+      .replace(/\b(el|la|los|las|de|del)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const words = nameNorm.split(" ").filter(w => w.length >= 4);
+    if (words.length === 0) continue;
+    const matches = words.filter(w => n.includes(w)).length;
+    if (matches >= Math.max(1, words.length - 1)) {
+      return place;
+    }
+  }
+  return null;
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
@@ -353,7 +379,23 @@ export async function POST(req: Request) {
             return;
           }
 
-          // ── Multiple results → LLM describes, list shown ──────────────────
+          // ── Multiple results: check if user named a specific place ────────
+          const namedPlace = findNamedPlace(lastMsg, places);
+
+          if (namedPlace) {
+            emit({ type: "text-delta", textDelta: `${namedPlace.name} — ${namedPlace.summary || "Atracción turística"} ⭐${namedPlace.rating}` });
+            emit({
+              type: "tool-result",
+              toolName: "search_places",
+              result: { places: [{ slug: namedPlace.slug, name: namedPlace.name, rating: namedPlace.rating, url: `/places/${namedPlace.slug}` }] },
+            });
+            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: namedPlace.slug }], entities: {} });
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
+
+          // ── Multiple results, no specific name → LLM describes, list all ──
           const placesText = places
             .map(p => `• ${p.name} (slug:${p.slug}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`)
             .join("\n");
