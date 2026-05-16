@@ -356,7 +356,7 @@ export function ExploreMap({
       setCardVisible(true);
       const coords: [number, number] = [place.lng!, place.lat!];
       window.setTimeout(() => {
-        m.flyTo({ center: coords, zoom: Math.max(m.getZoom(), 13), offset: [180, 12], duration: 760 });
+        m.flyTo({ center: coords, zoom: Math.min(Math.max(m.getZoom() + 1.5, 12), 15), offset: [180, 12], duration: 760 });
       }, 140);
     };
 
