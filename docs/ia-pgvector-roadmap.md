@@ -1,8 +1,15 @@
-# Roadmap: pgvector y ranking semántico en nube
+# pgvector y ranking semántico — Estado e implementación
 
-**Estado actual:** la búsqueda pública es **geo + SQL** mediante [`search_places_nearby`](../supabase/migrations/20260508050000_search.sql) (rating, distancia, boost de sponsors). No hay extensión `vector` ni tabla de embeddings en las migraciones actuales.
+> **Actualizado:** 16 mayo 2026  
+> **Estado:** ✅ **IMPLEMENTADO** — embeddings activos con `gte-small` (384-dim)
 
-Este documento fija **cuándo** y **cómo** valuar pgvector sin comprometer el alcance IA v1 (ver [ia-scope-v1.md](ia-scope-v1.md)).
+**Estado actual:** búsqueda **semántica + geo + SQL** operativa.  
+- Tabla `place_embeddings` con vectores `gte-small` (384 dim) para los 16 lugares publicados.  
+- RPC `match_places_by_embedding` activa en producción.  
+- Sincronización horaria vía GitHub Actions cron (`scripts/sync-embeddings.ts`, modos `all` / `changed`).  
+- La búsqueda geo-SQL (`search_places_nearby`) sigue siendo la fuente principal de ranking; embeddings complementan para consultas en lenguaje natural.
+
+Este documento conserva el análisis de diseño original y actualiza las decisiones tomadas.
 
 ---
 

@@ -28,7 +28,7 @@ Documento operativo para el equipo: qué hace la capa de IA en la primera versi�
 
 ### 2.2 Fuera de v1 (o solo prototipo aislado)
 
-- **pgvector / embeddings en nube:** evaluación diferida; ver [ia-pgvector-roadmap.md](ia-pgvector-roadmap.md).
+- **pgvector / embeddings en nube:** ~~evaluación diferida~~ → **IMPLEMENTADO** (16/05/2026). Modelo `gte-small` 384-dim activo; ver [ia-pgvector-roadmap.md](ia-pgvector-roadmap.md).
 - **GPT multimodal sobre cámara del kiosko** con retención de imagen en servidor: no alineado a la política actual de privacidad de `interaction_events`; cualquier visión debe acotarse por el equipo y por normativa.
 - **Sincronización obligatoria de historial conversacional en Postgres:** opcional; las tablas `conversations` / `messages` existen si más adelante se desea.
 
