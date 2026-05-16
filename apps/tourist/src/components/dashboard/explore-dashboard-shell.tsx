@@ -185,13 +185,42 @@ function ExploreDashboardView({
   function applyUIActions(chunk: UIActionsChunk) {
     setAiState({ intent: chunk.intent, error: undefined });
     for (const action of chunk.actions ?? []) {
+      // ── Standard filter ──────────────────────────────────────────────────
       if (action.type === "apply_filter") {
         if (typeof action.query === "string") setQuery(action.query);
         if (typeof action.category === "string") setCategory(action.category);
       }
-      if (action.type === "select_place" && action.slug) {
+      // ── Region filter: set query to region name so the map filters by it ─
+      if (action.type === "filter_region" && action.slug) {
+        const regionLabel =
+          action.slug === "bay-islands" ? "Islas de la Bahía" :
+          action.slug === "la-ceiba"    ? "La Ceiba" :
+          action.slug === "copan"       ? "Copán" :
+          action.slug === "cortes"      ? "Cortés" :
+          action.slug.charAt(0).toUpperCase() + action.slug.slice(1);
+        setQuery(regionLabel);
+        setCategory("");
+      }
+      // ── Category filter ────────────────────────────────────────────────
+      if (action.type === "filter_category" && action.slug) {
+        setCategory(action.slug);
+      }
+      // ── Show single place (open its card) ─────────────────────────────
+      if ((action.type === "select_place" || action.type === "show_place") && action.slug) {
         setSelectedPlaceSlug(action.slug);
       }
+      // ── Show multiple places: clear filters + open best result ────────
+      if (action.type === "show_places" && Array.isArray(action.slugs) && action.slugs.length > 0) {
+        setQuery("");
+        setCategory("");
+        setSelectedPlaceSlug(action.slugs[0]);
+      }
+      // ── Clear all filters ─────────────────────────────────────────────
+      if (action.type === "clear") {
+        clearFilters();
+        setSelectedPlaceSlug(null);
+      }
+      // ── Route actions ──────────────────────────────────────────────────
       if (action.type === "set_route" && Array.isArray(action.stops)) {
         setActiveRoute({
           title: action.title ?? "Ruta recomendada",

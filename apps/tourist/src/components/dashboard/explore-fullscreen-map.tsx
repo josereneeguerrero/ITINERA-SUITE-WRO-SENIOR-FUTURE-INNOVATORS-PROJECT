@@ -925,6 +925,20 @@ export function ExploreFullscreenMap({
           }
         }
       }
+      // Show multiple semantic results: clear filters + open best match on map
+      if (action.type === "show_places" && Array.isArray(action.slugs) && action.slugs.length > 0) {
+        clearFilters();
+        const firstSlug = action.slugs[0] as string;
+        const place = places.find(p => p.slug === firstSlug);
+        if (place) {
+          setSelectedPlaceSlug(place.slug);
+          setShowFilters(false);
+          if (typeof place.lng === "number" && typeof place.lat === "number") {
+            setMapCenter([place.lng, place.lat]);
+            setMapZoom(13);
+          }
+        }
+      }
       if (action.type === "clear") {
         clearFilters();
         setMapCenter([-86.8, 15.2]);
