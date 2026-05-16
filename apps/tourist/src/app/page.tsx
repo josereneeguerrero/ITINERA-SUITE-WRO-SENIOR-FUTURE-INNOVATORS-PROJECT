@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { ImageAutoSlider, type ImageAutoSliderItem } from "@/components/ui/image-auto-slider";
+import { LandingNav } from "@/components/landing/landing-nav";
 import {
   ArrowRight,
   BookOpen,
@@ -195,57 +196,6 @@ function shuffle<T>(items: T[]) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function LandingNav() {
-  return (
-    <header className="fixed left-4 right-4 top-4 z-50 mx-auto max-w-7xl">
-      <div className="flex items-center justify-between rounded-2xl border border-[#d7e2de]/80 bg-white/92 px-5 py-3 shadow-sm backdrop-blur-xl">
-        <Link
-          href="/"
-          className="cursor-pointer font-jakarta text-lg font-bold text-[#0D9488] transition-opacity hover:opacity-80"
-        >
-          Itinera
-        </Link>
-
-        <nav className="hidden items-center gap-6 md:flex" aria-label="Navegación principal">
-          <a
-            href="#problema"
-            className="cursor-pointer font-inter text-sm font-medium text-[#334155] transition-colors hover:text-[#0D9488]"
-          >
-            El problema
-          </a>
-          <a
-            href="#demo"
-            className="cursor-pointer font-inter text-sm font-medium text-[#334155] transition-colors hover:text-[#0D9488]"
-          >
-            Demo
-          </a>
-          <a
-            href="#equipo"
-            className="cursor-pointer font-inter text-sm font-medium text-[#334155] transition-colors hover:text-[#0D9488]"
-          >
-            Equipo
-          </a>
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className="cursor-pointer font-inter text-sm font-semibold text-[#334155] transition-colors hover:text-[#0D9488]"
-          >
-            Entrar
-          </Link>
-          <Link
-            href="/bienvenida?redirect=/dashboard"
-            className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#0D9488] px-4 py-2 font-inter text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#0f766e] hover:shadow-md active:scale-95"
-          >
-            Explorar <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function HeroChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
