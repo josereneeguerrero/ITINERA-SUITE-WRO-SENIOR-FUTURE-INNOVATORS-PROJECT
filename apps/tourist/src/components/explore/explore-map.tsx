@@ -57,6 +57,52 @@ const ICON_MAP: Record<string, string> = {
   church: "R",
 };
 
+// ── Clustering layer IDs ────────────────────────────────────────────────────
+const PLACES_SOURCE      = "itinera-places-source";
+const CLUSTER_CIRCLES    = "itinera-cluster-circles";
+const CLUSTER_COUNT      = "itinera-cluster-count";
+const PLACES_POINTS      = "itinera-places-points";
+const PLACES_ICONS       = "itinera-places-icons";
+
+// ── GeoJSON builder ─────────────────────────────────────────────────────────
+function buildPlacesGeoJSON(
+  places: Place[],
+  selectedSlug: string | null | undefined,
+  visibleSlugs: Set<string> | undefined
+) {
+  return {
+    type: "FeatureCollection" as const,
+    features: places
+      .filter((p) => typeof p.lng === "number" && typeof p.lat === "number")
+      .map((place) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [place.lng!, place.lat!],
+        },
+        properties: {
+          slug: place.slug,
+          name: place.name_i18n?.es ?? place.slug,
+          icon: ICON_MAP[place.place_categories?.icon_name ?? ""] ?? "M",
+          color: getCategoryColor({
+            slug: place.place_categories?.slug ?? "",
+            iconName: place.place_categories?.icon_name ?? "",
+            label:
+              place.place_categories?.name_i18n?.es ??
+              place.place_categories?.name_i18n?.en ??
+              "",
+          }),
+          catName: place.place_categories?.name_i18n?.es ?? "",
+          rating: Number(place.aggregated_rating ?? 0).toFixed(1),
+          selected: selectedSlug === place.slug ? 1 : 0,
+          opacity: !visibleSlugs || visibleSlugs.has(place.slug) ? 1 : 0.35,
+        },
+      })),
+  };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
 function toRad(value: number) {
   return (value * Math.PI) / 180;
 }
@@ -94,6 +140,8 @@ function makeAccuracyCircle(center: [number, number], radiusMeters: number) {
 
   return points;
 }
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function ExploreMap({
   places,
@@ -134,17 +182,19 @@ export function ExploreMap({
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const markers = useRef<maplibregl.Marker[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
   const suppressMapClickUntilRef = useRef(0);
   const selectedPlaceRef = useRef<Place | null>(null);
+  const placesRef = useRef<Place[]>(places);
+  const onSelectPlaceRef = useRef(onSelectPlace);
   const [mapReady, setMapReady] = useState(false);
   const [cardVisible, setCardVisible] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
-  useEffect(() => {
-    selectedPlaceRef.current = selectedPlace;
-  }, [selectedPlace]);
+  // Keep refs current
+  useEffect(() => { selectedPlaceRef.current = selectedPlace; }, [selectedPlace]);
+  useEffect(() => { placesRef.current = places; }, [places]);
+  useEffect(() => { onSelectPlaceRef.current = onSelectPlace; }, [onSelectPlace]);
 
   const fitAllPlaces = useCallback((duration = 700) => {
     if (!map.current) return;
@@ -172,26 +222,6 @@ export function ExploreMap({
     map.current.flyTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration });
   }, [places]);
 
-  const buildTooltipHTML = useCallback((place: Place) => {
-    const name = place.name_i18n?.es ?? place.slug;
-    const cat = place.place_categories;
-    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
-    const catName = cat?.name_i18n?.es ?? "";
-    const rating = Number(place.aggregated_rating).toFixed(1);
-
-    return `
-      <div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:150px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-          <span style="font-size:14px;">${icon}</span>
-          <span style="font-weight:700;font-size:13px;color:#0F172A;">${name}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:11px;color:#0D9488;font-weight:600;">${catName}</span>
-          <span style="font-size:11px;color:#64748B;">${rating}</span>
-        </div>
-      </div>`;
-  }, []);
-
   function closeSelectedPlace() {
     setCardVisible(false);
     window.setTimeout(() => {
@@ -200,6 +230,7 @@ export function ExploreMap({
     }, 120);
   }
 
+  // ── Map init ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
@@ -229,100 +260,203 @@ export function ExploreMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Clustering: init source + layers + events ────────────────────────────────
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    markers.current.forEach((marker) => marker.remove());
-    markers.current = [];
-
-    places.forEach((place) => {
-      const coords =
-        typeof place.lng === "number" && typeof place.lat === "number"
-          ? ([place.lng, place.lat] as [number, number])
-          : null;
-      if (!coords) return;
-
-      const category = place.place_categories;
-      const color = getCategoryColor({
-        slug: category?.slug ?? "",
-        iconName: category?.icon_name ?? "",
-        label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
-      });
-      const icon = ICON_MAP[category?.icon_name ?? ""] ?? "M";
-      const isSelected = selectedPlace?.slug === place.slug;
-      const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
-
-      const wrapper = document.createElement("div");
-      Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
-
-      const pin = document.createElement("div");
-      Object.assign(pin.style, {
-        width: "40px",
-        height: "40px",
-        background: color,
-        border: isSelected ? "3px solid #F59E0B" : "3px solid white",
-        borderRadius: "50%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: "18px",
-        boxShadow: isSelected
-          ? "0 4px 18px rgba(245,158,11,0.5)"
-          : "0 2px 8px rgba(0,0,0,0.25)",
-        opacity: isVisible ? "1" : "0.35",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-      });
-      pin.textContent = icon;
-      wrapper.appendChild(pin);
-
-      wrapper.addEventListener("mouseenter", () => {
-        pin.style.transform = "scale(1.16)";
-        pin.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
-        tooltipRef.current?.remove();
-        tooltipRef.current = new maplibregl.Popup({
-          offset: 22,
-          closeButton: false,
-          closeOnClick: false,
-          anchor: "bottom",
-          className: "itinera-tooltip",
-        })
-          .setLngLat(coords)
-          .setHTML(buildTooltipHTML(place))
-          .addTo(map.current!);
-      });
-
-      wrapper.addEventListener("mouseleave", () => {
-        pin.style.transform = "scale(1)";
-        pin.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
-        tooltipRef.current?.remove();
-        tooltipRef.current = null;
-      });
-
-      wrapper.addEventListener("click", (event) => {
-        event.stopPropagation();
-        suppressMapClickUntilRef.current = Date.now() + 400;
-        tooltipRef.current?.remove();
-        tooltipRef.current = null;
-        onSelectPlace(place);
-        setCardVisible(true);
-
-        window.setTimeout(() => {
-          map.current?.flyTo({
-            center: coords,
-            zoom: Math.max(map.current.getZoom(), 12),
-            offset: [180, 12],
-            duration: 760,
-          });
-        }, 140);
-      });
-
-      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" })
-        .setLngLat(coords)
-        .addTo(map.current!);
-      markers.current.push(marker);
+    // Source with native MapLibre clustering
+    m.addSource(PLACES_SOURCE, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+      cluster: true,
+      clusterMaxZoom: 11,   // clusters collapse at zoom > 11
+      clusterRadius: 45,
     });
-  }, [places, mapReady, selectedPlace, visibleSlugs, buildTooltipHTML, onSelectPlace]);
 
+    // Cluster bubble (teal, grows with count)
+    m.addLayer({
+      id: CLUSTER_CIRCLES,
+      type: "circle",
+      source: PLACES_SOURCE,
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": "#0D9488",
+        "circle-radius": ["step", ["get", "point_count"], 22, 4, 28, 12, 34],
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffffff",
+        "circle-opacity": 0.88,
+      },
+    });
+
+    // Cluster count label
+    m.addLayer({
+      id: CLUSTER_COUNT,
+      type: "symbol",
+      source: PLACES_SOURCE,
+      filter: ["has", "point_count"],
+      layout: {
+        "text-field": "{point_count_abbreviated}",
+        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+        "text-size": 13,
+      },
+      paint: { "text-color": "#ffffff" },
+    });
+
+    // Individual place circles — color from category, gold border when selected
+    m.addLayer({
+      id: PLACES_POINTS,
+      type: "circle",
+      source: PLACES_SOURCE,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": ["get", "color"],
+        "circle-radius": 18,
+        "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
+        "circle-stroke-color": [
+          "case",
+          ["==", ["get", "selected"], 1],
+          "#F59E0B",
+          "#ffffff",
+        ],
+        "circle-opacity": ["get", "opacity"],
+      },
+    });
+
+    // Category icon letter on top of circle
+    m.addLayer({
+      id: PLACES_ICONS,
+      type: "symbol",
+      source: PLACES_SOURCE,
+      filter: ["!", ["has", "point_count"]],
+      layout: {
+        "text-field": ["get", "icon"],
+        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+        "text-size": 14,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-opacity": ["get", "opacity"],
+      },
+    });
+
+    // ── Event handlers ────────────────────────────────────────────────────────
+
+    const onClusterClick = async (
+      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
+    ) => {
+      const features = m.queryRenderedFeatures(e.point, { layers: [CLUSTER_CIRCLES] });
+      if (!features.length) return;
+      const clusterId = features[0].properties?.cluster_id as number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const coords = (features[0].geometry as any).coordinates as [number, number];
+      const source = m.getSource(PLACES_SOURCE) as maplibregl.GeoJSONSource;
+      const zoom = await source.getClusterExpansionZoom(clusterId);
+      m.easeTo({ center: coords, zoom: zoom + 0.5, duration: 500 });
+    };
+
+    const onPlaceClick = (
+      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
+    ) => {
+      suppressMapClickUntilRef.current = Date.now() + 400;
+      tooltipRef.current?.remove();
+      tooltipRef.current = null;
+      const slug = e.features?.[0]?.properties?.slug as string | undefined;
+      if (!slug) return;
+      const place = placesRef.current.find((p) => p.slug === slug);
+      if (!place) return;
+      onSelectPlaceRef.current(place);
+      setCardVisible(true);
+      const coords: [number, number] = [place.lng!, place.lat!];
+      window.setTimeout(() => {
+        m.flyTo({
+          center: coords,
+          zoom: Math.max(m.getZoom(), 12),
+          offset: [180, 12],
+          duration: 760,
+        });
+      }, 140);
+    };
+
+    const onPlaceEnter = (
+      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
+    ) => {
+      m.getCanvas().style.cursor = "pointer";
+      if (!e.features?.length) return;
+      const props = e.features[0].properties ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const coords = (e.features[0].geometry as any).coordinates as [number, number];
+      tooltipRef.current?.remove();
+      tooltipRef.current = new maplibregl.Popup({
+        offset: 24,
+        closeButton: false,
+        closeOnClick: false,
+        anchor: "bottom",
+        className: "itinera-tooltip",
+      })
+        .setLngLat(coords)
+        .setHTML(
+          `<div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:150px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:14px;">${String(props.icon ?? "M")}</span>
+              <span style="font-weight:700;font-size:13px;color:#0F172A;">${String(props.name ?? "")}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;color:#0D9488;font-weight:600;">${String(props.catName ?? "")}</span>
+              <span style="font-size:11px;color:#64748B;">⭐ ${String(props.rating ?? "")}</span>
+            </div>
+          </div>`
+        )
+        .addTo(m);
+    };
+
+    const onPlaceLeave = () => {
+      m.getCanvas().style.cursor = "";
+      tooltipRef.current?.remove();
+      tooltipRef.current = null;
+    };
+
+    const onClusterEnter = () => { m.getCanvas().style.cursor = "pointer"; };
+    const onClusterLeave = () => { m.getCanvas().style.cursor = ""; };
+
+    m.on("click", CLUSTER_CIRCLES, onClusterClick);
+    m.on("click", PLACES_POINTS, onPlaceClick);
+    m.on("click", PLACES_ICONS, onPlaceClick);
+    m.on("mouseenter", PLACES_POINTS, onPlaceEnter);
+    m.on("mouseleave", PLACES_POINTS, onPlaceLeave);
+    m.on("mouseenter", CLUSTER_CIRCLES, onClusterEnter);
+    m.on("mouseleave", CLUSTER_CIRCLES, onClusterLeave);
+
+    return () => {
+      try {
+        m.off("click", CLUSTER_CIRCLES, onClusterClick);
+        m.off("click", PLACES_POINTS, onPlaceClick);
+        m.off("click", PLACES_ICONS, onPlaceClick);
+        m.off("mouseenter", PLACES_POINTS, onPlaceEnter);
+        m.off("mouseleave", PLACES_POINTS, onPlaceLeave);
+        m.off("mouseenter", CLUSTER_CIRCLES, onClusterEnter);
+        m.off("mouseleave", CLUSTER_CIRCLES, onClusterLeave);
+        for (const id of [PLACES_ICONS, PLACES_POINTS, CLUSTER_COUNT, CLUSTER_CIRCLES]) {
+          if (m.getLayer(id)) m.removeLayer(id);
+        }
+        if (m.getSource(PLACES_SOURCE)) m.removeSource(PLACES_SOURCE);
+      } catch {
+        // Map may already be destroyed on unmount
+      }
+    };
+  }, [mapReady]);
+
+  // ── Clustering: sync data when places/selected/visible change ───────────────
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const source = map.current.getSource(PLACES_SOURCE) as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData(buildPlacesGeoJSON(places, selectedPlace?.slug, visibleSlugs));
+  }, [mapReady, places, selectedPlace, visibleSlugs]);
+
+  // ── Fly to region/center ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!map.current) return;
     if (!mapCenter) { fitAllPlaces(800); return; }
@@ -333,11 +467,13 @@ export function ExploreMap({
     });
   }, [mapCenter, mapZoom, fitAllPlaces]);
 
+  // ── Initial fit ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     fitAllPlaces(0);
   }, [mapReady, fitAllPlaces]);
 
+  // ── Route layers ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const sourceId = "itinera-route-source";
@@ -393,11 +529,7 @@ export function ExploreMap({
       type: "line",
       source: sourceId,
       filter: ["all", ["==", ["geometry-type"], "LineString"], ["!=", ["get", "approximate"], true]],
-      paint: {
-        "line-color": "#0D9488",
-        "line-width": 4,
-        "line-opacity": 0.85,
-      },
+      paint: { "line-color": "#0D9488", "line-width": 4, "line-opacity": 0.85 },
     });
 
     map.current.addLayer({
@@ -427,6 +559,7 @@ export function ExploreMap({
     });
   }, [mapReady, places, routeStops, routeGeometry, routeSegments, routeMeta]);
 
+  // ── User location layer ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
 
@@ -469,10 +602,7 @@ export function ExploreMap({
       type: "fill",
       source: sourceId,
       filter: ["==", ["get", "kind"], "accuracy"],
-      paint: {
-        "fill-color": "#0EA5E9",
-        "fill-opacity": 0.13,
-      },
+      paint: { "fill-color": "#0EA5E9", "fill-opacity": 0.13 },
     });
 
     map.current.addLayer({
@@ -480,11 +610,7 @@ export function ExploreMap({
       type: "line",
       source: sourceId,
       filter: ["==", ["get", "kind"], "accuracy"],
-      paint: {
-        "line-color": "#0EA5E9",
-        "line-width": 1,
-        "line-opacity": 0.38,
-      },
+      paint: { "line-color": "#0EA5E9", "line-width": 1, "line-opacity": 0.38 },
     });
 
     map.current.addLayer({
@@ -501,6 +627,7 @@ export function ExploreMap({
     });
   }, [mapReady, userLocation]);
 
+  // ── Card visibility on selectedPlace change ──────────────────────────────────
   useEffect(() => {
     if (!selectedPlace) {
       setCardVisible(false);
@@ -510,6 +637,7 @@ export function ExploreMap({
     setDescriptionExpanded(false);
   }, [selectedPlace]);
 
+  // ── Derived values for the place card ───────────────────────────────────────
   const selectedCategory = selectedPlace?.place_categories;
   const selectedColor = getCategoryColor({
     slug: selectedCategory?.slug ?? "",
@@ -716,23 +844,18 @@ function getPlaceShortDescription({
   if (normalized.includes("religioso")) {
     return `${name} es un punto de valor historico y espiritual en ${region}, ideal para conocer tradiciones locales.`;
   }
-
   if (normalized.includes("patrimonio") || normalized.includes("muse")) {
     return `${name} destaca por su legado cultural en ${region}, con detalles historicos que enriquecen la visita.`;
   }
-
   if (normalized.includes("naturaleza")) {
     return `${name} ofrece una experiencia natural en ${region}, perfecta para explorar paisajes y biodiversidad.`;
   }
-
   if (normalized.includes("gastronom")) {
     return `${name} conecta con los sabores de ${region}, ideal para descubrir cocina y tradiciones culinarias.`;
   }
-
   if (normalized.includes("aventura")) {
     return `${name} es una opcion recomendada en ${region} para actividades al aire libre y experiencias activas.`;
   }
-
   if (normalized.includes("playa")) {
     return `${name} es un destino costero en ${region} para disfrutar mar, descanso y actividades junto a la playa.`;
   }
