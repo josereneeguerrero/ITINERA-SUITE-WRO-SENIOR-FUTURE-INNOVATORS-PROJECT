@@ -24,7 +24,7 @@ export default async function DevicesPage() {
   const [{ data: devices }, { data: events }] = await Promise.all([
     supabase
       .from("devices")
-      .select("id, label, last_sync_at, metadata, created_at, host_site_id")
+      .select("id, label, last_sync_at, metadata, created_at, host_site_id, host_sites(name_i18n)")
       .order("created_at", { ascending: false }),
     supabase
       .from("interaction_events")
@@ -149,7 +149,7 @@ export default async function DevicesPage() {
 
                   {/* Location */}
                   <span className="font-inter text-sm" style={{ color: "#9CA3AF" }}>
-                    Sin asignar
+                    {(device as unknown as { host_sites?: { name_i18n: Record<string, string> } }).host_sites?.name_i18n?.es ?? "Sin asignar"}
                   </span>
 
                   {/* Last sync */}

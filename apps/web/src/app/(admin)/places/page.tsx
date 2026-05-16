@@ -39,7 +39,11 @@ export default async function PlacesPage() {
       </div>
 
       {/* Table with client-side search/filter */}
-      <PlacesTable places={(places ?? []) as never} />
+      <PlacesTable places={(places ?? []).map(p => ({
+        ...p,
+        place_categories: Array.isArray(p.place_categories) ? p.place_categories[0] ?? null : p.place_categories,
+        regions: Array.isArray(p.regions) ? p.regions[0] ?? null : p.regions,
+      }))} />
     </div>
   );
 }

@@ -10,11 +10,12 @@ export default async function EditStoryPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: story }, { data: places }, { data: linkedPlaces }] =
+  const [{ data: story }, { data: places }, { data: linkedPlaces }, { data: regions }] =
     await Promise.all([
       supabase.from("stories").select("*").eq("id", id).single(),
       supabase.from("places").select("id, name_i18n").eq("status", "published"),
       supabase.from("story_places").select("place_id").eq("story_id", id),
+      supabase.from("regions").select("id, name_i18n").order("name_i18n->es"),
     ]);
 
   if (!story) notFound();
@@ -34,9 +35,11 @@ export default async function EditStoryPage({
         body_es:    body?.es ?? "",
         status:     story.status ?? "draft",
         featured:   story.featured ?? false,
+        region_id:  story.region_id ?? "",
         linkedPlaceIds: (linkedPlaces ?? []).map((lp) => lp.place_id),
       }}
       places={(places ?? []) as { id: string; name_i18n: Record<string, string> }[]}
+      regions={(regions ?? []) as { id: string; name_i18n: Record<string, string> }[]}
     />
   );
 }

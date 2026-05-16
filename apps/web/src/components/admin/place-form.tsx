@@ -7,6 +7,18 @@ import { triggerSemanticRebuild } from "@/lib/semantic/rebuild-client";
 import { Save, ArrowLeft, MapPin } from "lucide-react";
 import Link from "next/link";
 
+/** Converts a display name to a URL-safe slug, correctly removing diacritics */
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")          // strip all Unicode combining marks (ó→o, é→e, etc.)
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 interface Category { id: string; name_i18n: Record<string, string> }
 interface Region   { id: string; name_i18n: Record<string, string> }
 
@@ -25,6 +37,7 @@ interface FormState {
   lat: string; lng: string;
   address_es: string;
   phone: string; website: string;
+  hours: string;
   price_level: string;
   accessibility: boolean;
   local_favorite: boolean;
@@ -41,6 +54,7 @@ const DEFAULT: FormState = {
   lat: "", lng: "",
   address_es: "",
   phone: "", website: "",
+  hours: "",
   price_level: "2",
   accessibility: false,
   local_favorite: false,
@@ -74,6 +88,7 @@ export function PlaceForm({ mode, placeId, initialData, categories, regions }: P
       location:         `SRID=4326;POINT(${form.lng} ${form.lat})`,
       phone:            form.phone || null,
       website:          form.website || null,
+      hours:            form.hours ? { es: form.hours } : null,
       price_level:      Number(form.price_level),
       accessibility:    form.accessibility,
       local_favorite:   form.local_favorite,
@@ -85,14 +100,7 @@ export function PlaceForm({ mode, placeId, initialData, categories, regions }: P
 
     let err;
     if (mode === "create") {
-      const slug = form.name_es
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/̀-ͯ/g, "")  // strip combining diacritical marks
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "");
+      const slug = toSlug(form.name_es);
       const { error: e } = await supabase.from("places").insert({ ...payload, slug });
       err = e;
     } else {
@@ -181,6 +189,10 @@ export function PlaceForm({ mode, placeId, initialData, categories, regions }: P
               <label className={labelCls}>Sitio web</label>
               <input className={inputCls} value={form.website} onChange={(e) => set("website", e.target.value)} placeholder="https://..." />
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Horario de atención</label>
+            <input className={inputCls} value={form.hours} onChange={(e) => set("hours", e.target.value)} placeholder="Lun–Vie 8am–5pm, Sáb 9am–3pm" />
           </div>
         </section>
 

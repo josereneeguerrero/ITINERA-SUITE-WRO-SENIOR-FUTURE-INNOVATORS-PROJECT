@@ -7,13 +7,26 @@ import { triggerSemanticRebuild } from "@/lib/semantic/rebuild-client";
 import { Save, ArrowLeft, BookOpen } from "lucide-react";
 import Link from "next/link";
 
-interface Place { id: string; name_i18n: Record<string, string> }
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+interface Place  { id: string; name_i18n: Record<string, string> }
+interface Region { id: string; name_i18n: Record<string, string> }
 
 interface StoryFormProps {
   mode: "create" | "edit";
   storyId?: string;
   initialData?: FormState;
   places: Place[];
+  regions: Region[];
 }
 
 interface FormState {
@@ -22,6 +35,7 @@ interface FormState {
   body_es: string;
   status: string;
   featured: boolean;
+  region_id: string;
   linkedPlaceIds: string[];
 }
 
@@ -31,10 +45,11 @@ const DEFAULT: FormState = {
   body_es: "",
   status: "draft",
   featured: false,
+  region_id: "",
   linkedPlaceIds: [],
 };
 
-export function StoryForm({ mode, storyId, initialData, places }: StoryFormProps) {
+export function StoryForm({ mode, storyId, initialData, places, regions }: StoryFormProps) {
   const [form, setForm]     = useState<FormState>(initialData ?? DEFAULT);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
@@ -64,6 +79,7 @@ export function StoryForm({ mode, storyId, initialData, places }: StoryFormProps
       body_markdown_i18n:  { es: form.body_es },
       status:              form.status,
       featured:            form.featured,
+      region_id:           form.region_id || null,
       moderation_status:   "approved",
     };
 
@@ -71,13 +87,7 @@ export function StoryForm({ mode, storyId, initialData, places }: StoryFormProps
     let err;
 
     if (mode === "create") {
-      const slug = form.title_es
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "");
+      const slug = toSlug(form.title_es);
       const { data, error: e } = await supabase.from("stories").insert({ ...payload, slug }).select("id").single();
       err = e;
       storyId_ = data?.id;
@@ -185,6 +195,13 @@ export function StoryForm({ mode, storyId, initialData, places }: StoryFormProps
               <select className={inputCls} value={form.status} onChange={(e) => set("status", e.target.value)}>
                 <option value="draft">Borrador</option>
                 <option value="published">Publicada</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Región</label>
+              <select className={inputCls} value={form.region_id} onChange={(e) => set("region_id", e.target.value)}>
+                <option value="">Sin región</option>
+                {regions.map((r) => <option key={r.id} value={r.id}>{r.name_i18n?.es}</option>)}
               </select>
             </div>
           </div>

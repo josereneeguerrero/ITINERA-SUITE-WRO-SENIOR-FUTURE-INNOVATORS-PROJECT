@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Globe, Smartphone, Monitor, TrendingUp, Zap } from "lucide-react";
+import { CampaignToggle, NewSponsorButton, NewCampaignButton } from "./sponsor-actions";
 
 export default async function SponsorsPage() {
   const supabase = await createClient();
@@ -42,22 +43,25 @@ export default async function SponsorsPage() {
     <div className="space-y-7">
 
       {/* Header */}
-      <div>
-        <p className="font-inter text-xs mb-1.5" style={{ color: "#6B7280" }}>Sponsors</p>
-        <h1 className="font-jakarta font-bold text-[28px] text-white leading-none">
-          Sponsors & Campañas
-        </h1>
-        <div className="flex items-center gap-2 mt-1.5">
-          <p className="font-inter text-sm" style={{ color: "#6B7280" }}>
-            Modelo de negocio — boost patrocinado en búsquedas
-          </p>
-          <span
-            className="inline-flex items-center px-2.5 py-0.5 rounded-full font-inter font-medium text-xs"
-            style={{ backgroundColor: "rgba(13,148,136,0.1)", border: "1px solid rgba(13,148,136,0.3)", color: "#0D9488" }}
-          >
-            Como Google Ads, pero para turismo cultural
-          </span>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-inter text-xs mb-1.5" style={{ color: "#6B7280" }}>Sponsors</p>
+          <h1 className="font-jakarta font-bold text-[28px] text-white leading-none">
+            Sponsors & Campañas
+          </h1>
+          <div className="flex items-center gap-2 mt-1.5">
+            <p className="font-inter text-sm" style={{ color: "#6B7280" }}>
+              Modelo de negocio — boost patrocinado en búsquedas
+            </p>
+            <span
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full font-inter font-medium text-xs"
+              style={{ backgroundColor: "rgba(13,148,136,0.1)", border: "1px solid rgba(13,148,136,0.3)", color: "#0D9488" }}
+            >
+              Como Google Ads, pero para turismo cultural
+            </span>
+          </div>
         </div>
+        <NewSponsorButton />
       </div>
 
       {/* Impressions section */}
@@ -118,9 +122,9 @@ export default async function SponsorsPage() {
 
       {/* Campaigns table */}
       <div>
-        <h2 className="font-jakarta font-semibold text-base text-white mb-4">
-          Campañas activas
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-jakarta font-semibold text-base text-white">Campañas activas</h2>
+        </div>
         <div
           className="rounded-lg overflow-hidden"
           style={{ backgroundColor: "#111827", border: "1px solid #1F2937" }}
@@ -128,12 +132,12 @@ export default async function SponsorsPage() {
           <div
             className="grid px-4 py-3"
             style={{
-              gridTemplateColumns: "1.5fr 2fr 1fr 1fr 2fr 1fr",
+              gridTemplateColumns: "1.5fr 2fr 1fr 1fr 2fr 1fr auto",
               backgroundColor: "#0D1117",
               borderBottom: "1px solid #1F2937",
             }}
           >
-            {["SPONSOR", "CAMPAÑA", "TARGET", "BOOST", "VIGENCIA", "ESTADO"].map((h) => (
+            {["SPONSOR", "CAMPAÑA", "TARGET", "BOOST", "VIGENCIA", "ESTADO", ""].map((h) => (
               <span key={h} className="font-inter font-medium text-[10px] uppercase tracking-widest" style={{ color: "#6B7280" }}>
                 {h}
               </span>
@@ -154,7 +158,7 @@ export default async function SponsorsPage() {
                   key={c.id}
                   className="table-row-hover grid px-4 py-3.5 items-center"
                   style={{
-                    gridTemplateColumns: "1.5fr 2fr 1fr 1fr 2fr 1fr",
+                    gridTemplateColumns: "1.5fr 2fr 1fr 1fr 2fr 1fr auto",
                     borderBottom: isLast ? "none" : "1px solid #1F2937",
                   }}
                 >
@@ -199,17 +203,14 @@ export default async function SponsorsPage() {
                     {new Date(c.ends_at).toLocaleDateString("es-HN", { month: "short", year: "numeric" })}
                   </span>
 
-                  {/* Status */}
-                  <span
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-md font-inter font-medium text-xs w-fit"
-                    style={
-                      c.active
-                        ? { backgroundColor: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.4)", color: "#0D9488" }
-                        : { backgroundColor: "rgba(107,114,128,0.08)", border: "1px solid rgba(107,114,128,0.3)", color: "#6B7280" }
-                    }
-                  >
-                    {c.active ? "Activa" : "Inactiva"}
-                  </span>
+                  {/* Status toggle */}
+                  <CampaignToggle id={c.id} active={c.active} />
+
+                  {/* New campaign for this sponsor */}
+                  <NewCampaignButton
+                    sponsorId={c.id}
+                    sponsorName={sponsor?.name_i18n?.es ?? "Sponsor"}
+                  />
                 </div>
               );
             })
