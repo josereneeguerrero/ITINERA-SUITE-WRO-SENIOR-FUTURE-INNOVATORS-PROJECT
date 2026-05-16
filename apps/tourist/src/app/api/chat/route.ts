@@ -39,31 +39,53 @@ interface SemanticDocumentResult {
   combined_score: number;
 }
 
+// ── Keyword extraction for semantic search ────────────────────────────────
+// Strips stop words and navigation phrases so the RPC receives clean keywords
+// e.g. "Muéstrame lugares relacionados con Mayas" → "mayas"
+const SEMANTIC_STOP_WORDS = new Set([
+  "muestrame","ensename","muestra","abre","ver","quiero","llevame","ir","pon","ponme",
+  "dame","dime","busca","buscar","busco","encuentra","encontrar","informacion","sobre",
+  "lugares","lugar","sitios","sitio","relacionados","relacionado","con","para","que",
+  "hay","tiene","tienes","cerca","del","por","las","los","una","uno","sus","mis",
+  "como","donde","cuando","cuales","cual","este","esta","estos","estas",
+  "el","la","de","en","y","o","a","e","u","al","lo",
+]);
+
+function extractKeywords(text: string): string {
+  const words = norm(text)
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !SEMANTIC_STOP_WORDS.has(w));
+  return words.join(" ") || norm(text);
+}
+
 async function semanticSearch(query: string): Promise<SemanticPlace[]> {
   try {
-    // Hybrid search: combines semantic + full-text + metadata scoring
-    // Uses Supabase AI gte-small embeddings (384 dimensions) stored in semantic_documents
-    // Gracefully falls back to full-text search if no embeddings available
+    // Extract meaningful keywords from conversational query
+    // "Muéstrame lugares relacionados con Mayas" → "mayas"
+    const keywords = extractKeywords(query);
+    if (!keywords.trim()) return [];
+
     const db = getDB();
 
-    // Call the hybrid RPC: combines semantic similarity + full-text search + metadata
-    // p_query: text search (matches against title + content via tsvector)
-    // p_query_embedding: can be null, RPC handles text-only search
-    // Scoring: 70% semantic + 90% text_rank + title match bonus + rating boost
+    // Hybrid search: full-text on keywords + semantic embeddings (if available)
+    // Threshold 0 → return all matches ranked by combined_score, even low ones
     const { data, error } = await db.rpc("search_semantic_documents", {
-      p_query: query,
-      p_query_embedding: null, // RPC handles text-only fallback
+      p_query: keywords,
+      p_query_embedding: null,
       p_entity_types: ["place"],
       p_region_slug: null,
       p_category_slug: null,
       p_locale: "es",
       p_match_count: 5,
-      p_match_threshold: 0.18,
+      p_match_threshold: 0, // No threshold — return best matches regardless of score
     });
 
-    if (error || !data) return [];
+    if (error) {
+      console.error("[semanticSearch] RPC error:", error.message);
+      return [];
+    }
+    if (!data || (data as SemanticDocumentResult[]).length === 0) return [];
 
-    // Map semantic_documents RPC result to SemanticPlace interface
     return (data as SemanticDocumentResult[]).map(doc => ({
       slug: doc.slug,
       name_es: doc.title,
@@ -71,11 +93,10 @@ async function semanticSearch(query: string): Promise<SemanticPlace[]> {
       category_es: doc.category_name || "",
       region_es: doc.region_name || "",
       aggregated_rating: doc.rating || 0,
-      // combined_score from RPC: title match (2.0) + semantic (0.7) + text rank (0.9) + rating (0.15)
-      // Normalize to 0-1 range for display
       similarity: Math.max(0, Math.min(1, (doc.combined_score || 0) / 4.75)),
     }));
-  } catch {
+  } catch (err) {
+    console.error("[semanticSearch] exception:", err);
     return [];
   }
 }
