@@ -260,6 +260,7 @@ export function ExploreMap({
 
   function closeSelectedPlace() {
     setCardVisible(false);
+    setDescriptionExpanded(false); // BUG 3: reset so reopening same place starts collapsed
     window.setTimeout(() => {
       onSelectPlace(null);
       fitAllPlaces(720);
@@ -608,7 +609,11 @@ export function ExploreMap({
       {selectedPlace ? (
         <div
           className="pointer-events-auto absolute left-4 top-20 z-30 w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[340px]"
-          style={{ opacity: cardVisible ? 1 : 0, transform: cardVisible ? "translateY(0)" : "translateY(8px)" }}
+          style={{
+            opacity: cardVisible ? 1 : 0,
+            transform: cardVisible ? "translateY(0)" : "translateY(8px)",
+            pointerEvents: cardVisible ? "auto" : "none", // BUG 5: block clicks through invisible card
+          }}
         >
           <button type="button" aria-label="Cerrar" onClick={closeSelectedPlace}
             className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50">

@@ -1132,27 +1132,28 @@ export function ExploreFullscreenMap({
   }
 
   function addToRoute(place: Place) {
-    const alreadyInRoute = activeRoute?.stops.some((stop) => stop.slug === place.slug) ?? false;
-    setRouteFeedback({
-      kind: alreadyInRoute ? "exists" : "added",
-      placeSlug: place.slug,
-      message: alreadyInRoute ? "Ya esta en tu ruta" : "Agregado a tu ruta",
-    });
-
-    if (alreadyInRoute) return;
-
+    // Use functional update — single source of truth avoids race condition on rapid adds
+    let isNew = true;
     setActiveRoute((prev) => {
+      const exists = prev?.stops.some((stop) => stop.slug === place.slug) ?? false;
+      isNew = !exists;
+      if (exists) return prev ?? null;
       if (!prev) {
         return {
           title: "Ruta personalizada",
           stops: [{ order: 1, slug: place.slug, name: getEs(place.name_i18n, place.slug) }],
         };
       }
-      if (prev.stops.some((stop) => stop.slug === place.slug)) return prev;
       const nextStops = [...prev.stops, { order: prev.stops.length + 1, slug: place.slug, name: getEs(place.name_i18n, place.slug) }];
       return { ...prev, stops: nextStops };
     });
-    setRoutePanelExpanded(false);
+    // Feedback after state update (isNew is set synchronously inside the callback above)
+    setRouteFeedback({
+      kind: isNew ? "added" : "exists",
+      placeSlug: place.slug,
+      message: isNew ? "Agregado a tu ruta" : "Ya está en tu ruta",
+    });
+    if (isNew) setRoutePanelExpanded(false);
   }
 
   const previewPlace = uiMode === "idle" && query.trim().length > 0 ? searchSuggestions[0] ?? null : null;
@@ -1736,9 +1737,13 @@ export function ExploreFullscreenMap({
                 onClick={async () => {
                   if (!activeRoute || routeSaved !== "idle") return;
                   setRouteSaved("saving");
-                  const res = await saveRoute(activeRoute.title, activeRoute.stops);
-                  setRouteSaved(res.error ? "idle" : "done");
-                  if (res.id) setTimeout(() => setRouteSaved("idle"), 3000);
+                  try {
+                    const res = await saveRoute(activeRoute.title, activeRoute.stops);
+                    setRouteSaved(res.error ? "idle" : "done");
+                    if (res.id) setTimeout(() => setRouteSaved("idle"), 3000);
+                  } catch {
+                    setRouteSaved("idle");
+                  }
                 }}
                 className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all"
                 style={
