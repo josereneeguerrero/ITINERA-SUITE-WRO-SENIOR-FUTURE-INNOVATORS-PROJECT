@@ -57,58 +57,72 @@ const ICON_MAP: Record<string, string> = {
   church: "R",
 };
 
-// ── Zoom thresholds per tier ─────────────────────────────────────────────────
-const TIER_MIN_ZOOM = [5, 7, 9] as const; // tier 1, 2, 3
-
-// ── Overlap resolution ───────────────────────────────────────────────────────
-// Distributes overlapping markers into a radial fan so they don't stack.
-function resolveMarkerOverlaps(
-  mapInstance: maplibregl.Map,
-  markerList: { marker: maplibregl.Marker; tier: number }[]
-) {
-  const OVERLAP_PX = 38; // treat markers as overlapping if their centers are closer than this
-  const SPREAD_R   = 26; // radius of the fan in pixels
-
-  // Collect current screen positions (reset offsets first)
-  markerList.forEach(({ marker }) => marker.setOffset([0, 0]));
-  const pts = markerList.map(({ marker }) => mapInstance.project(marker.getLngLat()));
-
-  const assigned = new Set<number>();
-
-  for (let i = 0; i < markerList.length; i++) {
-    if (assigned.has(i)) continue;
-    const group: number[] = [i];
-
-    for (let j = i + 1; j < markerList.length; j++) {
-      if (assigned.has(j)) continue;
-      const dx = pts[i].x - pts[j].x;
-      const dy = pts[i].y - pts[j].y;
-      if (Math.sqrt(dx * dx + dy * dy) < OVERLAP_PX) {
-        group.push(j);
-        assigned.add(j);
-      }
-    }
-
-    if (group.length > 1) {
-      group.forEach((idx, k) => {
-        const angle = (k / group.length) * 2 * Math.PI - Math.PI / 2;
-        markerList[idx].marker.setOffset([
-          Math.cos(angle) * SPREAD_R,
-          Math.sin(angle) * SPREAD_R,
-        ]);
-      });
-    }
-  }
-}
-
-// tier 1 = local_favorite or rating ≥ 4.5 → visible from zoom 5
-// tier 2 = rating ≥ 3.5                   → visible from zoom 7
-// tier 3 = everything else                 → visible from zoom 9
+// ── Priority tier ────────────────────────────────────────────────────────────
+// Used to decide which pin "wins" a screen cell when several overlap.
+// tier 1 = local_favorite or rating ≥ 4.5
+// tier 2 = rating ≥ 3.5
+// tier 3 = everything else
 function placeTier(place: Place): number {
   const rating = Number(place.aggregated_rating ?? 0);
   if (place.local_favorite || rating >= 4.5) return 1;
   if (rating >= 3.5) return 2;
   return 3;
+}
+
+// ── Density filter ───────────────────────────────────────────────────────────
+// Below zoom 9 → hide all pins (clean national view).
+// At zoom ≥ 9  → greedy pass: for each place (priority order), show it only
+//                if no already-visible place is within MIN_DIST pixels.
+//                The selected place is always shown regardless.
+const DENSITY_MIN_ZOOM = 9;
+const DENSITY_MIN_DIST = 48; // px between pin centers
+
+type MarkerEntry = { marker: maplibregl.Marker; tier: number; slug: string; rating: number };
+
+function applyDensityFilter(
+  mapInstance: maplibregl.Map,
+  markerList: MarkerEntry[],
+  selectedSlug: string | null | undefined
+) {
+  const zoom = mapInstance.getZoom();
+
+  // Hide everything below minimum zoom
+  if (zoom < DENSITY_MIN_ZOOM) {
+    markerList.forEach(({ marker }) => {
+      marker.getElement().style.display = "none";
+    });
+    return;
+  }
+
+  // Sort by priority: selected > tier asc > rating desc
+  const sorted = [...markerList].sort((a, b) => {
+    if (a.slug === selectedSlug) return -1;
+    if (b.slug === selectedSlug) return 1;
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    return b.rating - a.rating;
+  });
+
+  // Greedy pass — hide all first, then show one by one if there's room
+  sorted.forEach(({ marker }) => { marker.getElement().style.display = "none"; });
+
+  const occupied: { x: number; y: number }[] = [];
+
+  sorted.forEach(({ marker, slug }) => {
+    const pt = mapInstance.project(marker.getLngLat());
+    const isSelected = slug === selectedSlug;
+
+    if (!isSelected) {
+      const blocked = occupied.some(({ x, y }) => {
+        const dx = pt.x - x;
+        const dy = pt.y - y;
+        return dx * dx + dy * dy < DENSITY_MIN_DIST * DENSITY_MIN_DIST;
+      });
+      if (blocked) return; // skip this marker
+    }
+
+    marker.getElement().style.display = "";
+    occupied.push(pt);
+  });
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -192,7 +206,7 @@ export function ExploreMap({
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const markers = useRef<{ marker: maplibregl.Marker; tier: number }[]>([]);
+  const markers = useRef<MarkerEntry[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
   const suppressMapClickUntilRef = useRef(0);
   const selectedPlaceRef = useRef<Place | null>(null);
@@ -309,8 +323,6 @@ export function ExploreMap({
       const isSelected = selectedPlace?.slug === place.slug;
       const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
       const tier = placeTier(place);
-      const minZoom = TIER_MIN_ZOOM[tier - 1];
-      const currentZoom = map.current?.getZoom() ?? 0;
 
       const wrapper = document.createElement("div");
       Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
@@ -380,41 +392,33 @@ export function ExploreMap({
         .setLngLat(coords)
         .addTo(map.current!);
 
-      // Apply initial LOD visibility
-      wrapper.style.display = currentZoom >= minZoom ? "" : "none";
-
-      markers.current.push({ marker, tier });
+      markers.current.push({
+        marker,
+        tier,
+        slug: place.slug,
+        rating: Number(place.aggregated_rating ?? 0),
+      });
     });
   }, [places, mapReady, selectedPlace, visibleSlugs, onSelectPlace]);
 
-  // ── LOD + overlap resolution on zoom/move ────────────────────────────────────
+  // ── Density filter: re-runs on zoom / pan / selected change ─────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
 
-    function applyLODAndOverlap() {
-      const zoom = m.getZoom();
-      // Show/hide by tier
-      markers.current.forEach(({ marker, tier }) => {
-        const minZoom = TIER_MIN_ZOOM[tier - 1];
-        marker.getElement().style.display = zoom >= minZoom ? "" : "none";
-      });
-      // Resolve overlaps among visible markers
-      const visible = markers.current.filter(({ marker, tier }) => {
-        return zoom >= TIER_MIN_ZOOM[tier - 1];
-      });
-      if (visible.length > 1) resolveMarkerOverlaps(m, visible);
+    function run() {
+      applyDensityFilter(m, markers.current, selectedPlaceRef.current?.slug);
     }
 
-    m.on("zoom", applyLODAndOverlap);
-    m.on("moveend", applyLODAndOverlap);
-    applyLODAndOverlap();
+    m.on("zoomend", run);
+    m.on("moveend", run);
+    run(); // apply immediately
 
     return () => {
-      m.off("zoom", applyLODAndOverlap);
-      m.off("moveend", applyLODAndOverlap);
+      m.off("zoomend", run);
+      m.off("moveend", run);
     };
-  }, [mapReady, markers.current.length]);
+  }, [mapReady, markers.current.length, selectedPlace]);
 
   // ── Fly to region/center ─────────────────────────────────────────────────────
   useEffect(() => {
