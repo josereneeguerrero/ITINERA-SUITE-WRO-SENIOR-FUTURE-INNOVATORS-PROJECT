@@ -41,9 +41,20 @@ const REGIONS = [
 function detectRegion(text: string): string | null {
   const n = norm(text);
   if (!n) return null;
+
   for (const region of REGIONS) {
     for (const keyword of region.keywords) {
-      if (n.includes(norm(keyword))) {
+      const nk = norm(keyword);
+      // Can be more lenient for regions (multi-word like "islas de la bahia")
+      // Accept full match or as a word in the text
+      const hasRegion =
+        n === nk ||
+        n.startsWith(nk + " ") ||
+        n.includes(" " + nk + " ") ||
+        n.endsWith(" " + nk) ||
+        (nk.includes(" ") && n.includes(nk)); // Multi-word regions like "islas de la bahia"
+
+      if (hasRegion) {
         return region.slug;
       }
     }
@@ -66,9 +77,19 @@ const CATEGORIES = [
 function detectCategory(text: string): string | null {
   const n = norm(text);
   if (!n) return null;
+
   for (const category of CATEGORIES) {
     for (const keyword of category.keywords) {
-      if (n.includes(norm(keyword))) {
+      const nk = norm(keyword);
+      // Must be a complete word, not a substring
+      // E.g., "maya" shouldn't match "comayagua"
+      const hasWord =
+        n === nk ||
+        n.startsWith(nk + " ") ||
+        n.includes(" " + nk + " ") ||
+        n.endsWith(" " + nk);
+
+      if (hasWord) {
         return category.slug;
       }
     }
