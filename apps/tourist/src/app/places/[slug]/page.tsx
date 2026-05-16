@@ -4,7 +4,6 @@ import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { PlaceHero } from "@/components/place/place-hero";
 import { PlaceContent } from "@/components/place/place-content";
 import { PlaceAIPanel } from "@/components/place/place-ai-panel";
-import { PlaceWeatherWidget } from "@/components/place/place-weather-widget";
 import { PlacePhotoSlider } from "@/components/place/place-photo-slider";
 import { AIFloatingButton } from "@/components/ai/ai-floating-button";
 
@@ -102,32 +101,25 @@ export default async function PlacePage({
               place={place as never}
               stories={(linkedStories ?? []) as never}
               reviews={(placeReviews ?? []) as never}
+              lat={place.lat as number | null}
+              lng={place.lng as number | null}
+              placeName={name}
             />
           </div>
 
-          {/* Right — AI Panel + Weather (desktop sticky) */}
-          <aside className="w-[340px] shrink-0 hidden lg:block space-y-4">
-            <div className="sticky top-6 space-y-4">
+          {/* Right — AI Panel (desktop sticky) */}
+          <aside className="w-[340px] shrink-0 hidden lg:block">
+            <div className="sticky top-6">
               <PlaceAIPanel place={place as never} />
-              <PlaceWeatherWidget
-                lat={place.lat as number | null}
-                lng={place.lng as number | null}
-                placeName={name}
-              />
             </div>
           </aside>
 
         </div>
       </section>
 
-      {/* Mobile — AI panel + weather below content */}
-      <section className="lg:hidden mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6 space-y-4">
+      {/* Mobile — AI panel below content */}
+      <section className="lg:hidden mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-10 mt-6">
         <PlaceAIPanel place={place as never} />
-        <PlaceWeatherWidget
-          lat={place.lat as number | null}
-          lng={place.lng as number | null}
-          placeName={name}
-        />
       </section>
 
       {/* ── Photo slider — fotos reales del lugar desde media_assets ── */}

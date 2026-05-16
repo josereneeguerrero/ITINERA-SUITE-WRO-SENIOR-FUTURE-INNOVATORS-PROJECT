@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ReviewForm } from "./review-form";
+import { PlaceWeatherWidget } from "./place-weather-widget";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -49,10 +50,13 @@ const PRICE_LABELS = ["", "$ Económico", "$$ Moderado", "$$$ Caro", "$$$$ Premi
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export function PlaceContent({ place, stories, reviews }: {
+export function PlaceContent({ place, stories, reviews, lat, lng, placeName }: {
   place: Place;
   stories: Story[];
   reviews: Review[];
+  lat?: number | null;
+  lng?: number | null;
+  placeName?: string;
 }) {
   const [tab, setTab] = useState("info");
 
@@ -338,6 +342,15 @@ export function PlaceContent({ place, stories, reviews }: {
           {/* Review form */}
           <ReviewForm placeId={place.id} placeSlug={place.slug} />
         </div>
+      )}
+
+      {/* ── Weather widget — inside Info tab, after contact info ── */}
+      {tab === "info" && (
+        <PlaceWeatherWidget
+          lat={lat ?? null}
+          lng={lng ?? null}
+          placeName={placeName ?? place.slug}
+        />
       )}
     </div>
   );
