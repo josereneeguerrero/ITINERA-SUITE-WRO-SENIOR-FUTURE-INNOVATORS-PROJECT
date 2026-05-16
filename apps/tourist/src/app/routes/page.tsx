@@ -65,7 +65,7 @@ export default async function RoutesPage() {
       .select(`id, title_i18n, public, created_at, itinerary_stops(seq, notes_i18n, places(name_i18n, slug))`)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    myRoutes = (data ?? []) as Itinerary[];
+    myRoutes = (data ?? []) as unknown as Itinerary[];
   }
 
   return (
