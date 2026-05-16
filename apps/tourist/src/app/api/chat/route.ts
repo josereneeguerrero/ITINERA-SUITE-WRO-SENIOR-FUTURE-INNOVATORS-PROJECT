@@ -199,19 +199,26 @@ export async function POST(req: Request) {
         controller.close();
       }
 
+      // ─── AUDIT LOGGING - declare before try so catch block can access it ────
+      const auditId = Math.random().toString(36).slice(2, 8);
+
       try {
         // ─── Extract ONLY the latest user message ───────────────────────────
         // CRITICAL: intent classification is based on the CURRENT message only.
         // Conversation history is NOT used for region/category detection.
         const lastUserMsg = (messages.filter(m => m.role === "user").slice(-1)[0]?.content ?? "").trim();
 
+        console.error(`[AUDIT-${auditId}] [${ROUTE_VERSION}] START - Input: "${lastUserMsg.slice(0, 80)}${lastUserMsg.length > 80 ? '...' : ''}"`);
+
         if (!lastUserMsg) {
-          emit({ type: "text-delta", textDelta: "¿En qué te puedo ayudar?", _path: "empty", _v: ROUTE_VERSION });
+          console.error(`[AUDIT-${auditId}] PATH-A: Empty message`);
+          emit({ type: "text-delta", textDelta: "¿En qué te puedo ayudar?", _path: "empty", _v: ROUTE_VERSION, _audit: auditId });
           return close();
         }
 
         // ─── PATH A: Greeting ───────────────────────────────────────────────
         if (isGreeting(lastUserMsg)) {
+          console.error(`[AUDIT-${auditId}] PATH-A: Greeting detected`);
           const greetResult = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             model: (getGroq() as any)("llama-3.3-70b-versatile"),
@@ -219,14 +226,15 @@ export async function POST(req: Request) {
             messages: [{ role: "user", content: lastUserMsg }],
             temperature: 0.9,
           });
-          emit({ type: "text-delta", textDelta: greetResult.text, _path: "greeting", _v: ROUTE_VERSION });
+          emit({ type: "text-delta", textDelta: greetResult.text, _path: "greeting", _v: ROUTE_VERSION, _audit: auditId });
           return close();
         }
 
         // ─── PATH B: Clear command ──────────────────────────────────────────
         if (isClearCommand(lastUserMsg)) {
-          emit({ type: "text-delta", textDelta: "Listo, quité todos los filtros.", _path: "clear", _v: ROUTE_VERSION });
-          emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {} });
+          console.error(`[AUDIT-${auditId}] PATH-B: Clear command detected`);
+          emit({ type: "text-delta", textDelta: "Listo, quité todos los filtros.", _path: "clear", _v: ROUTE_VERSION, _audit: auditId });
+          emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {}, _audit: auditId });
           return close();
         }
 
@@ -234,39 +242,56 @@ export async function POST(req: Request) {
         const regionInMsg   = detectRegion(lastUserMsg);
         const categoryInMsg = detectCategory(lastUserMsg);
 
+        // ─── AUDIT LOGGING ──────────────────────────────────────────────────
+        console.error(`[AUDIT-${auditId}] Detection: region="${regionInMsg}" category="${categoryInMsg}"`);
+
         // ─── PATH C: Region only → orient (no LLM, no DB, deterministic) ────
         // Rule: if the user mentioned a region BUT NOT a category, never recommend
         // a specific place. Just navigate the map and ask what they want.
         if (regionInMsg && !categoryInMsg) {
+          console.error(`[AUDIT-${auditId}] PATH-C: Region-only (no DB, no LLM)`);
+          const text = buildOrientText(regionInMsg);
+          console.error(`[AUDIT-${auditId}] Emitting orient text: "${text.slice(0, 80)}..."`);
           emit({
             type: "text-delta",
-            textDelta: buildOrientText(regionInMsg),
+            textDelta: text,
             _path: "region-only",
             _v: ROUTE_VERSION,
             _region: regionInMsg,
+            _audit: auditId,
           });
           emit({
             type: "ui-actions",
             intent: "filter_region",
             actions: [{ type: "filter_region", slug: regionInMsg }],
             entities: { region_slug: regionInMsg },
+            _audit: auditId,
           });
+          console.error(`[AUDIT-${auditId}] PATH-C: Complete`);
           return close();
         }
 
         // ─── PATH D: Category present → fetch places + LLM describes ────────
         // Region context can come from current msg OR session history (only as
         // a SCOPE for the search, NOT as a trigger for recommendation).
+        console.error(`[AUDIT-${auditId}] PATH-D: Category detected, starting place search`);
         let regionForSearch = regionInMsg;
         if (!regionForSearch) {
+          console.error(`[AUDIT-${auditId}] No region in current msg, checking history...`);
           const history = messages.filter(m => m.role === "user").slice(-4, -1);
           for (const m of history) {
             const r = detectRegion(m.content);
-            if (r) { regionForSearch = r; break; }
+            if (r) {
+              regionForSearch = r;
+              console.error(`[AUDIT-${auditId}] Found region in history: "${r}"`);
+              break;
+            }
           }
         }
 
+        console.error(`[AUDIT-${auditId}] Fetching places: region="${regionForSearch}" category="${categoryInMsg}"`);
         const places = await fetchPlaces(regionForSearch, categoryInMsg);
+        console.error(`[AUDIT-${auditId}] Found ${places.length} places`);
 
         const placesText = places.length > 0
           ? places.map(p =>
@@ -299,6 +324,7 @@ REGLAS:
 5. Si no hay datos → díselo honestamente.
 6. Máximo 3 frases. Responde en el idioma del usuario.`;
 
+        console.error(`[AUDIT-${auditId}] Calling LLM with context: ${contextLabel}`);
         const result = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
@@ -306,6 +332,7 @@ REGLAS:
           messages: messages as { role: "user" | "assistant"; content: string }[],
           temperature: 0.25,
         });
+        console.error(`[AUDIT-${auditId}] LLM response: "${result.text.slice(0, 100)}..."`);
 
         // ─── Parse LLM response ──────────────────────────────────────────────
         let parsed: AiResponse = { text: result.text, action: null };
@@ -318,6 +345,7 @@ REGLAS:
           parsed = { text: result.text, action: null };
         }
 
+        console.error(`[AUDIT-${auditId}] Emitting place-search response, places=${places.length}, action=${parsed.action?.type ?? "none"}`);
         emit({
           type: "text-delta",
           textDelta: parsed.text,
@@ -325,9 +353,11 @@ REGLAS:
           _v: ROUTE_VERSION,
           _region: regionForSearch,
           _category: categoryInMsg,
+          _audit: auditId,
         });
 
         if (places.length > 0 && parsed.action?.type !== "show_place") {
+          console.error(`[AUDIT-${auditId}] Emitting ${places.length} places`);
           emit({
             type: "tool-result",
             toolName: "search_places",
@@ -344,19 +374,23 @@ REGLAS:
         }
 
         if (parsed.action) {
+          console.error(`[AUDIT-${auditId}] Emitting action: ${parsed.action.type}`);
           emit({
             type:    "ui-actions",
             intent:  parsed.action.type,
             actions: [parsed.action],
             entities: {},
+            _audit: auditId,
           });
         }
 
+        console.error(`[AUDIT-${auditId}] PATH-D: Complete`);
         return close();
 
       } catch (err) {
-        console.error(`[${ROUTE_VERSION}] api/chat error`, err);
-        emit({ type: "text-delta", textDelta: "Error temporal. Intenta de nuevo.", _path: "error", _v: ROUTE_VERSION });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[AUDIT-${auditId}] [${ROUTE_VERSION}] api/chat error:`, errMsg);
+        emit({ type: "text-delta", textDelta: "Error temporal. Intenta de nuevo.", _path: "error", _v: ROUTE_VERSION, _audit: auditId });
         return close();
       }
     },
@@ -368,6 +402,7 @@ REGLAS:
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       "Connection":    "keep-alive",
       "X-Itinera-Route-Version": ROUTE_VERSION,
+      "X-Itinera-Debug": `enabled-audit-logs-in-vercel`,
     },
   });
 }
