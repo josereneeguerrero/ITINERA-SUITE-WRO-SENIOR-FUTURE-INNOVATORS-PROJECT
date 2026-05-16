@@ -471,11 +471,12 @@ export function ExploreMap({
     });
   }, [mapCenter, mapZoom, mapReady, fitAllPlaces]);
 
-  // ── Initial fit ───────────────────────────────────────────────────────────────
+  // ── Initial fit — only when no specific mapCenter is requested ───────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    if (mapCenter) return; // Skip if flyTo will handle it (initialPlace, etc.)
     fitAllPlaces(0);
-  }, [mapReady, fitAllPlaces]);
+  }, [mapReady, fitAllPlaces, mapCenter]);
 
   // ── Route layers ──────────────────────────────────────────────────────────────
   useEffect(() => {
