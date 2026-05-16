@@ -11,29 +11,34 @@ import {
   Megaphone,
   Monitor,
   LogOut,
+  BarChart3,
+  Shield,
 } from "lucide-react";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  adminOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/places",    label: "Lugares",     icon: MapPin },
-  { href: "/stories",   label: "Historias",   icon: BookOpen },
-  { href: "/reviews",   label: "Reseñas",     icon: Star },
-  { href: "/sponsors",  label: "Sponsors",    icon: Megaphone },
-  { href: "/devices",   label: "Terminales",  icon: Monitor },
+  { href: "/dashboard",  label: "Dashboard",   icon: LayoutDashboard },
+  { href: "/places",     label: "Lugares",      icon: MapPin },
+  { href: "/stories",    label: "Historias",    icon: BookOpen },
+  { href: "/reviews",    label: "Reseñas",      icon: Star },
+  { href: "/analytics",  label: "Analytics",    icon: BarChart3 },
+  { href: "/sponsors",   label: "Sponsors",     icon: Megaphone },
+  { href: "/devices",    label: "Terminales",   icon: Monitor },
 ];
 
 interface SidebarProps {
   pendingReviews?: number;
   userEmail?: string;
+  userRole?: string;
 }
 
-export function Sidebar({ pendingReviews = 0, userEmail }: SidebarProps) {
+export function Sidebar({ pendingReviews = 0, userEmail, userRole }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const supabase = createClient();
@@ -120,9 +125,19 @@ export function Sidebar({ pendingReviews = 0, userEmail }: SidebarProps) {
           >
             {userEmail ? userEmail[0].toUpperCase() : "A"}
           </div>
-          <p className="font-mono text-[11px] truncate flex-1" style={{ color: "#6B7280" }}>
-            {userEmail ?? "admin"}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[11px] truncate" style={{ color: "#6B7280" }}>
+              {userEmail ?? "admin"}
+            </p>
+            {userRole && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <Shield className="w-2.5 h-2.5" style={{ color: "#0D9488" }} />
+                <span className="font-inter text-[10px] capitalize" style={{ color: "#0D9488" }}>
+                  {userRole}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <button
           onClick={handleLogout}

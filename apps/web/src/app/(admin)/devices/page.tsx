@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { Monitor, Wifi, WifiOff, RefreshCw, Info } from "lucide-react";
+import { Monitor, Wifi, WifiOff, Info } from "lucide-react";
+import { RegisterDeviceForm } from "./register-device-form";
 
 function timeSince(date: string | null) {
   if (!date) return "Nunca";
@@ -47,13 +48,7 @@ export default async function DevicesPage() {
             {devices?.length ?? 0} dispositivo{(devices?.length ?? 0) !== 1 ? "s" : ""} registrado{(devices?.length ?? 0) !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-inter font-medium text-sm transition-all"
-          style={{ border: "1px solid #1F2937", color: "#6B7280" }}
-        >
-          <RefreshCw className="w-4 h-4" />
-          Registrar terminal
-        </button>
+        <RegisterDeviceForm />
       </div>
 
       {/* Status cards */}

@@ -15,6 +15,17 @@ export default async function AdminLayout({
 
   if (!user) redirect("/login");
 
+  // Verify admin role
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || (profile.role !== "admin")) {
+    redirect("/login?error=unauthorized");
+  }
+
   // Fetch pending review count for sidebar badge
   const { count: pendingReviews } = await supabase
     .from("reviews")
@@ -26,6 +37,7 @@ export default async function AdminLayout({
       <Sidebar
         pendingReviews={pendingReviews ?? 0}
         userEmail={user.email}
+        userRole={profile.role}
       />
       <main className="flex-1 min-w-0 p-8 overflow-auto">
         {children}
