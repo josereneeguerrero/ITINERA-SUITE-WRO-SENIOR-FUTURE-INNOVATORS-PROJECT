@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
-import { AuroraBackground } from "@/components/ui/aurora-background";
 import { ImageAutoSlider, type ImageAutoSliderItem } from "@/components/ui/image-auto-slider";
 import { LandingNav } from "@/components/landing/landing-nav";
 import {
@@ -398,9 +397,17 @@ export default async function HomePage() {
       <LandingNav />
 
       {/* ── 1. HERO ─────────────────────────────────────────────────────── */}
-      <AuroraBackground
-        showRadialGradient={false}
-        className="min-h-screen rounded-none border-0 px-4 pb-24 pt-28 sm:px-6"
+      {/* Static radial gradients — same look as aurora, zero GPU/animation cost */}
+      <section
+        className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-24 pt-28 sm:px-6"
+        style={{
+          background: [
+            "radial-gradient(ellipse 80% 60% at 15% 20%, rgba(13,148,136,0.18) 0%, transparent 60%)",
+            "radial-gradient(ellipse 60% 50% at 85% 70%, rgba(0,104,95,0.14) 0%, transparent 55%)",
+            "radial-gradient(ellipse 50% 40% at 55% 90%, rgba(245,158,11,0.07) 0%, transparent 50%)",
+            "#f0f5f2",
+          ].join(", "),
+        }}
       >
         <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center text-center">
 
@@ -456,7 +463,7 @@ export default async function HomePage() {
             ))}
           </div>
         </div>
-      </AuroraBackground>
+      </section>
 
       {/* ── 2. PROBLEMA ──────────────────────────────────────────────────── */}
       <section id="problema" className="bg-[#0f172a] px-4 py-24 sm:px-6">
