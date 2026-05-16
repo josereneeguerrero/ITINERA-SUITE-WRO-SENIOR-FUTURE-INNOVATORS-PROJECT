@@ -57,57 +57,17 @@ const ICON_MAP: Record<string, string> = {
   church: "R",
 };
 
-// ── Layer IDs ────────────────────────────────────────────────────────────────
-const PLACES_SOURCE = "itinera-places-source";
-const PLACES_POINTS = "itinera-places-points";
-const PLACES_ICONS  = "itinera-places-icons";
+// ── Zoom thresholds per tier ─────────────────────────────────────────────────
+const TIER_MIN_ZOOM = [5, 7, 9] as const; // tier 1, 2, 3
 
-// ── GeoJSON builder ─────────────────────────────────────────────────────────
-// tier 1 = local_favorite or rating ≥ 4.5 → visible from zoom 7
-// tier 2 = rating ≥ 3.5                   → visible from zoom 10
-// tier 3 = everything else                 → visible from zoom 12
+// tier 1 = local_favorite or rating ≥ 4.5 → visible from zoom 5
+// tier 2 = rating ≥ 3.5                   → visible from zoom 7
+// tier 3 = everything else                 → visible from zoom 9
 function placeTier(place: Place): number {
   const rating = Number(place.aggregated_rating ?? 0);
   if (place.local_favorite || rating >= 4.5) return 1;
   if (rating >= 3.5) return 2;
   return 3;
-}
-
-function buildPlacesGeoJSON(
-  places: Place[],
-  selectedSlug: string | null | undefined,
-  visibleSlugs: Set<string> | undefined
-) {
-  return {
-    type: "FeatureCollection" as const,
-    features: places
-      .filter((p) => typeof p.lng === "number" && typeof p.lat === "number")
-      .map((place) => ({
-        type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [place.lng!, place.lat!],
-        },
-        properties: {
-          slug: place.slug,
-          name: place.name_i18n?.es ?? place.slug,
-          icon: ICON_MAP[place.place_categories?.icon_name ?? ""] ?? "M",
-          color: getCategoryColor({
-            slug: place.place_categories?.slug ?? "",
-            iconName: place.place_categories?.icon_name ?? "",
-            label:
-              place.place_categories?.name_i18n?.es ??
-              place.place_categories?.name_i18n?.en ??
-              "",
-          }),
-          catName: place.place_categories?.name_i18n?.es ?? "",
-          rating: Number(place.aggregated_rating ?? 0).toFixed(1),
-          tier: placeTier(place),
-          selected: selectedSlug === place.slug ? 1 : 0,
-          dimmed: visibleSlugs && !visibleSlugs.has(place.slug) ? 1 : 0,
-        },
-      })),
-  };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -191,19 +151,15 @@ export function ExploreMap({
 }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const markers = useRef<{ marker: maplibregl.Marker; tier: number }[]>([]);
   const tooltipRef = useRef<maplibregl.Popup | null>(null);
   const suppressMapClickUntilRef = useRef(0);
   const selectedPlaceRef = useRef<Place | null>(null);
-  const placesRef = useRef<Place[]>(places);
-  const onSelectPlaceRef = useRef(onSelectPlace);
   const [mapReady, setMapReady] = useState(false);
   const [cardVisible, setCardVisible] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
-  // Keep refs current
   useEffect(() => { selectedPlaceRef.current = selectedPlace; }, [selectedPlace]);
-  useEffect(() => { placesRef.current = places; }, [places]);
-  useEffect(() => { onSelectPlaceRef.current = onSelectPlace; }, [onSelectPlace]);
 
   const fitAllPlaces = useCallback((duration = 700) => {
     if (!map.current) return;
@@ -230,6 +186,25 @@ export function ExploreMap({
 
     map.current.flyTo({ center: HONDURAS_CENTER, zoom: HONDURAS_ZOOM, duration });
   }, [places]);
+
+  const buildTooltipHTML = useCallback((place: Place) => {
+    const name = place.name_i18n?.es ?? place.slug;
+    const cat = place.place_categories;
+    const icon = ICON_MAP[cat?.icon_name ?? ""] ?? "M";
+    const catName = cat?.name_i18n?.es ?? "";
+    const rating = Number(place.aggregated_rating).toFixed(1);
+    return `
+      <div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:150px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:14px;">${icon}</span>
+          <span style="font-weight:700;font-size:13px;color:#0F172A;">${name}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:#0D9488;font-weight:600;">${catName}</span>
+          <span style="font-size:11px;color:#64748B;">${rating}</span>
+        </div>
+      </div>`;
+  }, []);
 
   function closeSelectedPlace() {
     setCardVisible(false);
@@ -269,169 +244,128 @@ export function ExploreMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Clustering: init source + layers + events ────────────────────────────────
+  // ── Markers: rebuild when places/selected/visible change ────────────────────
+  useEffect(() => {
+    if (!map.current) return;
+
+    markers.current.forEach(({ marker }) => marker.remove());
+    markers.current = [];
+
+    places.forEach((place) => {
+      const coords =
+        typeof place.lng === "number" && typeof place.lat === "number"
+          ? ([place.lng, place.lat] as [number, number])
+          : null;
+      if (!coords) return;
+
+      const category = place.place_categories;
+      const color = getCategoryColor({
+        slug: category?.slug ?? "",
+        iconName: category?.icon_name ?? "",
+        label: category?.name_i18n?.es ?? category?.name_i18n?.en ?? "",
+      });
+      const icon = ICON_MAP[category?.icon_name ?? ""] ?? "M";
+      const isSelected = selectedPlace?.slug === place.slug;
+      const isVisible = visibleSlugs ? visibleSlugs.has(place.slug) : true;
+      const tier = placeTier(place);
+      const minZoom = TIER_MIN_ZOOM[tier - 1];
+      const currentZoom = map.current?.getZoom() ?? 0;
+
+      const wrapper = document.createElement("div");
+      Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
+
+      const pin = document.createElement("div");
+      Object.assign(pin.style, {
+        width: "36px",
+        height: "36px",
+        background: color,
+        border: isSelected ? "3px solid #F59E0B" : "3px solid white",
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "16px",
+        boxShadow: isSelected
+          ? "0 4px 18px rgba(245,158,11,0.5)"
+          : "0 2px 8px rgba(0,0,0,0.25)",
+        opacity: isVisible ? "1" : "0.35",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      });
+      pin.textContent = icon;
+      wrapper.appendChild(pin);
+
+      wrapper.addEventListener("mouseenter", () => {
+        pin.style.transform = "scale(1.16)";
+        pin.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
+        tooltipRef.current?.remove();
+        tooltipRef.current = new maplibregl.Popup({
+          offset: 22,
+          closeButton: false,
+          closeOnClick: false,
+          anchor: "bottom",
+          className: "itinera-tooltip",
+        })
+          .setLngLat(coords)
+          .setHTML(buildTooltipHTML(place))
+          .addTo(map.current!);
+      });
+
+      wrapper.addEventListener("mouseleave", () => {
+        pin.style.transform = "scale(1)";
+        pin.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
+        tooltipRef.current?.remove();
+        tooltipRef.current = null;
+      });
+
+      wrapper.addEventListener("click", (event) => {
+        event.stopPropagation();
+        suppressMapClickUntilRef.current = Date.now() + 400;
+        tooltipRef.current?.remove();
+        tooltipRef.current = null;
+        onSelectPlace(place);
+        setCardVisible(true);
+
+        window.setTimeout(() => {
+          map.current?.flyTo({
+            center: coords,
+            zoom: Math.max(map.current.getZoom(), 12),
+            offset: [180, 12],
+            duration: 760,
+          });
+        }, 140);
+      });
+
+      const marker = new maplibregl.Marker({ element: wrapper, anchor: "center" })
+        .setLngLat(coords)
+        .addTo(map.current!);
+
+      // Apply initial LOD visibility
+      wrapper.style.display = currentZoom >= minZoom ? "" : "none";
+
+      markers.current.push({ marker, tier });
+    });
+  }, [places, mapReady, selectedPlace, visibleSlugs, onSelectPlace]);
+
+  // ── LOD: show/hide markers by zoom level ─────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
-    const m = map.current;
 
-    // Plain GeoJSON source — no clustering, LOD handled via zoom expressions
-    m.addSource(PLACES_SOURCE, {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: [] },
-    });
+    function applyLOD() {
+      const zoom = map.current?.getZoom() ?? 0;
+      markers.current.forEach(({ marker, tier }) => {
+        const minZoom = TIER_MIN_ZOOM[tier - 1];
+        const el = marker.getElement();
+        el.style.display = zoom >= minZoom ? "" : "none";
+      });
+    }
 
-    // Circle layer — radius grows with zoom, opacity by tier
-    // tier 1 (local_favorite / rating ≥ 4.5): visible from zoom 5
-    // tier 2 (rating ≥ 3.5):                  visible from zoom 7
-    // tier 3 (rest):                           visible from zoom 9
-    m.addLayer({
-      id: PLACES_POINTS,
-      type: "circle",
-      source: PLACES_SOURCE,
-      paint: {
-        "circle-radius": [
-          "interpolate", ["linear"], ["zoom"],
-          5,  4,
-          9,  7,
-          12, 13,
-          15, 18,
-        ],
-        "circle-color": ["get", "color"],
-        "circle-stroke-width": [
-          "interpolate", ["linear"], ["zoom"],
-          9, 1,
-          12, 2,
-        ],
-        "circle-stroke-color": [
-          "case",
-          ["==", ["get", "selected"], 1], "#F59E0B",
-          "#ffffff",
-        ],
-        "circle-opacity": [
-          "case",
-          ["==", ["get", "dimmed"], 1], 0.25,
-          ["==", ["get", "tier"], 1],
-          ["interpolate", ["linear"], ["zoom"], 5, 0, 5.5, 1],
-          ["==", ["get", "tier"], 2],
-          ["interpolate", ["linear"], ["zoom"], 7, 0, 7.5, 1],
-          ["interpolate", ["linear"], ["zoom"], 9, 0, 9.5, 1],
-        ],
-      },
-    });
-
-    // Icon letter — fades in at zoom 11-12
-    m.addLayer({
-      id: PLACES_ICONS,
-      type: "symbol",
-      source: PLACES_SOURCE,
-      layout: {
-        "text-field": ["get", "icon"],
-        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 14],
-        "text-allow-overlap": true,
-        "text-ignore-placement": true,
-      },
-      paint: {
-        "text-color": "#ffffff",
-        "text-opacity": [
-          "interpolate", ["linear"], ["zoom"],
-          11, 0,
-          12, 1,
-        ],
-      },
-    });
-
-    // ── Event handlers ────────────────────────────────────────────────────────
-
-    const onPlaceClick = (
-      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
-    ) => {
-      suppressMapClickUntilRef.current = Date.now() + 400;
-      tooltipRef.current?.remove();
-      tooltipRef.current = null;
-      const slug = e.features?.[0]?.properties?.slug as string | undefined;
-      if (!slug) return;
-      const place = placesRef.current.find((p) => p.slug === slug);
-      if (!place) return;
-      onSelectPlaceRef.current(place);
-      setCardVisible(true);
-      const coords: [number, number] = [place.lng!, place.lat!];
-      window.setTimeout(() => {
-        m.flyTo({
-          center: coords,
-          zoom: Math.max(m.getZoom(), 12),
-          offset: [180, 12],
-          duration: 760,
-        });
-      }, 140);
-    };
-
-    const onPlaceEnter = (
-      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
-    ) => {
-      m.getCanvas().style.cursor = "pointer";
-      if (!e.features?.length) return;
-      const props = e.features[0].properties ?? {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const coords = (e.features[0].geometry as any).coordinates as [number, number];
-      tooltipRef.current?.remove();
-      tooltipRef.current = new maplibregl.Popup({
-        offset: 24,
-        closeButton: false,
-        closeOnClick: false,
-        anchor: "bottom",
-        className: "itinera-tooltip",
-      })
-        .setLngLat(coords)
-        .setHTML(
-          `<div style="padding:10px 12px;font-family:Inter,sans-serif;min-width:150px;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-              <span style="font-size:14px;">${String(props.icon ?? "M")}</span>
-              <span style="font-weight:700;font-size:13px;color:#0F172A;">${String(props.name ?? "")}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:11px;color:#0D9488;font-weight:600;">${String(props.catName ?? "")}</span>
-              <span style="font-size:11px;color:#64748B;">⭐ ${String(props.rating ?? "")}</span>
-            </div>
-          </div>`
-        )
-        .addTo(m);
-    };
-
-    const onPlaceLeave = () => {
-      m.getCanvas().style.cursor = "";
-      tooltipRef.current?.remove();
-      tooltipRef.current = null;
-    };
-
-    m.on("click", PLACES_POINTS, onPlaceClick);
-    m.on("click", PLACES_ICONS, onPlaceClick);
-    m.on("mouseenter", PLACES_POINTS, onPlaceEnter);
-    m.on("mouseleave", PLACES_POINTS, onPlaceLeave);
+    map.current.on("zoom", applyLOD);
+    applyLOD(); // apply immediately
 
     return () => {
-      try {
-        m.off("click", PLACES_POINTS, onPlaceClick);
-        m.off("click", PLACES_ICONS, onPlaceClick);
-        m.off("mouseenter", PLACES_POINTS, onPlaceEnter);
-        m.off("mouseleave", PLACES_POINTS, onPlaceLeave);
-        for (const id of [PLACES_ICONS, PLACES_POINTS]) {
-          if (m.getLayer(id)) m.removeLayer(id);
-        }
-        if (m.getSource(PLACES_SOURCE)) m.removeSource(PLACES_SOURCE);
-      } catch {
-        // Map may already be destroyed on unmount
-      }
+      map.current?.off("zoom", applyLOD);
     };
-  }, [mapReady]);
-
-  // ── Clustering: sync data when places/selected/visible change ───────────────
-  useEffect(() => {
-    if (!map.current || !mapReady) return;
-    const source = map.current.getSource(PLACES_SOURCE) as maplibregl.GeoJSONSource | undefined;
-    if (!source) return;
-    source.setData(buildPlacesGeoJSON(places, selectedPlace?.slug, visibleSlugs));
-  }, [mapReady, places, selectedPlace, visibleSlugs]);
+  }, [mapReady, markers.current.length]);
 
   // ── Fly to region/center ─────────────────────────────────────────────────────
   useEffect(() => {
