@@ -599,6 +599,8 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
               })),
             },
           });
+          // Show all places on map
+          emit({ type: "ui-actions", intent: "show_places_list", actions: [{ type: "show_places", slugs: places.map(p => p.slug) }], entities: {} });
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -660,6 +662,8 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
 
             emit({ type: "text-delta", textDelta: semanticResult.text });
             emit({ type: "tool-result", toolName: "search_places", result: { places: semanticPlaces.map(p => ({ slug: p.slug, name: p.name_es, url: `/places/${p.slug}` })) } });
+            // Show all semantic places on map
+            emit({ type: "ui-actions", intent: "show_semantic_places", actions: [{ type: "show_places", slugs: semanticPlaces.map(p => p.slug) }], entities: {} });
           }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
