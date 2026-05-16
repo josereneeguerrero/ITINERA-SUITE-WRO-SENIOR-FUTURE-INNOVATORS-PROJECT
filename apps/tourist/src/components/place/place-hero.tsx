@@ -185,7 +185,7 @@ export function PlaceHero({
           {/* Primary actions */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <Link
-              href={`/explore?addToRoute=${slug}&name=${encodeURIComponent(name)}`}
+              href={`/explore${isGuest ? "?guest=true&" : "?"}addToRoute=${slug}&name=${encodeURIComponent(name)}`}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-inter font-bold text-sm text-white transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer"
               style={{ backgroundColor: "#0D9488" }}
             >
@@ -193,7 +193,7 @@ export function PlaceHero({
               Agregar a ruta
             </Link>
             <Link
-              href={`/explore?place=${slug}`}
+              href={`/explore${isGuest ? "?guest=true&" : "?"}place=${slug}`}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-inter font-semibold text-sm transition-all duration-150 hover:bg-white cursor-pointer"
               style={{ backgroundColor: "rgba(255,255,255,0.7)", border: "1px solid #d7e2de", color: "#334155" }}
             >
