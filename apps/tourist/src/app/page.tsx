@@ -644,38 +644,69 @@ export default async function HomePage() {
             <h2 className="mb-5 text-center font-jakarta text-4xl font-extrabold text-[#0f172a] sm:text-5xl">
               Equipo INNOVAKERS
             </h2>
-            <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
-              <span className="rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3 py-1.5 font-inter text-xs font-bold text-[#00685f]">
-                WRO Future Innovators 2026
+
+            {/* Badges */}
+            <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3 py-1.5 font-inter text-xs font-bold text-[#00685f]">
+                <Trophy className="h-3 w-3" aria-hidden /> WRO Future Innovators · Senior
               </span>
               <span className="rounded-full border border-[#d7e2de] bg-white px-3 py-1.5 font-inter text-xs font-bold text-[#334155]">
-                UNICAH Honduras
+                Instituto Felipe Enrique Agustinus · Valle
+              </span>
+              <span className="rounded-full border border-[#d7e2de] bg-white px-3 py-1.5 font-inter text-xs font-bold text-[#334155]">
+                3 integrantes
               </span>
             </div>
-            <p className="mx-auto mb-16 max-w-2xl text-center font-inter text-sm leading-7 text-[#334155] sm:text-base">
-              Somos un equipo de estudiantes de la{" "}
-              <strong className="text-[#0f172a]">Universidad Católica de Honduras</strong> apasionados por la
-              tecnología y la cultura. Construimos Itinera para demostrar que la inteligencia artificial puede
-              poner a Honduras en el mapa que merece.
+
+            <p className="mx-auto mb-10 max-w-2xl text-center font-inter text-sm leading-7 text-[#334155] sm:text-base">
+              Somos un equipo de tres estudiantes hondureños apasionados por la tecnología y la cultura.
+              Representamos oficialmente a Honduras en la{" "}
+              <strong className="text-[#0f172a]">World Robot Olympiad</strong> y construimos Itinera
+              para demostrar que la inteligencia artificial puede poner a Honduras en el mapa que merece.
             </p>
+          </ScrollReveal>
+
+          {/* Bronze medal highlight */}
+          <ScrollReveal>
+            <div className="mb-10 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-6 sm:p-8">
+              <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-3xl">
+                  🥉
+                </div>
+                <div className="flex-1">
+                  <p className="font-inter text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
+                    Logro verificado · WRO Open Championship Americas 2025 · Panamá
+                  </p>
+                  <h3 className="mt-1 font-jakarta text-xl font-extrabold text-[#0f172a] sm:text-2xl">
+                    Medalla de Bronce — Future Innovators Senior
+                  </h3>
+                  <p className="mt-1.5 font-inter text-sm text-[#334155]">
+                    Puntuación de <strong className="text-[#0f172a]">91.75 pts</strong> compitiendo como
+                    delegación oficial de Honduras. Reconocidos por el{" "}
+                    <strong className="text-[#0f172a]">COHEP</strong> y respaldados por la{" "}
+                    <strong className="text-[#0f172a]">Honduras STEM Foundation</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
           </ScrollReveal>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             {[
               {
                 icon: Trophy,
-                title: "WRO Future Innovators",
+                title: "Robots Meet Culture 2026",
                 description:
-                  "La World Robot Olympiad evalúa soluciones tecnológicas innovadoras con impacto real. La categoría Future Innovators premia proyectos que resuelven problemas del mundo usando tecnología avanzada. Itinera es nuestra propuesta para 2026.",
+                  "El tema de WRO 2026 es literalmente lo que hacemos: tecnología al servicio de la cultura. Future Innovators Senior premia proyectos que resuelven problemas reales. Itinera es nuestra propuesta: IA cultural para Honduras.",
                 iconColor: "text-amber-600",
                 bg: "bg-amber-50",
                 border: "border-amber-100",
               },
               {
                 icon: Cpu,
-                title: "Tecnología de punta",
+                title: "Stack de punta",
                 description:
-                  "NVIDIA Jetson para edge AI en terminales físicos, pgvector para búsqueda semántica, MapLibre GL para mapas en tiempo real, y Next.js 16 con Supabase para la plataforma web. Todo integrado y desplegado.",
+                  "NVIDIA Jetson para edge AI en terminales físicos, pgvector para búsqueda semántica, MapLibre GL para mapas en tiempo real y Next.js 16 con Supabase para la plataforma web. Todo integrado y en producción.",
                 iconColor: "text-[#0D9488]",
                 bg: "bg-teal-50",
                 border: "border-teal-100",
@@ -684,7 +715,7 @@ export default async function HomePage() {
                 icon: Star,
                 title: "Impacto real",
                 description:
-                  "Más de 16 destinos culturales de Honduras ya están en la plataforma, con historias, rutas y datos verificados. Un cron horario mantiene los embeddings semánticos actualizados para búsquedas más precisas.",
+                  "16+ destinos culturales de Honduras publicados, historias narradas con IA, rutas guardables y búsqueda semántica activa. No es un prototipo: es una plataforma desplegada y funcionando.",
                 iconColor: "text-sky-600",
                 bg: "bg-sky-50",
                 border: "border-sky-100",
