@@ -70,14 +70,19 @@ function placeTier(place: Place): number {
 }
 
 // ── Density filter ───────────────────────────────────────────────────────────
-// Below zoom 9 → hide all pins (clean national view).
-// At zoom ≥ 9  → greedy pass: for each place (priority order), show it only
-//                if no already-visible place is within MIN_DIST pixels.
-//                The selected place is always shown regardless.
+// Below zoom 9 → fade out all pins (clean national view).
+// At zoom ≥ 9  → greedy pass in priority order; show a pin only if no
+//                already-visible pin is within MIN_DIST px. Uses opacity so
+//                transitions are smooth. Selected place always visible.
 const DENSITY_MIN_ZOOM = 9;
-const DENSITY_MIN_DIST = 48; // px between pin centers
+const DENSITY_MIN_DIST = 50; // px between pin centers (pin diameter = 36px)
 
 type MarkerEntry = { marker: maplibregl.Marker; tier: number; slug: string; rating: number };
+
+function setMarkerVisible(el: HTMLElement, visible: boolean) {
+  el.style.opacity = visible ? "1" : "0";
+  el.style.pointerEvents = visible ? "" : "none";
+}
 
 function applyDensityFilter(
   mapInstance: maplibregl.Map,
@@ -86,15 +91,12 @@ function applyDensityFilter(
 ) {
   const zoom = mapInstance.getZoom();
 
-  // Hide everything below minimum zoom
   if (zoom < DENSITY_MIN_ZOOM) {
-    markerList.forEach(({ marker }) => {
-      marker.getElement().style.display = "none";
-    });
+    markerList.forEach(({ marker }) => setMarkerVisible(marker.getElement(), false));
     return;
   }
 
-  // Sort by priority: selected > tier asc > rating desc
+  // Priority: selected first → tier asc → rating desc
   const sorted = [...markerList].sort((a, b) => {
     if (a.slug === selectedSlug) return -1;
     if (b.slug === selectedSlug) return 1;
@@ -102,8 +104,8 @@ function applyDensityFilter(
     return b.rating - a.rating;
   });
 
-  // Greedy pass — hide all first, then show one by one if there's room
-  sorted.forEach(({ marker }) => { marker.getElement().style.display = "none"; });
+  // Fade out all, then greedily re-show those that fit
+  sorted.forEach(({ marker }) => setMarkerVisible(marker.getElement(), false));
 
   const occupied: { x: number; y: number }[] = [];
 
@@ -112,15 +114,12 @@ function applyDensityFilter(
     const isSelected = slug === selectedSlug;
 
     if (!isSelected) {
-      const blocked = occupied.some(({ x, y }) => {
-        const dx = pt.x - x;
-        const dy = pt.y - y;
-        return dx * dx + dy * dy < DENSITY_MIN_DIST * DENSITY_MIN_DIST;
-      });
-      if (blocked) return; // skip this marker
+      const dist2 = DENSITY_MIN_DIST * DENSITY_MIN_DIST;
+      const blocked = occupied.some(({ x, y }) => (pt.x - x) ** 2 + (pt.y - y) ** 2 < dist2);
+      if (blocked) return;
     }
 
-    marker.getElement().style.display = "";
+    setMarkerVisible(marker.getElement(), true);
     occupied.push(pt);
   });
 }
@@ -213,6 +212,7 @@ export function ExploreMap({
   const [mapReady, setMapReady] = useState(false);
   const [cardVisible, setCardVisible] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [markersVersion, setMarkersVersion] = useState(0);
 
   useEffect(() => { selectedPlaceRef.current = selectedPlace; }, [selectedPlace]);
 
@@ -325,7 +325,13 @@ export function ExploreMap({
       const tier = placeTier(place);
 
       const wrapper = document.createElement("div");
-      Object.assign(wrapper.style, { cursor: "pointer", willChange: "transform" });
+      Object.assign(wrapper.style, {
+        cursor: "pointer",
+        willChange: "transform",
+        transition: "opacity 0.25s ease",
+        opacity: "0", // start hidden; density filter will reveal
+        pointerEvents: "none",
+      });
 
       const pin = document.createElement("div");
       Object.assign(pin.style, {
@@ -399,26 +405,34 @@ export function ExploreMap({
         rating: Number(place.aggregated_rating ?? 0),
       });
     });
+
+    // Signal density filter to re-run after markers are rebuilt
+    setMarkersVersion((v) => v + 1);
   }, [places, mapReady, selectedPlace, visibleSlugs, onSelectPlace]);
 
-  // ── Density filter: re-runs on zoom / pan / selected change ─────────────────
+  // ── Density filter: continuous during zoom/pan + after markers rebuild ───────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
 
+    let rafId = 0;
     function run() {
-      applyDensityFilter(m, markers.current, selectedPlaceRef.current?.slug);
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        applyDensityFilter(m, markers.current, selectedPlaceRef.current?.slug);
+      });
     }
 
-    m.on("zoomend", run);
-    m.on("moveend", run);
-    run(); // apply immediately
+    m.on("zoom", run);   // fires every frame during zoom animation
+    m.on("move", run);   // fires every frame during pan
+    run();               // apply immediately (e.g. after markers rebuild)
 
     return () => {
-      m.off("zoomend", run);
-      m.off("moveend", run);
+      cancelAnimationFrame(rafId);
+      m.off("zoom", run);
+      m.off("move", run);
     };
-  }, [mapReady, markers.current.length, selectedPlace]);
+  }, [mapReady, markersVersion, selectedPlace]);
 
   // ── Fly to region/center ─────────────────────────────────────────────────────
   useEffect(() => {
