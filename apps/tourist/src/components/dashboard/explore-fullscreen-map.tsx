@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Bookmark, Locate, MapPin, Search, Sparkles, Star, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Check, Locate, MapPin, Save, Search, Sparkles, Star, Trash2, X } from "lucide-react";
+import { saveRoute } from "@/app/routes/actions";
 import SuggestiveSearch from "@/components/ui/suggestive-search";
 import { ExploreMap } from "@/components/explore/explore-map";
 import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
@@ -572,6 +573,7 @@ export function ExploreFullscreenMap({
   const [routeSegments, setRouteSegments] = useState<RouteSegment[] | null>(null);
   const [routeMeta, setRouteMeta] = useState<RouteMeta | null>(null);
   const [routePanelExpanded, setRoutePanelExpanded] = useState(false);
+  const [routeSaved, setRouteSaved] = useState<"idle" | "saving" | "done">("idle");
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const routeStorageKey = `${ROUTE_KEY_PREFIX}:${isGuest ? "guest" : userId ?? "anon"}`;
   const isRecommendationQuery = useMemo(() => isRecommendationIntent(query), [query]);
@@ -1678,6 +1680,36 @@ export function ExploreFullscreenMap({
                 {routeSegmentsLabel ? <p className="mt-0.5 text-[11px] font-medium text-[#0F766E]">{routeSegmentsLabel}</p> : null}
               </div>
             ) : null}
+
+            {/* Save route button */}
+            {!isGuest && userId && (
+              <button
+                type="button"
+                disabled={routeSaved !== "idle"}
+                onClick={async () => {
+                  if (!activeRoute || routeSaved !== "idle") return;
+                  setRouteSaved("saving");
+                  const res = await saveRoute(activeRoute.title, activeRoute.stops);
+                  setRouteSaved(res.error ? "idle" : "done");
+                  if (res.id) setTimeout(() => setRouteSaved("idle"), 3000);
+                }}
+                className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all"
+                style={
+                  routeSaved === "done"
+                    ? { backgroundColor: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#16A34A" }
+                    : { backgroundColor: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.25)", color: "#0D9488" }
+                }
+              >
+                {routeSaved === "saving" ? (
+                  <><Save className="h-3.5 w-3.5 animate-pulse" />Guardando...</>
+                ) : routeSaved === "done" ? (
+                  <><Check className="h-3.5 w-3.5" />¡Ruta guardada!</>
+                ) : (
+                  <><Save className="h-3.5 w-3.5" />Guardar ruta</>
+                )}
+              </button>
+            )}
+
             <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
               {activeRoute.stops.map((stop, index) => (
                 <div
