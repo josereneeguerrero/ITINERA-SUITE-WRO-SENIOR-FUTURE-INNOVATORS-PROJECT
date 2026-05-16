@@ -551,12 +551,18 @@ export function ExploreFullscreenMap({
   isGuest,
   userId,
   initialCategory = "",
+  initialPlace = "",
+  initialRouteSlug = "",
+  initialRouteName = "",
 }: {
   places: Place[];
   categories: Category[];
   isGuest: boolean;
   userId: string | null;
   initialCategory?: string;
+  initialPlace?: string;
+  initialRouteSlug?: string;
+  initialRouteName?: string;
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -568,6 +574,37 @@ export function ExploreFullscreenMap({
     const name = cat ? (cat.name_i18n as Record<string, string>)?.es ?? initialCategory : initialCategory;
     return `Muéstrame lugares de ${name}`;
   }, [initialCategory, categories]);
+
+  // Auto-select place from URL param (coming from /places "Ver en mapa")
+  useEffect(() => {
+    if (!initialPlace || !places.length) return;
+    const found = places.find(p => p.slug === initialPlace);
+    if (found) {
+      setSelectedPlaceSlug(found.slug);
+      if (typeof found.lng === "number" && typeof found.lat === "number") {
+        setMapCenter([found.lng, found.lat]);
+        setMapZoom(14);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPlace, places.length]);
+
+  // Auto-add to route from URL param (coming from /places "Agregar a ruta")
+  useEffect(() => {
+    if (!initialRouteSlug) return;
+    const routeName = initialRouteName || initialRouteSlug;
+    setActiveRoute(prev => {
+      if (prev?.stops.some(s => s.slug === initialRouteSlug)) return prev;
+      const stops = [...(prev?.stops ?? []), {
+        order: (prev?.stops.length ?? 0) + 1,
+        slug: initialRouteSlug,
+        name: routeName,
+      }];
+      return { title: prev?.title ?? "Mi ruta", stops };
+    });
+    setRoutePanelExpanded(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRouteSlug]);
   const [activeRegion, setActiveRegion] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [savedOnly, setSavedOnly] = useState(false);

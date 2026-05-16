@@ -344,13 +344,15 @@ export function PlaceContent({ place, stories, reviews, lat, lng, placeName }: {
         </div>
       )}
 
-      {/* ── Weather widget — inside Info tab, after contact info ── */}
+      {/* ── Weather widget — separate card with breathing room ── */}
       {tab === "info" && (
-        <PlaceWeatherWidget
-          lat={lat ?? null}
-          lng={lng ?? null}
-          placeName={placeName ?? place.slug}
-        />
+        <div className="mt-2">
+          <PlaceWeatherWidget
+            lat={lat ?? null}
+            lng={lng ?? null}
+            placeName={placeName ?? place.slug}
+          />
+        </div>
       )}
     </div>
   );
