@@ -925,18 +925,39 @@ export function ExploreFullscreenMap({
           }
         }
       }
-      // Show multiple semantic results: clear filters + open best match on map
+      // Show multiple semantic results: fit all pins in view, open best match
       if (action.type === "show_places" && Array.isArray(action.slugs) && action.slugs.length > 0) {
         clearFilters();
-        const firstSlug = action.slugs[0] as string;
-        const place = places.find(p => p.slug === firstSlug);
-        if (place) {
-          setSelectedPlaceSlug(place.slug);
-          setShowFilters(false);
-          if (typeof place.lng === "number" && typeof place.lat === "number") {
-            setMapCenter([place.lng, place.lat]);
-            setMapZoom(13);
-          }
+        setShowFilters(false);
+
+        const slugSet = new Set(action.slugs as string[]);
+        const matched = places.filter(p =>
+          slugSet.has(p.slug) &&
+          typeof p.lng === "number" &&
+          typeof p.lat === "number"
+        );
+
+        if (matched.length === 1) {
+          // Single result → zoom directly to it
+          setSelectedPlaceSlug(matched[0].slug);
+          setMapCenter([matched[0].lng!, matched[0].lat!]);
+          setMapZoom(14);
+        } else if (matched.length > 1) {
+          // Multiple results → open best match + fit bounding box
+          setSelectedPlaceSlug(matched[0].slug);
+          const lngs = matched.map(p => p.lng!);
+          const lats = matched.map(p => p.lat!);
+          const minLng = Math.min(...lngs);
+          const maxLng = Math.max(...lngs);
+          const minLat = Math.min(...lats);
+          const maxLat = Math.max(...lats);
+          const centerLng = (minLng + maxLng) / 2;
+          const centerLat = (minLat + maxLat) / 2;
+          // Zoom based on bounding box spread
+          const spread = Math.max(maxLng - minLng, maxLat - minLat);
+          const zoom = spread < 0.05 ? 13 : spread < 0.5 ? 10 : spread < 2 ? 8 : 7;
+          setMapCenter([centerLng, centerLat]);
+          setMapZoom(zoom);
         }
       }
       if (action.type === "clear") {
