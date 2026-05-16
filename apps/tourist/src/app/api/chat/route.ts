@@ -415,12 +415,13 @@ export async function POST(req: Request) {
           emit({
             type: "suggestions",
             suggestions: [
-              { label: "Restaurantes",  value: "restaurantes" },
-              { label: "Iglesias",      value: "iglesias" },
-              { label: "Naturaleza",    value: "naturaleza" },
-              { label: "Playas",        value: "playas" },
-              { label: "Patrimonio",    value: "patrimonio" },
-              { label: "Aventura",      value: "aventura" },
+              { label: "Restaurantes", value: "restaurantes" },
+              { label: "Iglesias",     value: "iglesias" },
+              { label: "Naturaleza",   value: "naturaleza" },
+              { label: "Playas",       value: "playas" },
+              { label: "Patrimonio",   value: "patrimonio" },
+              { label: "Aventura",     value: "aventura" },
+              { label: "Arte",         value: "museos" },
             ],
           });
 

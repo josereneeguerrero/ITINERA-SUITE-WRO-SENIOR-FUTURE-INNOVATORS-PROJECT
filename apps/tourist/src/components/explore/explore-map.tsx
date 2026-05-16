@@ -639,7 +639,7 @@ export function ExploreMap({
                 <Star className="h-3.5 w-3.5 fill-[#F59E0B] text-[#F59E0B]" />
                 {Number(selectedPlace.aggregated_rating).toFixed(1)}
               </span>
-              <span>{selectedPlace.review_count ?? 0} resenas</span>
+              {(selectedPlace.review_count ?? 0) > 0 ? <span>{selectedPlace.review_count} reseñas</span> : null}
               <span>{price}</span>
               {selectedDistance !== null ? <span>{formatDistance(selectedDistance)} de ti</span> : null}
               {selectedPlace.accessibility ? <span>Accesible</span> : null}
