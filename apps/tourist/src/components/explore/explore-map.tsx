@@ -280,46 +280,46 @@ export function ExploreMap({
       data: { type: "FeatureCollection", features: [] },
     });
 
-    // Circle layer — radius and opacity driven by zoom + tier
+    // Circle layer — radius grows with zoom, opacity by tier
+    // tier 1 (local_favorite / rating ≥ 4.5): visible from zoom 5
+    // tier 2 (rating ≥ 3.5):                  visible from zoom 7
+    // tier 3 (rest):                           visible from zoom 9
     m.addLayer({
       id: PLACES_POINTS,
       type: "circle",
       source: PLACES_SOURCE,
       paint: {
-        // Grow pin size as user zooms in
         "circle-radius": [
           "interpolate", ["linear"], ["zoom"],
-          7,  5,
-          10, 9,
+          5,  4,
+          9,  7,
           12, 13,
           15, 18,
         ],
         "circle-color": ["get", "color"],
-        "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
+        "circle-stroke-width": [
+          "interpolate", ["linear"], ["zoom"],
+          9, 1,
+          12, 2,
+        ],
         "circle-stroke-color": [
           "case",
           ["==", ["get", "selected"], 1], "#F59E0B",
           "#ffffff",
         ],
-        // Tier 1 appears at zoom 7, tier 2 at zoom 10, tier 3 at zoom 12
-        // Dimmed places get 0.3 opacity regardless
         "circle-opacity": [
           "case",
-          // Dimmed by filter → always faint
-          ["==", ["get", "dimmed"], 1], 0.3,
-          // Tier 1: fade in from zoom 7
+          ["==", ["get", "dimmed"], 1], 0.25,
           ["==", ["get", "tier"], 1],
-          ["interpolate", ["linear"], ["zoom"], 7, 0, 7.5, 1],
-          // Tier 2: fade in from zoom 10
+          ["interpolate", ["linear"], ["zoom"], 5, 0, 5.5, 1],
           ["==", ["get", "tier"], 2],
-          ["interpolate", ["linear"], ["zoom"], 10, 0, 10.5, 1],
-          // Tier 3: fade in from zoom 12
-          ["interpolate", ["linear"], ["zoom"], 12, 0, 12.5, 1],
+          ["interpolate", ["linear"], ["zoom"], 7, 0, 7.5, 1],
+          ["interpolate", ["linear"], ["zoom"], 9, 0, 9.5, 1],
         ],
       },
     });
 
-    // Icon letter — only visible when zoomed in enough (zoom ≥ 11)
+    // Icon letter — fades in at zoom 11-12
     m.addLayer({
       id: PLACES_ICONS,
       type: "symbol",
