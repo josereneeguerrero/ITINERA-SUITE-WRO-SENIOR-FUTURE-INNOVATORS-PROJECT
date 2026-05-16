@@ -15,6 +15,7 @@ interface Place {
   id: string; slug: string;
   description_i18n: Record<string, string>;
   ai_summary_i18n: Record<string, string>;
+  ai_tips_i18n: Record<string, string> | null;
   address_i18n: Record<string, string>;
   aggregated_rating: number; review_count: number; price_level: number;
   accessibility: boolean; phone: string | null; website: string | null;
@@ -57,9 +58,23 @@ export function PlaceContent({ place, stories, reviews }: {
 
   const desc    = place.description_i18n?.es;
   const aiSumm  = place.ai_summary_i18n?.es;
+  const aiTips  = place.ai_tips_i18n?.es;
   const address = place.address_i18n?.es;
-  const hours   = place.hours ? (place.hours as Record<string, string>)?.es : null;
   const avgRating = Number(place.aggregated_rating ?? 0);
+
+  // Parse hours — handle both string and {día: string} object
+  const hoursRaw = place.hours;
+  const hoursEs: string | null = hoursRaw
+    ? typeof hoursRaw === "string"
+      ? hoursRaw
+      : (hoursRaw as Record<string, string>)?.es ?? null
+    : null;
+
+  // Real rating distribution from reviews array
+  const ratingCounts = [5, 4, 3, 2, 1].map(s => ({
+    star: s,
+    count: reviews.filter(r => Math.round(r.rating) === s).length,
+  }));
 
   const pubStories = stories.filter(
     sp => sp.stories &&
@@ -73,10 +88,12 @@ export function PlaceContent({ place, stories, reviews }: {
   return (
     <div>
       {/* ── Tabs — dashboard-style section label ── */}
-      <div className="flex gap-0 mb-6" style={{ borderBottom: "2px solid #E2E8F0" }}>
+      <div role="tablist" className="flex gap-0 mb-6" style={{ borderBottom: "2px solid #E2E8F0" }}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
+            role="tab"
+            aria-selected={tab === id}
             onClick={() => setTab(id)}
             className="flex items-center gap-1.5 px-4 py-3 font-inter font-medium text-sm cursor-pointer transition-colors relative whitespace-nowrap"
             style={{
@@ -127,10 +144,30 @@ export function PlaceContent({ place, stories, reviews }: {
                 </span>
               </div>
               <p className="font-inter text-sm leading-relaxed text-[#334155]">{aiSumm}</p>
-              <button className="flex items-center gap-1.5 mt-3 font-inter font-medium text-xs text-[#0D9488] cursor-pointer hover:opacity-75 transition-opacity">
+              <button
+                disabled
+                title="Narración de audio próximamente"
+                className="flex items-center gap-1.5 mt-3 font-inter font-medium text-xs text-[#94A3B8] cursor-not-allowed opacity-60"
+              >
                 <Volume2 className="w-3.5 h-3.5" />
                 Escuchar narración
               </button>
+            </div>
+          )}
+
+          {/* AI Tips */}
+          {aiTips && (
+            <div className={`${card} px-5 py-4`} style={{ borderLeft: "3px solid #F59E0B" }}>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: "rgba(245,158,11,0.1)" }}>
+                  <Star className="w-3 h-3 text-[#F59E0B]" />
+                </div>
+                <span className="font-inter font-bold text-xs uppercase tracking-widest text-[#92400E]">
+                  Consejos IA
+                </span>
+              </div>
+              <p className="font-inter text-sm leading-relaxed text-[#334155]">{aiTips}</p>
             </div>
           )}
 
@@ -162,10 +199,10 @@ export function PlaceContent({ place, stories, reviews }: {
                     <span className="font-inter text-sm text-[#334155]">{address}</span>
                   </div>
                 )}
-                {hours && (
+                {hoursEs && (
                   <div className="flex items-start gap-3 px-5 py-3.5">
                     <Clock className="w-4 h-4 text-[#0D9488] mt-0.5 shrink-0" />
-                    <span className="font-inter text-sm text-[#334155]">{hours}</span>
+                    <span className="font-inter text-sm text-[#334155]">{hoursEs}</span>
                   </div>
                 )}
                 {place.phone && (
@@ -245,14 +282,15 @@ export function PlaceContent({ place, stories, reviews }: {
                 <p className="font-inter text-[11px] text-[#94A3B8]">{place.review_count} reseñas</p>
               </div>
               <div className="flex-1 space-y-1.5">
-                {[5,4,3,2,1].map(s => {
-                  const w = s === Math.round(avgRating) ? 60 : s === Math.round(avgRating)-1 ? 30 : 10;
+                {ratingCounts.map(({ star, count }) => {
+                  const pct = reviews.length > 0 ? Math.round((count / reviews.length) * 100) : 0;
                   return (
-                    <div key={s} className="flex items-center gap-2">
-                      <span className="font-inter text-[11px] text-[#94A3B8] w-12 shrink-0">{s} ★</span>
+                    <div key={star} className="flex items-center gap-2">
+                      <span className="font-inter text-[11px] text-[#94A3B8] w-8 shrink-0 text-right">{star}★</span>
                       <div className="flex-1 h-1.5 rounded-full bg-[#F1F5F9]">
-                        <div className="h-full rounded-full bg-[#FBBF24]" style={{ width: `${w}%` }} />
+                        <div className="h-full rounded-full bg-[#FBBF24] transition-all" style={{ width: `${pct}%` }} />
                       </div>
+                      <span className="font-inter text-[10px] text-[#CBD5E1] w-4 shrink-0">{count}</span>
                     </div>
                   );
                 })}

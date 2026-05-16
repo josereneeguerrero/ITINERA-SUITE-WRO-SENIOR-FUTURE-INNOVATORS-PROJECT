@@ -26,7 +26,7 @@ export default async function PlacePage({
     .from("places")
     .select(`
       id, slug, name_i18n, description_i18n,
-      ai_summary_i18n, ai_tips_i18n, address_i18n,
+      ai_summary_i18n, ai_tips_i18n, address_i18n, hours,
       aggregated_rating, review_count,
       price_level, accessibility, local_favorite, featured,
       phone, website, hours,

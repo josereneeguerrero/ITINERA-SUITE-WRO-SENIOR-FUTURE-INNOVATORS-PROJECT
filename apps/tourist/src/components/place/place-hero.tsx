@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -43,6 +43,22 @@ export function PlaceHero({
   const router = useRouter();
   const [saved, setSaved]   = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Hydrate saved state from DB on mount
+  useEffect(() => {
+    if (isGuest) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("favorites")
+        .select("place_id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("place_id", id)
+        .then(({ count }) => { if ((count ?? 0) > 0) setSaved(true); });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const Icon  = ICON_BY_SLUG[catSlug] ?? Landmark;
   const price = PRICE_LABELS[priceLevel] ?? "";

@@ -42,7 +42,7 @@ export function PlaceAIPanel({ place }: { place: Place }) {
 
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col"
-      style={{ border: "1px solid #E2E8F0", boxShadow: "0 4px 20px rgba(0,0,0,0.06)", height: "520px" }}>
+      style={{ border: "1px solid #E2E8F0", boxShadow: "0 4px 20px rgba(0,0,0,0.06)", height: "clamp(420px, 70vh, 560px)" }}>
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3.5 shrink-0"
@@ -171,9 +171,14 @@ export function PlaceAIPanel({ place }: { place: Place }) {
             placeholder="Pregunta sobre este lugar..."
             className="flex-1 font-inter text-xs text-[#0F172A] placeholder:text-[#94A3B8] outline-none bg-transparent" />
         </div>
-        <button type="button"
-          className="w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ border: "1px solid #E2E8F0", color: "#94A3B8" }}>
+        <button
+          type="button"
+          disabled
+          title="Dictado de voz próximamente"
+          aria-label="Dictado de voz (próximamente)"
+          className="w-8 h-8 rounded-full flex items-center justify-center opacity-40 cursor-not-allowed"
+          style={{ border: "1px solid #E2E8F0", color: "#94A3B8" }}
+        >
           <Mic className="w-3.5 h-3.5" />
         </button>
         <button type="submit" disabled={isLoading || !input.trim()}
