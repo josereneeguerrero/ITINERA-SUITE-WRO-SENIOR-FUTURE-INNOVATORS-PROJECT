@@ -140,6 +140,7 @@ export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[
                         className="absolute inset-y-0 left-0 block rounded-full bg-white/95"
                         style={{
                           width: "100%",
+                          transformOrigin: "left center",
                           animation: `storyProgress ${ROTATION_MS}ms linear forwards`,
                         }}
                       />

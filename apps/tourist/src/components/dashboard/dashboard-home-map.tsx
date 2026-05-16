@@ -123,7 +123,7 @@ export function DashboardHomeMap({
         label: getText(region.name_i18n, region.slug),
       });
     }
-    return Array.from(bySlug.values()).slice(0, 5);
+    return Array.from(bySlug.values());
   }, [places]);
 
   const filteredPlaces = useMemo(
