@@ -277,13 +277,19 @@ export async function POST(req: Request) {
 Datos disponibles (${context}):
 ${placesText}
 
-REGLAS:
+INSTRUCCIONES:
 1. Responde SOLO con info real de los datos.
 2. Menciona lugares por nombre con algo de su resumen.
 3. Máximo 3 frases, máximo 2-3 lugares.
 4. Responde en español.
 
-Devuelve JSON válido: {"text":"tu respuesta","action":null o acción}`;
+ACCIONES (devuelve JSON):
+- Si hay UN lugar claro/obvio para abrir → {"type":"show_place","slug":"slug-exacto"}
+- Si el usuario pidió MÚLTIPLES lugares → mostrar lista, action: null
+- Si hay cero lugares → {"text":"No encontré lugares para esto","action":null}
+
+Responde SIEMPRE en formato JSON válido:
+{"text":"tu respuesta aquí","action":null o objeto acción}`;
 
           const llmResult = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
