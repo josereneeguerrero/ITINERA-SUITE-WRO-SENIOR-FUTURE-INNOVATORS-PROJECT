@@ -1,0 +1,26 @@
+name: Semantic Embeddings - Hourly Sync
+
+on:
+  schedule:
+    # Ejecuta cada hora en punto (UTC)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Permite ejecución manual desde GitHub UI
+
+jobs:
+  update-embeddings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger semantic embeddings update
+        run: |
+          curl -X POST \
+            https://hwsddziticyusncajyes.supabase.co/functions/v1/semantic-embeddings \
+            -H "x-semantic-secret: ${{ secrets.SEMANTIC_REBUILD_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"mode": "changed", "limit": 20}' \
+            -w "\nStatus: %{http_code}\n"
+
+      - name: Log result
+        if: always()
+        run: echo "Embedding sync completed at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
