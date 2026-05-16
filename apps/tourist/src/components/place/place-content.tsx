@@ -187,7 +187,7 @@ export function PlaceContent({ place, stories, reviews }: {
           </div>
 
           {/* Contact info card */}
-          {(address || hours || place.phone || place.website) && (
+          {(address || hoursEs || place.phone || place.website) && (
             <div className={card}>
               <div className="px-5 py-3.5 border-b border-[#F1F5F9]">
                 <p className="font-jakarta font-bold text-sm text-[#0F172A]">Información de visita</p>
