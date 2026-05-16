@@ -57,14 +57,22 @@ const ICON_MAP: Record<string, string> = {
   church: "R",
 };
 
-// ── Clustering layer IDs ────────────────────────────────────────────────────
-const PLACES_SOURCE      = "itinera-places-source";
-const CLUSTER_CIRCLES    = "itinera-cluster-circles";
-const CLUSTER_COUNT      = "itinera-cluster-count";
-const PLACES_POINTS      = "itinera-places-points";
-const PLACES_ICONS       = "itinera-places-icons";
+// ── Layer IDs ────────────────────────────────────────────────────────────────
+const PLACES_SOURCE = "itinera-places-source";
+const PLACES_POINTS = "itinera-places-points";
+const PLACES_ICONS  = "itinera-places-icons";
 
 // ── GeoJSON builder ─────────────────────────────────────────────────────────
+// tier 1 = local_favorite or rating ≥ 4.5 → visible from zoom 7
+// tier 2 = rating ≥ 3.5                   → visible from zoom 10
+// tier 3 = everything else                 → visible from zoom 12
+function placeTier(place: Place): number {
+  const rating = Number(place.aggregated_rating ?? 0);
+  if (place.local_favorite || rating >= 4.5) return 1;
+  if (rating >= 3.5) return 2;
+  return 3;
+}
+
 function buildPlacesGeoJSON(
   places: Place[],
   selectedSlug: string | null | undefined,
@@ -94,8 +102,9 @@ function buildPlacesGeoJSON(
           }),
           catName: place.place_categories?.name_i18n?.es ?? "",
           rating: Number(place.aggregated_rating ?? 0).toFixed(1),
+          tier: placeTier(place),
           selected: selectedSlug === place.slug ? 1 : 0,
-          opacity: !visibleSlugs || visibleSlugs.has(place.slug) ? 1 : 0.35,
+          dimmed: visibleSlugs && !visibleSlugs.has(place.slug) ? 1 : 0,
         },
       })),
   };
@@ -265,97 +274,74 @@ export function ExploreMap({
     if (!map.current || !mapReady) return;
     const m = map.current;
 
-    // Source with native MapLibre clustering
+    // Plain GeoJSON source — no clustering, LOD handled via zoom expressions
     m.addSource(PLACES_SOURCE, {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
-      cluster: true,
-      clusterMaxZoom: 14,   // clusters visible until zoom 14, then expand to individuals
-      clusterRadius: 55,
     });
 
-    // Cluster bubble (teal, grows with count)
-    m.addLayer({
-      id: CLUSTER_CIRCLES,
-      type: "circle",
-      source: PLACES_SOURCE,
-      filter: ["has", "point_count"],
-      paint: {
-        "circle-color": "#0D9488",
-        "circle-radius": ["step", ["get", "point_count"], 22, 4, 28, 12, 34],
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
-        "circle-opacity": 0.88,
-      },
-    });
-
-    // Cluster count label
-    m.addLayer({
-      id: CLUSTER_COUNT,
-      type: "symbol",
-      source: PLACES_SOURCE,
-      filter: ["has", "point_count"],
-      layout: {
-        "text-field": "{point_count_abbreviated}",
-        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
-        "text-size": 13,
-      },
-      paint: { "text-color": "#ffffff" },
-    });
-
-    // Individual place circles — color from category, gold border when selected
+    // Circle layer — radius and opacity driven by zoom + tier
     m.addLayer({
       id: PLACES_POINTS,
       type: "circle",
       source: PLACES_SOURCE,
-      filter: ["!", ["has", "point_count"]],
       paint: {
+        // Grow pin size as user zooms in
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          7,  5,
+          10, 9,
+          12, 13,
+          15, 18,
+        ],
         "circle-color": ["get", "color"],
-        "circle-radius": 18,
         "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
         "circle-stroke-color": [
           "case",
-          ["==", ["get", "selected"], 1],
-          "#F59E0B",
+          ["==", ["get", "selected"], 1], "#F59E0B",
           "#ffffff",
         ],
-        "circle-opacity": ["get", "opacity"],
+        // Tier 1 appears at zoom 7, tier 2 at zoom 10, tier 3 at zoom 12
+        // Dimmed places get 0.3 opacity regardless
+        "circle-opacity": [
+          "case",
+          // Dimmed by filter → always faint
+          ["==", ["get", "dimmed"], 1], 0.3,
+          // Tier 1: fade in from zoom 7
+          ["==", ["get", "tier"], 1],
+          ["interpolate", ["linear"], ["zoom"], 7, 0, 7.5, 1],
+          // Tier 2: fade in from zoom 10
+          ["==", ["get", "tier"], 2],
+          ["interpolate", ["linear"], ["zoom"], 10, 0, 10.5, 1],
+          // Tier 3: fade in from zoom 12
+          ["interpolate", ["linear"], ["zoom"], 12, 0, 12.5, 1],
+        ],
       },
     });
 
-    // Category icon letter on top of circle
+    // Icon letter — only visible when zoomed in enough (zoom ≥ 11)
     m.addLayer({
       id: PLACES_ICONS,
       type: "symbol",
       source: PLACES_SOURCE,
-      filter: ["!", ["has", "point_count"]],
       layout: {
         "text-field": ["get", "icon"],
         "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
-        "text-size": 14,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 11, 10, 15, 14],
         "text-allow-overlap": true,
         "text-ignore-placement": true,
       },
       paint: {
         "text-color": "#ffffff",
-        "text-opacity": ["get", "opacity"],
+        "text-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          11, 0,
+          12, 1,
+        ],
       },
     });
 
     // ── Event handlers ────────────────────────────────────────────────────────
-
-    const onClusterClick = async (
-      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
-    ) => {
-      const features = m.queryRenderedFeatures(e.point, { layers: [CLUSTER_CIRCLES] });
-      if (!features.length) return;
-      const clusterId = features[0].properties?.cluster_id as number;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const coords = (features[0].geometry as any).coordinates as [number, number];
-      const source = m.getSource(PLACES_SOURCE) as maplibregl.GeoJSONSource;
-      const zoom = await source.getClusterExpansionZoom(clusterId);
-      m.easeTo({ center: coords, zoom: zoom + 0.5, duration: 500 });
-    };
 
     const onPlaceClick = (
       e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }
@@ -418,27 +404,18 @@ export function ExploreMap({
       tooltipRef.current = null;
     };
 
-    const onClusterEnter = () => { m.getCanvas().style.cursor = "pointer"; };
-    const onClusterLeave = () => { m.getCanvas().style.cursor = ""; };
-
-    m.on("click", CLUSTER_CIRCLES, onClusterClick);
     m.on("click", PLACES_POINTS, onPlaceClick);
     m.on("click", PLACES_ICONS, onPlaceClick);
     m.on("mouseenter", PLACES_POINTS, onPlaceEnter);
     m.on("mouseleave", PLACES_POINTS, onPlaceLeave);
-    m.on("mouseenter", CLUSTER_CIRCLES, onClusterEnter);
-    m.on("mouseleave", CLUSTER_CIRCLES, onClusterLeave);
 
     return () => {
       try {
-        m.off("click", CLUSTER_CIRCLES, onClusterClick);
         m.off("click", PLACES_POINTS, onPlaceClick);
         m.off("click", PLACES_ICONS, onPlaceClick);
         m.off("mouseenter", PLACES_POINTS, onPlaceEnter);
         m.off("mouseleave", PLACES_POINTS, onPlaceLeave);
-        m.off("mouseenter", CLUSTER_CIRCLES, onClusterEnter);
-        m.off("mouseleave", CLUSTER_CIRCLES, onClusterLeave);
-        for (const id of [PLACES_ICONS, PLACES_POINTS, CLUSTER_COUNT, CLUSTER_CIRCLES]) {
+        for (const id of [PLACES_ICONS, PLACES_POINTS]) {
           if (m.getLayer(id)) m.removeLayer(id);
         }
         if (m.getSource(PLACES_SOURCE)) m.removeSource(PLACES_SOURCE);
