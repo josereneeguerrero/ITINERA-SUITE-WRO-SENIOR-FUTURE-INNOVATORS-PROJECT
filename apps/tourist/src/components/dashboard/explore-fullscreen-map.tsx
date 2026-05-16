@@ -1658,7 +1658,7 @@ export function ExploreFullscreenMap({
       </div>
 
       {activeRoute && shouldCompactRoutePanel ? (
-        <div className={`pointer-events-none absolute bottom-28 left-1/2 ${Z.routeCard} w-[min(520px,calc(100vw-1.5rem))] -translate-x-1/2 px-2`}>
+        <div className={`pointer-events-none absolute bottom-24 left-1/2 ${Z.routeCard} w-[min(520px,calc(100vw-1.5rem))] -translate-x-1/2 px-2`}>
           <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-2xl border border-[#99F6E4] bg-white/95 px-3 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-md">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1700,8 +1700,8 @@ export function ExploreFullscreenMap({
         <div
           className={`pointer-events-none absolute ${Z.routeCard} w-[min(360px,calc(100vw-1.5rem))] ${
             selectedPlace
-              ? "bottom-28 left-1/2 -translate-x-1/2"
-              : "bottom-28 left-4 md:left-6"
+              ? "bottom-24 left-1/2 -translate-x-1/2"
+              : "bottom-24 left-4 md:left-6"
           }`}
         >
           <div className="pointer-events-auto rounded-2xl border border-[#D9E5E2] bg-white/95 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.15)] backdrop-blur-sm">

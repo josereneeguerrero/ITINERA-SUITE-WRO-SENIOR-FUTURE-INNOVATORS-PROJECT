@@ -608,7 +608,7 @@ export function ExploreMap({
       <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
       {selectedPlace ? (
         <div
-          className="pointer-events-auto absolute left-4 top-20 z-[45] w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[340px]"
+          className="pointer-events-auto absolute left-4 top-20 z-50 w-[min(340px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#D9E5E2] bg-white shadow-[0_16px_42px_rgba(15,23,42,0.22)] transition-all duration-200 md:left-8 md:top-24 md:w-[340px]"
           style={{
             opacity: cardVisible ? 1 : 0,
             transform: cardVisible ? "translateY(0)" : "translateY(8px)",
