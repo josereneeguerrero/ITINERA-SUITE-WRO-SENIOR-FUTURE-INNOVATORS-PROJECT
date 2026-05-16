@@ -21,7 +21,8 @@ export default async function PlacePage({
   const supabase  = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  const isGuest = !user && guest === "true";
+  // isGuest = true if no authenticated user, regardless of ?guest=true param
+  const isGuest = !user;
 
   const { data: place } = await supabase
     .from("places")
