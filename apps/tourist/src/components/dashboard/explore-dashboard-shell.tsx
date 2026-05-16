@@ -396,7 +396,7 @@ function ExploreAIPanel({
   onQuickAction: (key: "contar_historia" | "agregar_ruta" | "ver_cercanos" | "limpiar") => void;
 }) {
   const [input, setInput] = useState("");
-  const { messages, isLoading, send } = useStreamingChat(context, {
+  const { messages, isLoading, send, suggestions } = useStreamingChat(context, {
     onUIActions: onApplyActions,
     storageKey: "itinera_explore_chat_v1",
   });
@@ -441,6 +441,22 @@ function ExploreAIPanel({
           {isLoading ? <p className="font-inter text-xs text-[#94A3B8]">Pensando...</p> : null}
         </div>
       </div>
+
+      {suggestions.length > 0 && !isLoading && (
+        <div className="flex flex-wrap gap-1.5 border-t border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+          {suggestions.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => { send(s.value); }}
+              className="rounded-full border border-[#0D9488] bg-white px-3 py-1 font-inter text-[11px] font-semibold text-[#0D9488] transition-colors hover:bg-[#0D9488] hover:text-white"
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={(e) => { e.preventDefault(); send(input); setInput(""); }} className="border-t border-[#E2E8F0] bg-white p-3">
         <label className="mb-1 block font-inter text-[11px] font-semibold text-[#64748B]">Mensaje para Itinera IA</label>
         <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
