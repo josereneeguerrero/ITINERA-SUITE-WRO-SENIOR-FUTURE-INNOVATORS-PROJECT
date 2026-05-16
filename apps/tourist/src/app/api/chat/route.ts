@@ -178,6 +178,15 @@ async function fetchPlaces(regionSlug: string | null, categorySlug: string | nul
 // Checks if the user mentioned a specific place name from the result list.
 // Words with 4+ chars are compared; if most match, treat it as named-place request.
 
+function wordIn(word: string, text: string): boolean {
+  return (
+    text === word ||
+    text.startsWith(word + " ") ||
+    text.includes(" " + word + " ") ||
+    text.endsWith(" " + word)
+  );
+}
+
 function findNamedPlace(msg: string, places: PlaceRow[]): PlaceRow | null {
   const n = norm(msg)
     .replace(/^(muestrame|ensename|abre|ver|quiero ver|llevame a|ir a|pon|ponme|muestra)\s+/i, "")
@@ -190,9 +199,15 @@ function findNamedPlace(msg: string, places: PlaceRow[]): PlaceRow | null {
       .replace(/\b(el|la|los|las|de|del)\b/g, " ")
       .replace(/\s+/g, " ")
       .trim();
+
+    // Only consider words 4+ chars (skip generic short words)
     const words = nameNorm.split(" ").filter(w => w.length >= 4);
     if (words.length === 0) continue;
-    const matches = words.filter(w => n.includes(w)).length;
+
+    // Require whole-word match (not substring) to avoid "restaurantes" → "restaurante"
+    const matches = words.filter(w => wordIn(w, n)).length;
+
+    // Need majority of the specific name words to match
     if (matches >= Math.max(1, words.length - 1)) {
       return place;
     }
