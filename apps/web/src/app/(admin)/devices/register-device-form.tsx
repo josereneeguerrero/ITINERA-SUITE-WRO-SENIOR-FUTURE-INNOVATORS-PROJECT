@@ -84,7 +84,6 @@ export function RegisterDeviceForm() {
                     style={{
                       backgroundColor: "#0D1117",
                       border: "1px solid #1F2937",
-                      focusRingColor: "#0D9488",
                     }}
                     required
                   />
