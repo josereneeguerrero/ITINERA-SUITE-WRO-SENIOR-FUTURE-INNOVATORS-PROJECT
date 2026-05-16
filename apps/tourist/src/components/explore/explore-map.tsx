@@ -60,6 +60,47 @@ const ICON_MAP: Record<string, string> = {
 // ── Zoom thresholds per tier ─────────────────────────────────────────────────
 const TIER_MIN_ZOOM = [5, 7, 9] as const; // tier 1, 2, 3
 
+// ── Overlap resolution ───────────────────────────────────────────────────────
+// Distributes overlapping markers into a radial fan so they don't stack.
+function resolveMarkerOverlaps(
+  mapInstance: maplibregl.Map,
+  markerList: { marker: maplibregl.Marker; tier: number }[]
+) {
+  const OVERLAP_PX = 38; // treat markers as overlapping if their centers are closer than this
+  const SPREAD_R   = 26; // radius of the fan in pixels
+
+  // Collect current screen positions (reset offsets first)
+  markerList.forEach(({ marker }) => marker.setOffset([0, 0]));
+  const pts = markerList.map(({ marker }) => mapInstance.project(marker.getLngLat()));
+
+  const assigned = new Set<number>();
+
+  for (let i = 0; i < markerList.length; i++) {
+    if (assigned.has(i)) continue;
+    const group: number[] = [i];
+
+    for (let j = i + 1; j < markerList.length; j++) {
+      if (assigned.has(j)) continue;
+      const dx = pts[i].x - pts[j].x;
+      const dy = pts[i].y - pts[j].y;
+      if (Math.sqrt(dx * dx + dy * dy) < OVERLAP_PX) {
+        group.push(j);
+        assigned.add(j);
+      }
+    }
+
+    if (group.length > 1) {
+      group.forEach((idx, k) => {
+        const angle = (k / group.length) * 2 * Math.PI - Math.PI / 2;
+        markerList[idx].marker.setOffset([
+          Math.cos(angle) * SPREAD_R,
+          Math.sin(angle) * SPREAD_R,
+        ]);
+      });
+    }
+  }
+}
+
 // tier 1 = local_favorite or rating ≥ 4.5 → visible from zoom 5
 // tier 2 = rating ≥ 3.5                   → visible from zoom 7
 // tier 3 = everything else                 → visible from zoom 9
@@ -346,24 +387,32 @@ export function ExploreMap({
     });
   }, [places, mapReady, selectedPlace, visibleSlugs, onSelectPlace]);
 
-  // ── LOD: show/hide markers by zoom level ─────────────────────────────────────
+  // ── LOD + overlap resolution on zoom/move ────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    function applyLOD() {
-      const zoom = map.current?.getZoom() ?? 0;
+    function applyLODAndOverlap() {
+      const zoom = m.getZoom();
+      // Show/hide by tier
       markers.current.forEach(({ marker, tier }) => {
         const minZoom = TIER_MIN_ZOOM[tier - 1];
-        const el = marker.getElement();
-        el.style.display = zoom >= minZoom ? "" : "none";
+        marker.getElement().style.display = zoom >= minZoom ? "" : "none";
       });
+      // Resolve overlaps among visible markers
+      const visible = markers.current.filter(({ marker, tier }) => {
+        return zoom >= TIER_MIN_ZOOM[tier - 1];
+      });
+      if (visible.length > 1) resolveMarkerOverlaps(m, visible);
     }
 
-    map.current.on("zoom", applyLOD);
-    applyLOD(); // apply immediately
+    m.on("zoom", applyLODAndOverlap);
+    m.on("moveend", applyLODAndOverlap);
+    applyLODAndOverlap();
 
     return () => {
-      map.current?.off("zoom", applyLOD);
+      m.off("zoom", applyLODAndOverlap);
+      m.off("moveend", applyLODAndOverlap);
     };
   }, [mapReady, markers.current.length]);
 
