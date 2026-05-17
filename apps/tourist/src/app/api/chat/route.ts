@@ -126,6 +126,12 @@ const REGIONS = [
   { slug: "lempira",       keywords: ["lempira", "gracias", "gracias a dios"] },
   { slug: "choluteca",     keywords: ["choluteca"] },
   { slug: "yoro",          keywords: ["yoro"] },
+  { slug: "el-paraiso",    keywords: ["el paraiso", "el paraíso", "danli", "danlí", "yuscarán"] },
+  { slug: "gracias-a-dios", keywords: ["gracias a dios", "mosquitia", "la mosquitia", "puerto lempira"] },
+  { slug: "intibuca",      keywords: ["intibuca", "intibucá", "la esperanza"] },
+  { slug: "la-paz",        keywords: ["la paz", "marcala"] },
+  { slug: "ocotepeque",    keywords: ["ocotepeque", "nueva ocotepeque"] },
+  { slug: "valle",         keywords: ["valle", "nacaome", "san lorenzo", "golfo de fonseca", "fonseca"] },
 ];
 
 function detectRegion(text: string): string | null {
@@ -201,6 +207,12 @@ const REGION_NAMES: Record<string, string> = {
   lempira:             "Lempira",
   choluteca:           "Choluteca",
   yoro:                "Yoro",
+  "el-paraiso":        "El Paraíso",
+  "gracias-a-dios":    "Gracias a Dios",
+  intibuca:            "Intibucá",
+  "la-paz":            "La Paz",
+  ocotepeque:          "Ocotepeque",
+  valle:               "Valle",
 };
 
 // ── Narrative Intent Detection ──────────────────────────────────────────
