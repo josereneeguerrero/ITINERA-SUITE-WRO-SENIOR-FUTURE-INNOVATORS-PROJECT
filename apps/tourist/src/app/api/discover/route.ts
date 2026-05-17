@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Moods no reconocidos" }, { status: 400 });
     }
 
-    // Fetch places matching those categories
+    // Fetch places matching those categories (fetch extra pool for randomization)
     const { data: rawPlaces } = await db
       .from("places")
       .select(`
@@ -92,10 +92,32 @@ export async function POST(req: Request) {
       .in("place_categories.slug", categorySlugs)
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
-      .limit(18);
+      .limit(30);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filtered = ((rawPlaces ?? []) as any[]).filter(p => p.place_categories);
+    let filtered = ((rawPlaces ?? []) as any[]).filter(p => p.place_categories);
+
+    // Fallback: if < 3 results for selected moods, expand to all featured places
+    if (filtered.length < 3) {
+      const { data: fallbackPlaces } = await db
+        .from("places")
+        .select(`
+          slug, name_i18n, ai_summary_i18n, aggregated_rating,
+          place_categories(name_i18n, slug),
+          regions(name_i18n)
+        `)
+        .eq("status", "published")
+        .order("featured", { ascending: false })
+        .order("aggregated_rating", { ascending: false })
+        .limit(40);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fallbackFiltered = ((fallbackPlaces ?? []) as any[]).filter(p => p.place_categories);
+      // Merge: keep category matches first, then fill with fallback (no duplicates)
+      const existingSlugs = new Set(filtered.map((p: { slug: string }) => p.slug));
+      const extras = fallbackFiltered.filter((p: { slug: string }) => !existingSlugs.has(p.slug));
+      filtered = [...filtered, ...extras];
+    }
 
     if (filtered.length === 0) {
       return Response.json({
@@ -104,7 +126,13 @@ export async function POST(req: Request) {
       }, { status: 200 });
     }
 
-    // Pick 6 best (already sorted by featured + rating)
+    // Shuffle for variety on each call — Fisher-Yates
+    for (let i = filtered.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+    }
+
+    // Pick 6 random places from the shuffled pool
     const picked = filtered.slice(0, 6);
 
     // Generate 1-sentence curiosity per place in parallel
@@ -116,9 +144,9 @@ export async function POST(req: Request) {
           const result = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             model: (groq as any)("llama-3.3-70b-versatile"),
-            system: `Eres Itinera IA, guía cultural de Honduras. Escribe UNA sola frase corta e interesante sobre este lugar: "${name}". ${summary ? `Contexto: ${summary}` : ""} Sé evocador, usa datos reales o detalles únicos. En español. Sin comillas. Sin mencionar "Honduras" explícitamente.`,
-            messages: [{ role: "user", content: "curiosidad" }],
-            temperature: 0.8,
+            system: `Eres Itinera IA, guía cultural de Honduras. Escribe UNA sola frase corta e interesante sobre este lugar: "${name}". ${summary ? `Contexto: ${summary}` : ""} Sé evocador, usa datos reales o detalles únicos. Cada vez que te pregunten, elige un ángulo diferente: historia, fauna, gastronomía, arquitectura, leyenda local, dato geográfico, etc. En español. Sin comillas. Sin mencionar "Honduras" explícitamente.`,
+            messages: [{ role: "user", content: `curiosidad única #${Math.floor(Math.random() * 1000)}` }],
+            temperature: 0.95,
           });
           return result.text.trim().replace(/^["']|["']$/g, "");
         } catch {
