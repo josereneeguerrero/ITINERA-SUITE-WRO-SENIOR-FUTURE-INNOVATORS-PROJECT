@@ -1,6 +1,6 @@
 # Itinera Suite — Estado del Proyecto
-> **Punto de control:** 17 mayo 2026 — Sesión 3
-> **Commit HEAD:** `b3cdd46` — feat(planner): nearest-neighbor routing para orden geográfico óptimo
+> **Punto de control:** 17 mayo 2026 — Sesión 4
+> **Commit HEAD:** `e1e1b03` — feat(discover): image slot, mood tag, curiosidades cortas, aviso moods sin resultados
 > **Rama:** main
 
 ---
@@ -10,238 +10,157 @@
 | Módulo | Estado | Observaciones |
 |--------|--------|---------------|
 | Backend Supabase | ✅ Completo | 7 migraciones, RLS, Storage, Edge Functions, embeddings |
-| Búsqueda semántica | ✅ Activa | `gte-small` 384-dim, **45 lugares** indexados, cron horario |
+| Búsqueda semántica | ✅ Activa | `gte-small` 384-dim, **185 docs** indexados, cron horario |
 | Landing `/` | ✅ Completo | Light mode, animaciones, INNOVAKERS real, sin lag |
 | Auth (`/bienvenida`, `/login`, `/register`) | ✅ Completo | Light mode unificado |
-| Dashboard `/dashboard` | ✅ Completo | Search, stats, Mis Rutas, typewriter |
+| Dashboard `/dashboard` | ✅ Mejorado | Mapa con 126 lugares (fix limit 24→200) |
 | `/explore` | ✅ Completo | Search end-to-end, planRoute URL param |
 | `/places/[slug]` | ✅ Completo | Hero, tabs, AI panel, foto slider, clima |
 | `/stories` | ✅ Rediseñado | Light mode, AuroraBackground, FloatingAiAssistant |
 | `/stories/[slug]` | ✅ Rediseñado | Hero Aurora, prose en globals.css |
 | `/profile` | ✅ Rediseñado | Light mode, stats grid, quick actions |
 | `/profile/saved` | ✅ Rediseñado | Lucide icons, Tailwind hover, DNA correcto |
-| `/ia` — Chat IA | ✅ Completo | StreamingText, auto-scroll, contexto bifurcado |
-| `/ia` — Planificador | ✅ Completo | OSRM, nearest-neighbor, mapa tour, 9 mejoras |
-| `/ia` — Descubrir | ⏳ Pendiente | Tab "Próx." — siguiente prioridad |
-| Admin Panel | ✅ Completo | Sin cambios en sesión 3 |
+| `/ia` — Chat IA | ✅ Mejorado | +inteligencia natural: plural, follow-up, narrativa, nearby |
+| `/ia` — Planificador | ✅ Completo | OSRM, nearest-neighbor, mapa tour, fix category filter |
+| `/ia` — Descubrir | ✅ Completo | 10 moods, cards con curiosidades IA, mood tag, image slot |
+| Admin Panel | ✅ Completo | Sin cambios en sesión 4 |
 | Jetson | ⏳ Pendiente | Edge Functions listas |
-| Contenido DB | ✅ Mejorado | **45 lugares · 12 historias** (era 16/2) |
+| Contenido DB | ✅ Crecido | **126 lugares · 30 historias · 185 embeddings** |
 
 ---
 
-## Commits sesión 3 (30 commits)
+## Commits sesión 4 (12 commits)
 
-### /stories redesign
+### Fixes de build / deploy
 | Hash | Descripción |
 |------|-------------|
-| `138f2b2` | feat(stories): redesign completo — light mode, DNA |
-| `52efae5` | feat(stories): [slug] redesign + FloatingAiAssistant |
-| `eec8528` | fix(stories): styled-jsx → globals.css |
+| `3c1595a` | fix(ts): reducedMotion.current → noAnimation en streaming-text |
+| `01262ed` | fix(ts): as unknown as para type cast en profile/saved |
 
-### UX global
+### Dashboard
 | Hash | Descripción |
 |------|-------------|
-| `8f71ba7` | fix(ux): ScrollToTop — reset scroll en cada navegación |
-| `9b42866` | fix(scroll): AI panels no hijackean scroll de página |
-| `6b4b0c8` | feat(ux): StreamingText typewriter en todos los paneles IA |
-| `5144c49` | feat(ux): auto-scroll + velocidad legible (18ms/2chars) |
-| `626f92c` | fix(ux): no re-animar mensajes históricos al recargar |
+| `9f17eb2` | fix(dashboard): limit 24→200 — mapa mostraba solo 24 de 126 lugares |
 
-### Centro IA `/ia`
+### Modo 3: Descubrir
 | Hash | Descripción |
 |------|-------------|
-| `27af951` | feat(ia): Centro IA — Chat IA full-screen |
-| `b30d67c` | feat(ia): bifurcar API por contexto (ia-center vs map) |
-| `f0c50c3` | feat(ia): personalidad cultural profunda para Centro IA |
-| `bc712f7` | fix(ia): respuestas conversacionales 2-3 párrafos |
-| `a675962` | fix(ia): 3 fixes anti-alucinación + contextRegion |
-| `309640b` | fix(ia): map button → /explore + texto corto con cards |
-| `742a747` | fix: </p> stray + guest map URL en ToolResultInline |
+| `5ffec86` | feat(ia): Modo 3 Descubrir — moods, cards, curiosidades IA, pre-fill planificador |
+| `a05758f` | fix(descubrir): pb-28 para que navbar no tape el CTA |
+| `583050c` | fix(discover): fallback cuando mood sin lugares + shuffle para variedad |
+| `9ca8738` | fix(api): category filter — slug→UUID lookup, corrige /discover y /plan |
+| `e1e1b03` | feat(discover): image slot, mood tag, curiosidades cortas, aviso moods sin resultados |
 
-### Planificador (Modo 2)
+### Chat IA — Inteligencia natural
 | Hash | Descripción |
 |------|-------------|
-| `f805828` | feat(ia): Planificador de Viajes — Modo 2 completo |
-| `fac2977` | feat(planner): mini mapa animado con ruta |
-| `1644a40` | fix(planner-map): fitBounds + markers siempre visibles |
-| `7ea06d3` | feat(planner-map): OSRM rutas reales por carretera |
-| `85006e4` | fix(planner-map): markers 22px para menos solapamiento |
-| `9220ed8` | feat(planner-map): auto-tour cinematográfico con card flotante |
-| `3264bef` | perf(planner-map): animación 3.5x más rápida |
-| `3895dbc` | feat(planner): 5 mejoras (stats, regenerar, persistencia, ver mapa, título) |
-| `1ceeb8a` | feat(planner): 'Ver en mapa' pasa ruta completa al /explore |
-| `b3cdd46` | feat(planner): nearest-neighbor ordering geográfico óptimo |
-
-### Perfil + Contenido
-| Hash | Descripción |
-|------|-------------|
-| `a28acc0` | feat(profile): /profile + /saved redesign light mode |
-| `e362e6a` | docs: CONTENT_GUIDE.md para expansión de contenido |
+| `3b9f850` | fix(chat): regiones expandidas (6→12), scan asistente, 0 resultados con LLM |
+| `9f9e12d` | fix(chat): plural-aware detection + follow-up context inheritance |
+| `0608d42` | feat(chat): narrative intent — cuentame/hablame genera respuesta rica + tarjeta |
+| `5b1b1b8` | fix(chat): nearby intent — "qué más hay en X" busca todas las categorías |
 
 ---
 
 ## 1. Centro IA `/ia` — detalle completo
 
-### Modo 1: Chat IA ✅
-- Full-screen conversacional, separado del asistente de mapa
-- `isMapMode = context.page !== "ia-center"` — bifurca toda la lógica del API
-- Personalidad cultural profunda: 2-3 párrafos, nunca inventa lugares
-- Guardrail anti-alucinación para restaurantes y negocios específicos
-- `contextRegion` global — "adjunta restaurantes" después de "Comayagua" funciona
-- StreamingText typewriter en todas las respuestas IA
-- Auto-scroll sigue al cursor mientras escribe
-- Mensajes históricos (sessionStorage) se muestran instantáneamente sin re-animar
-- `onReveal` callback por tick sincroniza el scroll con el typewriter
+### Modo 1: Chat IA ✅ (mejorado en sesión 4)
+
+**Inteligencia de lenguaje natural:**
+- **12 regiones detectadas** (antes 6): Atlántida, Colón, Olancho, Santa Bárbara, Lempira, Choluteca, Yoro + keywords como "tela", "lancetilla", "trujillo", "juticalpa"
+- **Detección plural-aware**: "religiosos" detecta `religion`, "restaurantes" detecta `food`, "iglesias" detecta `religion`
+- **Follow-up inheritance**: "Dame una lista", "sí", "cuáles son" hereda último region+categoría de toda la conversación (user + assistant)
+- **Scan de mensajes asistente**: "y para comer ahí?" funciona aunque la región la dijo el asistente ("Atlántida")
+- **Narrative intent**: "Cuéntame sobre X", "Háblame de X", "Explícame" → 2-3 párrafos ricos (historia, detalles, curiosidades) + tarjeta al final + sugerencias
+- **Nearby intent**: "¿Qué más hay en X?", "qué puedo visitar", "cerca de" → busca TODAS las categorías en la región (no solo la última)
+- **0 resultados → LLM honesto**: en vez de mensaje muerto, respuesta cultural + sugerencias de follow-up
+- **6 regiones aún faltantes**: El Paraíso, Gracias a Dios, Intibucá, La Paz, Ocotepeque, Valle
+
+**Capacidades previas mantenidas:**
+- `isMapMode` bifurca lógica
+- Personalidad cultural profunda, anti-alucinación
+- StreamingText, auto-scroll, históricos instantáneos
 
 ### Modo 2: Planificador ✅
+- Sin cambios funcionales en sesión 4
+- **Bug crítico corregido**: `.in("place_categories.slug")` no filtraba en PostgREST → fix: slug→UUID lookup antes de `.in("category_id")`
+- Ahora filtra correctamente por categoría
 
-**Formulario:**
-- Días: [1][2][3][5][7] pills
-- Intereses: chip toggle multi-select con 7 categorías + colores
-- Salida: [Tegucigalpa][SPS][La Ceiba][Otra] pills
-- ¿Con quién?: [Solo][Pareja][Familia][Amigos]
+### Modo 3: Descubrir ✅ (nuevo en sesión 4)
 
-**API `/api/plan`:**
-- Busca lugares reales de DB por intereses → categorías
-- **Nearest-neighbor ordering** desde coordenadas de la ciudad de salida
-  - `haversineKm()` para distancias reales GPS
-  - Algoritmo greedy: siempre el más cercano no visitado
-  - Elimina zigzag geográfico, coherencia regional por día
-- Distribuye en días (max 3/día) respetando el orden geográfico
-- LLM genera título poético (5 palabras, sin mencionar el grupo)
-- LLM genera descripción cultural por día en paralelo
-- Guards: sin coords → no aparece en ruta; sin datos → mensaje honesto
+**UI:**
+- Header con icono Compass + título
+- 10 mood pills (selección 1-3): Aventura, Historia Viva, Misterio Maya, Mar & Playa, Naturaleza, Gourmet, Fe & Espíritu, Arte & Cultura, Paisajes Épicos, En Familia
+- Botón "Descubrir" → "Descubrir de nuevo" tras primer resultado
+- Aviso amber cuando un mood no tiene lugares en DB aún
+- 6 cards en grid 2 cols
 
-**Mini mapa OSRM:**
-- Ruta real por carreteras: `router.project-osrm.org`
-- `fitBounds` automático para mostrar todos los lugares
-- Animación ruta: 14pts/16ms → ~0.8s para ruta completa
-- Auto-tour cinematográfico en loop:
-  - Overview → flyTo parada 1 → card (nombre + categoría + región) → flyTo parada 2 → ... → overview → loop
-  - Timings: fly 1.2s · view 2s · return 1.2s · pause 1.6s
-  - Cleanup correcto en unmount y re-render
+**Cada card:**
+- Slot de imagen listo (placeholder degradado elegante hasta tener fotos)
+- Categoría + mood tag badge
+- Nombre + región + rating
+- Curiosidad IA (max 15 palabras, dato sorprendente/récord/leyenda)
+- Link "Ver lugar →"
 
-**9 mejoras del planificador:**
-1. Distancia total km + tiempo OSRM en el header del resultado
-2. Botón "Regenerar" (mismas preferencias, nueva generación)
-3. Persistencia del plan a través del auth (sessionStorage → banner restaurar)
-4. "Ver en mapa interactivo" → `/explore?planRoute=slug1,slug2,...`
-   - ExploreFullscreenMap lee `initialPlanSlugs` y pre-carga el panel de rutas
-5. Título más natural (poético, sin grupo al inicio)
-6. Nearest-neighbor ordering geográfico
-7. Marcadores 22px (menos solapamiento que 32px)
-8. `onRouteReady` callback reporta stats desde OSRM al padre
-9. `handleGuestSave` persiste plan antes de redirigir a auth
+**CTA:** "Planificar con estos destinos →" — pre-llena intereses en el Planificador
 
-### Modo 3: Descubrir ⏳
-- Tab visible, badge "Próx."
-- Siguiente prioridad de implementación
+**API `/api/discover`:**
+- Moods → category slugs → UUIDs → `category_id` filter (correcto)
+- Fisher-Yates shuffle → variedad en cada llamada
+- Fallback a featured si < 3 resultados por categoría
+- `missingMoods` reporta qué moods no tienen lugares
+- Curiosidades en paralelo con Groq (temperature 0.95)
 
 ---
 
-## 2. /stories — Redesign completo
+## 2. Contenido DB — Estado actualizado
 
-### `/stories` (lista)
-- `bg-[#f0f5f2]` + AuroraBackground hero
-- Filter pills como `<Link>` (server-side, no useRouter)
-- Story cards: 3px top border por color rotativo (6 acentos)
-- `BookMarked` icon en círculo de color
-- Coming soon: dashed border + opacity-55
-- `ScrollReveal` escalonado
-- `FloatingAiAssistant` (nuevo widget) en lugar de `AIFloatingButton` viejo
-- `DashboardDockDemo` en lugar de Navbar + Footer
-
-### `/stories/[slug]`
-- Hero con `AuroraBackground` rounded-2xl
-- Back link, badges de región + IA
-- Prose en `globals.css` (`.story-body`) — Server Component compatible
-- Linked places con iconos Lucide (no emojis)
-- Related stories con 3px border accent
-- `FloatingAiAssistant` contextual
+| Métrica | Sesión 1 | Sesión 2 | Sesión 3 | Sesión 4 |
+|---------|----------|----------|----------|----------|
+| Lugares publicados | 16 | 16 | 45 | **126** |
+| Historias publicadas | 2 | 2 | 12 | **30** |
+| Embeddings (docs) | 16 | 16 | 45 | **185** |
+| Lugares con coords | 16 | 16 | 45 | **126** (todos) |
 
 ---
 
-## 3. /profile redesign
-
-### `/profile`
-- AuroraBackground hero con avatar inicial + nombre + badge
-- 2x2 grid: Favoritos / Rutas / Reseñas / Chats IA con colores
-- Quick actions: Explorar / Favoritos / Nueva ruta
-- No Navbar/Footer → DashboardDockDemo
-
-### `/profile/saved`
-- Back arrow → /profile
-- Lucide icons por categoría: Landmark/Leaf/Utensils/Waves
-- Tailwind hover classes (no inline JS)
-- Empty state con dashed border
-
----
-
-## 4. UX global — Mejoras de sesión 3
-
-| Mejora | Impacto |
-|--------|---------|
-| `ScrollToTop` en root layout | Todas las páginas cargan desde arriba |
-| AI panels: `scrollTop = scrollHeight` | No hijackean el scroll de la página |
-| `StreamingText` typewriter | Toda respuesta IA se revela caracter a caracter |
-| `animate={false}` para históricos | Al recargar, chat no re-anima mensajes viejos |
-| `onReveal` callback | Auto-scroll sincronizado con el typewriter |
-| `scroll-behavior: smooth` en html | Anchor links con transición |
-
----
-
-## 5. Contenido DB — Estado actualizado
-
-| Métrica | Sesión 1 | Sesión 2 | Sesión 3 |
-|---------|----------|----------|----------|
-| Lugares publicados | 16 | 16 | **45** |
-| Historias publicadas | 2 | 2 | **12** |
-| Vínculos story-place | ~4 | ~4 | **16** |
-| Embeddings | 16 | 16 | **45** (sync post-seed) |
-
-El agente de contenido pobló la DB siguiendo `docs/CONTENT_GUIDE.md`.
-
----
-
-## 6. Pendientes para WRO
+## 3. Pendientes para WRO
 
 ### Alta prioridad
-- [ ] **Modo 3 Descubrir** — feed diario, recomendaciones, curiosidades
+- [ ] **6 regiones faltantes** en chat: El Paraíso, Gracias a Dios, Intibucá, La Paz, Ocotepeque, Valle
 - [ ] **QA móvil** — iOS Safari + Android Chrome a 375px
-- [ ] **Vercel producción** — resetea límite cada 24h; push pendiente de varios commits
+- [ ] **Fotos** — `media_assets` para lugares → activar image slot en cards Descubrir
 
 ### Media prioridad
 - [ ] **Supabase producción** — nuevo proyecto, migraciones, claves rotadas
 - [ ] **Jetson** — cliente Python en hardware real
-- [ ] **Más fotos** — `media_assets` para los 45 lugares
+- [ ] **Más contenido DB** — restaurantes/gastronomía (categoría `food` tiene pocos lugares)
 
 ### Baja prioridad
-- [ ] **Reseñas semilla** — para los lugares principales
+- [ ] **Reseñas semilla** — para lugares principales
 - [ ] **pgvector híbrido** — geo + coseno en RPC
 
 ---
 
-## 7. Decisiones técnicas sesión 3
+## 4. Decisiones técnicas sesión 4
 
 | Decisión | Razón |
 |----------|-------|
-| `isMapMode = context.page !== "ia-center"` | Un flag simple bifurca toda la lógica del API sin duplicar código |
-| Nearest-neighbor greedy (no exacto) | TSP exacto es NP-hard; greedy da 90%+ de la calidad en <<1ms |
-| `fitBounds` en lugar de zoom manual | MapLibre calcula automáticamente; manual siempre queda mal con spreads variables |
-| Tour cinematográfico en mini mapa | Elimina el problema de solapamiento de markers mostrándolos uno a uno |
-| `planRoute=slug1,slug2` en URL | Patrón limpio; ExploreFullscreenMap ya tiene el mecanismo de carga de rutas |
-| `contextRegion` scan global | Evita que "adjunta restaurantes" pierda el contexto de "Comayagua" |
-| `animate={false}` para mensajes históricos | `historicalCount` ref captura el count al mount; solo anima los nuevos |
+| `slug → UUID` antes de `.in("category_id")` | PostgREST ignora `.in("embedded.slug")` silenciosamente — bug crítico en plan y discover |
+| Prefix match para detección de categoría/región | Cubre plurales (religiosos→religion) sin mantener lista exhaustiva |
+| Follow-up scan en toda la conversación (user+assistant) | "ahí" y "dame una lista" pierden contexto si solo se mira el último mensaje |
+| Narrative intent antes de category/region branches | Evita que "Cuéntame sobre X" caiga en búsqueda de categoría |
+| `missingMoods` en respuesta del API | UX honesta: el usuario sabe que Gourmet no tiene datos aún |
+| Image slot con `imageUrl: null` | Listo para media_assets sin romper nada — placeholder elegante mientras tanto |
 
 ---
 
-## 8. Stack técnico (actualizado)
+## 5. Stack técnico (sin cambios)
 
 | Capa | Tecnología |
 |------|------------|
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Estilos | Tailwind CSS v4, Lucide icons |
-| Animaciones | framer-motion v12 (BlurFade, HeroHighlight, Typewriter, StreamingText) |
+| Animaciones | framer-motion v12 |
 | Mapa | MapLibre GL JS + OSRM (router.project-osrm.org) |
 | Routing | Nearest-neighbor greedy (haversine distance) |
 | Backend | Supabase (Postgres + PostGIS + pgvector + Storage + Edge) |
@@ -249,11 +168,12 @@ El agente de contenido pobló la DB siguiendo `docs/CONTENT_GUIDE.md`.
 | Embeddings | `gte-small` 384-dim via Supabase |
 | Clima | Open-Meteo API |
 | AI Chat | Groq (llama-3.3-70b-versatile) via `/api/chat` streaming SSE |
-| Plan API | `/api/plan` — OSRM + Groq + nearest-neighbor |
+| Discover API | `/api/discover` — Groq + shuffle + category filter |
+| Plan API | `/api/plan` — OSRM + Groq + nearest-neighbor + category filter |
 | Monorepo | `apps/tourist` (web) + `apps/web` (admin) |
 | CI | GitHub Actions — sync-embeddings cron horario |
 | Deploy | Vercel (tourist) — límite 100 deploys/día free tier |
 
 ---
 
-*Checkpoint: 17/05/2026 — Sesión 3. Próxima: Modo 3 Descubrir + QA móvil + Vercel push.*
+*Checkpoint: 17/05/2026 — Sesión 4. Próxima: 6 regiones faltantes + QA móvil + fotos media_assets.*
