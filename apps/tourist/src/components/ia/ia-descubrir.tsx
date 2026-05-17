@@ -101,7 +101,7 @@ export function IaDescubrir({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-28 sm:px-6">
       <div className="mx-auto max-w-3xl space-y-6">
 
         {/* ── Header ──────────────────────────────────────────────────── */}
