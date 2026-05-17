@@ -12,6 +12,7 @@ interface DockProps {
     label: string;
     onClick?: () => void;
     active?: boolean;
+    locked?: boolean; // guest-blocked item
   }[];
 }
 
@@ -20,23 +21,25 @@ interface DockIconButtonProps {
   label: string;
   onClick?: () => void;
   active?: boolean;
+  locked?: boolean;
   className?: string;
 }
 
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
-  ({ icon: Icon, label, onClick, active, className }, ref) => {
+  ({ icon: Icon, label, onClick, active, locked, className }, ref) => {
     return (
       <motion.button
         ref={ref}
         whileHover={active ? undefined : { scale: 1.12, y: -3 }}
         whileTap={{ scale: 0.93 }}
         onClick={onClick}
-        title={label}
-        aria-label={label}
+        title={locked ? `${label} — inicia sesión` : label}
+        aria-label={locked ? `${label} — requiere cuenta` : label}
         className={cn(
           "relative flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 cursor-pointer",
           "transition-colors duration-150",
           active ? "" : "hover:bg-[#0D9488]/15",
+          locked ? "opacity-40" : "",
           className
         )}
         type="button"
@@ -74,7 +77,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
             )}
           >
             {items.map((item) => (
-              <DockIconButton key={item.label} {...item} />
+              <DockIconButton key={item.label} {...item} locked={item.locked} />
             ))}
           </div>
         </div>

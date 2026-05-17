@@ -6,10 +6,16 @@ import {
   Home,
   Compass,
   Sparkles,
-  Heart,
+  BookOpen,
   Route,
   User,
 } from "lucide-react";
+
+// Returns true if the current path belongs to a section
+function isActive(pathname: string, section: string): boolean {
+  if (section === "/dashboard") return pathname === "/dashboard" || pathname === "/";
+  return pathname === section || pathname.startsWith(section + "/");
+}
 
 export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
   const router = useRouter();
@@ -27,6 +33,14 @@ export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
     router.push(isGuest ? "/explore?guest=true" : "/explore");
   };
 
+  const goIa = () => {
+    router.push(isGuest ? "/ia?guest=true" : "/ia");
+  };
+
+  const goStories = () => {
+    router.push(isGuest ? "/stories?guest=true" : "/stories");
+  };
+
   const homeHref = isGuest ? "/dashboard?guest=true" : "/dashboard";
 
   return (
@@ -34,12 +48,44 @@ export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
       <Dock
         className="h-auto p-0"
         items={[
-          { icon: Home, label: "Inicio", active: pathname === "/dashboard", onClick: () => router.push(homeHref) },
-          { icon: Compass, label: "Explorar", active: pathname === "/explore", onClick: goExplore },
-          { icon: Sparkles, label: "IA", active: pathname === "/ia", onClick: () => router.push(isGuest ? "/ia?guest=true" : "/ia") },
-          { icon: Route, label: "Rutas", active: pathname === "/routes", onClick: () => goProtected("/routes") },
-          { icon: Heart, label: "Guardados", active: pathname === "/profile/saved", onClick: () => goProtected("/profile/saved") },
-          { icon: User, label: "Perfil", active: pathname === "/profile", onClick: () => goProtected("/profile") },
+          {
+            icon: Home,
+            label: "Inicio",
+            active: isActive(pathname, "/dashboard"),
+            onClick: () => router.push(homeHref),
+          },
+          {
+            icon: Compass,
+            label: "Explorar",
+            active: isActive(pathname, "/explore") || isActive(pathname, "/places"),
+            onClick: goExplore,
+          },
+          {
+            icon: Sparkles,
+            label: "IA",
+            active: isActive(pathname, "/ia"),
+            onClick: goIa,
+          },
+          {
+            icon: BookOpen,
+            label: "Historias",
+            active: isActive(pathname, "/stories"),
+            onClick: goStories,
+          },
+          {
+            icon: Route,
+            label: "Rutas",
+            active: isActive(pathname, "/routes"),
+            onClick: () => goProtected("/routes"),
+            locked: isGuest,
+          },
+          {
+            icon: User,
+            label: "Perfil",
+            active: isActive(pathname, "/profile"),
+            onClick: () => goProtected("/profile"),
+            locked: isGuest,
+          },
         ]}
       />
     </div>
