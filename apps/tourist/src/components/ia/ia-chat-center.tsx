@@ -212,6 +212,7 @@ export function IaChatCenter({
                         toolName={tool.toolName}
                         result={tool.result}
                         mapMode={false}
+                        isGuest={isGuest}
                       />
                     ))}
                   </div>

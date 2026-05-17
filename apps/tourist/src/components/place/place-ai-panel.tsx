@@ -123,7 +123,6 @@ export function PlaceAIPanel({ place }: { place: Place }) {
                             charsPerTick={2}
                             className="font-inter text-xs leading-relaxed"
                           />
-                      </p>
                     </div>
                   )}
                   {msg.toolResults

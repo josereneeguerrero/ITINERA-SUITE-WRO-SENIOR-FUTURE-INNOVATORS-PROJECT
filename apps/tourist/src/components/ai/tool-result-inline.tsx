@@ -16,10 +16,12 @@ export function ToolResultInline({
   toolName,
   result,
   mapMode = true,
+  isGuest = false,
 }: {
   toolName: string;
   result: unknown;
   mapMode?: boolean;
+  isGuest?: boolean;
 }) {
   const data = result as Record<string, unknown>;
 
@@ -115,7 +117,7 @@ export function ToolResultInline({
               </button>
             ) : (
               <a
-                href={`/explore?place=${p.slug}`}
+                href={isGuest ? `/explore?guest=true&place=${p.slug}` : `/explore?place=${p.slug}`}
                 title="Ver en el mapa"
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-teal-50"
                 style={{ color: "#0D9488" }}
