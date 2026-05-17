@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
-import { Heart, Map, Star, MessageSquare, Sparkles } from "lucide-react";
+import { AuroraBackground } from "@/components/ui/aurora-background";
+import {
+  ArrowRight, Heart, Map, MessageSquare, Route,
+  Sparkles, Star, User,
+} from "lucide-react";
 import Link from "next/link";
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
+
+export const revalidate = 0;
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -16,122 +20,126 @@ export default async function ProfilePage() {
     { count: favCount },
     { count: routeCount },
     { count: reviewCount },
-    { count: chatCount },
   ] = await Promise.all([
-    supabase.from("profiles").select("display_name, preferred_locale, created_at").eq("id", user.id).single(),
+    supabase.from("profiles").select("display_name, created_at").eq("id", user.id).single(),
     supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
     supabase.from("itineraries").select("*", { count: "exact", head: true }).eq("user_id", user.id),
     supabase.from("reviews").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-    supabase.from("interaction_events").select("*", { count: "exact", head: true }).eq("optional_user_id", user.id),
   ]);
 
   const name = profile?.display_name ?? user.email?.split("@")[0] ?? "Explorador";
+  const initial = name[0].toUpperCase();
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("es-HN", { month: "long", year: "numeric" })
     : null;
 
-  const SECTIONS = [
-    { icon: Heart,        label: "Mis Favoritos",  desc: "Lugares que guardaste para visitar",   count: favCount ?? 0,    href: "/profile/saved",   color: "#EC4899" },
-    { icon: Map,          label: "Mis Rutas",       desc: "Itinerarios que has creado con IA",    count: routeCount ?? 0,  href: "/routes",          color: "#0D9488" },
-    { icon: Star,         label: "Mis Reseñas",     desc: "Lugares que ya visitaste y evaluaste", count: reviewCount ?? 0, href: null,               color: "#F59E0B" },
-    { icon: MessageSquare,label: "Historial IA",    desc: "Conversaciones con tu guía cultural",  count: chatCount ?? 0,   href: null,               color: "#3B82F6" },
+  const STATS = [
+    { icon: Heart,   label: "Favoritos",    count: favCount ?? 0,   href: "/profile/saved", color: "#EC4899", bg: "bg-pink-50",    border: "border-pink-100"   },
+    { icon: Route,   label: "Mis Rutas",    count: routeCount ?? 0, href: "/routes",        color: "#0D9488", bg: "bg-teal-50",    border: "border-teal-100"   },
+    { icon: Star,    label: "Reseñas",      count: reviewCount ?? 0,href: null,             color: "#F59E0B", bg: "bg-amber-50",   border: "border-amber-100"  },
+    { icon: MessageSquare, label: "Chats IA", count: null,          href: "/ia",            color: "#7C3AED", bg: "bg-violet-50",  border: "border-violet-100" },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      <Navbar />
-      <div className="mx-auto max-w-2xl px-4 pb-24 pt-28 sm:px-6">
+    <main className="min-h-screen w-full bg-[#f0f5f2] pb-28">
 
-        {/* Profile header */}
-        <div className="mb-5 rounded-2xl border border-[#E2E8F0] bg-white p-6 flex items-center gap-5">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center font-jakarta font-bold text-2xl text-white shrink-0"
-            style={{ backgroundColor: "#0D9488" }}
-          >
-            {name[0].toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-jakarta font-bold text-xl text-[#0F172A] truncate">{name}</h1>
-            <p className="font-inter text-sm mt-0.5 truncate text-[#64748B]">{user.email}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span
-                className="font-inter font-medium text-xs px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: "rgba(13,148,136,0.08)", color: "#0D9488", border: "1px solid rgba(13,148,136,0.2)" }}
-              >
-                ✦ Explorador Cultural
-              </span>
-              {memberSince && (
-                <span className="font-inter text-xs text-[#94A3B8]">Desde {memberSince}</span>
-              )}
+      {/* ── Hero ── */}
+      <section className="mx-auto w-full max-w-2xl px-5 pt-8 md:px-6 md:pt-10">
+        <AuroraBackground className="rounded-2xl border border-[#d7e2de] min-h-[200px] items-start justify-start">
+          <div className="relative z-10 w-full px-6 py-7 md:px-7 md:py-8">
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#0D9488] font-jakarta text-2xl font-bold text-white shadow-md">
+                {initial}
+              </div>
+              {/* Info */}
+              <div className="min-w-0 flex-1">
+                <h1 className="font-jakarta text-2xl font-bold text-[#0f172a] truncate">{name}</h1>
+                <p className="mt-0.5 font-inter text-sm text-[#64748b] truncate">{user.email}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-2.5 py-1 font-inter text-xs font-bold text-[#00685f]">
+                    <Sparkles className="h-3 w-3" aria-hidden /> Explorador Cultural
+                  </span>
+                  {memberSince && (
+                    <span className="font-inter text-xs text-[#94a3b8]">Desde {memberSince}</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <Sparkles className="w-5 h-5 shrink-0 text-[#0D9488]" />
-        </div>
+        </AuroraBackground>
+      </section>
 
-        {/* Stats sections */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-          {SECTIONS.map(({ icon: Icon, label, desc, count, href, color }) => {
+      {/* ── Stats grid ── */}
+      <section className="mx-auto mt-6 w-full max-w-2xl px-5 md:px-6">
+        <div className="grid grid-cols-2 gap-3">
+          {STATS.map(({ icon: Icon, label, count, href, color, bg, border }) => {
             const card = (
-              <div
-                className={`rounded-xl p-4 flex items-start gap-4 border transition-all ${href && count > 0 ? "hover:border-[#0D9488]/30 hover:shadow-sm cursor-pointer" : ""}`}
-                style={{ backgroundColor: "white", borderColor: "#E2E8F0" }}
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${color}10` }}
-                >
-                  <Icon className="w-4 h-4" style={{ color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="font-jakarta font-semibold text-sm text-[#0F172A]">{label}</p>
-                    <span
-                      className="font-inter font-semibold text-xs px-2 py-0.5 rounded-full"
-                      style={
-                        count > 0
-                          ? { backgroundColor: `${color}15`, color, border: `1px solid ${color}30` }
-                          : { backgroundColor: "#F1F5F9", color: "#94A3B8" }
-                      }
-                    >
+              <div className={`rounded-2xl border ${border} ${bg} p-4 transition-all duration-200 ${href ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : ""}`}>
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm border border-white">
+                    <Icon className="h-4.5 w-4.5" style={{ color }} aria-hidden />
+                  </div>
+                  {count !== null && (
+                    <span className="font-jakarta text-2xl font-bold" style={{ color }}>
                       {count}
                     </span>
-                  </div>
-                  <p className="font-inter text-xs mt-0.5 leading-relaxed text-[#94A3B8]">{desc}</p>
+                  )}
                 </div>
+                <p className="font-jakarta text-sm font-bold text-[#0f172a]">{label}</p>
+                {count === null && (
+                  <p className="mt-0.5 font-inter text-xs text-[#64748b]">Abrir Centro IA</p>
+                )}
               </div>
             );
 
-            return href && count > 0 ? (
+            return href ? (
               <Link key={label} href={href}>{card}</Link>
             ) : (
               <div key={label}>{card}</div>
             );
           })}
         </div>
+      </section>
 
-        {/* CTA */}
-        <div
-          className="rounded-2xl p-5 text-center"
-          style={{ background: "linear-gradient(135deg, rgba(13,148,136,0.06), rgba(13,148,136,0.02))", border: "1px solid rgba(13,148,136,0.15)" }}
-        >
-          <Sparkles className="w-6 h-6 mx-auto mb-2 text-[#0D9488]" />
-          <p className="font-jakarta font-semibold text-base text-[#0F172A] mb-1">
-            Sigue explorando Honduras
-          </p>
-          <p className="font-inter text-sm mb-4 text-[#64748B]">
-            Visita lugares, deja reseñas y arma tus rutas con IA
-          </p>
-          <Link
-            href="/explore"
-            className="inline-block font-inter font-semibold text-sm px-6 py-2.5 rounded-xl text-white"
-            style={{ backgroundColor: "#0D9488" }}
-          >
-            Ir al mapa →
-          </Link>
+      {/* ── Quick actions ── */}
+      <section className="mx-auto mt-5 w-full max-w-2xl px-5 md:px-6">
+        <div className="space-y-2.5">
+          {[
+            { label: "Explorar el mapa",      href: "/explore",        icon: Map    },
+            { label: "Ver mis favoritos",      href: "/profile/saved",  icon: Heart  },
+            { label: "Crear nueva ruta",       href: "/explore",        icon: Route  },
+          ].map(({ label, href, icon: Icon }) => (
+            <Link
+              key={label}
+              href={href}
+              className="group flex cursor-pointer items-center justify-between rounded-xl border border-[#d7e2de] bg-white px-4 py-3 shadow-sm transition-all duration-200 hover:border-[#0D9488]/30 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="h-4 w-4 text-[#0D9488]" aria-hidden />
+                <span className="font-inter text-sm font-semibold text-[#334155] group-hover:text-[#0D9488] transition-colors">
+                  {label}
+                </span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-[#bcc9c6] transition-transform group-hover:translate-x-0.5 group-hover:text-[#0D9488]" aria-hidden />
+            </Link>
+          ))}
         </div>
-      </div>
-      <Footer />
+      </section>
+
+      {/* ── Account ── */}
+      <section className="mx-auto mt-5 w-full max-w-2xl px-5 md:px-6">
+        <div className="rounded-2xl border border-[#d7e2de] bg-white p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <User className="h-4 w-4 text-[#94a3b8]" aria-hidden />
+            <span className="font-inter text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">Cuenta</span>
+          </div>
+          <p className="font-inter text-sm text-[#334155]">{user.email}</p>
+          <p className="mt-0.5 font-inter text-xs text-[#94a3b8]">WRO 2026 · Itinera Suite</p>
+        </div>
+      </section>
+
       <DashboardDockDemo isGuest={false} />
-    </div>
+    </main>
   );
 }
