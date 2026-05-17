@@ -1,72 +1,75 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import {
-  AnimatePresence,
-  motion,
-  useInView,
-  type UseInViewOptions,
-  type Variants,
-} from "framer-motion";
-
-type MarginType = UseInViewOptions["margin"];
+import { cn } from "@/lib/utils";
 
 interface BlurFadeProps {
   children: React.ReactNode;
   className?: string;
-  variant?: {
-    hidden: { y: number };
-    visible: { y: number };
-  };
   duration?: number;
   delay?: number;
   yOffset?: number;
   inView?: boolean;
-  inViewMargin?: MarginType;
-  blur?: string;
+  inViewMargin?: string;
+  blur?: string; // kept for API compatibility, no longer used
 }
 
 export function BlurFade({
   children,
   className,
-  variant,
   duration = 0.4,
   delay = 0,
   yOffset = 6,
   inView = false,
-  inViewMargin = "0px",
-  blur = "6px",
 }: BlurFadeProps) {
-  const ref = useRef(null);
-  const inViewResult = useInView(ref, { once: true, margin: inViewMargin });
-  // After mount, treat element as in-view so SSR opacity:0 never persists
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  const isInView = !inView || mounted || inViewResult;
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(!inView); // if inView=false, always visible
 
-  const defaultVariants: Variants = {
-    hidden: { y: yOffset, opacity: 0 },
-    visible: { y: 0,       opacity: 1 },
-  };
-  const combinedVariants = variant || defaultVariants;
+  useEffect(() => {
+    if (!inView) return;
+
+    // Use IntersectionObserver when available
+    if (typeof IntersectionObserver !== "undefined") {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setVisible(true);
+            observer.disconnect();
+          }
+        },
+        { threshold: 0, rootMargin: "0px" }
+      );
+      if (ref.current) observer.observe(ref.current);
+
+      // Fallback: force visible after duration+delay+300ms
+      const fallback = setTimeout(
+        () => setVisible(true),
+        (duration + delay) * 1000 + 300
+      );
+
+      return () => {
+        observer.disconnect();
+        clearTimeout(fallback);
+      };
+    } else {
+      // No IntersectionObserver → show immediately
+      setVisible(true);
+    }
+  }, [inView, duration, delay]);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        ref={ref}
-        initial="hidden"
-        animate={isInView ? "visible" : "hidden"}
-        exit="hidden"
-        variants={combinedVariants}
-        transition={{
-          delay: 0.04 + delay,
-          duration,
-          ease: "easeOut",
-        }}
-        className={className}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <div
+      ref={ref}
+      className={cn(className)}
+      style={{
+        opacity:          visible ? 1 : 0,
+        transform:        visible ? "translateY(0px)" : `translateY(${yOffset}px)`,
+        transition:       `opacity ${duration}s ease-out, transform ${duration}s ease-out`,
+        transitionDelay:  `${delay}s`,
+        willChange:       "opacity, transform",
+      }}
+    >
+      {children}
+    </div>
   );
 }
