@@ -13,6 +13,8 @@ interface Photo {
 }
 
 function buildUrl(bucket: string, path: string): string {
+  // External URLs (Unsplash, CDN, etc.) stored directly in storage_path
+  if (bucket === "external" || path.startsWith("http")) return path;
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   return `${base}/storage/v1/object/public/${bucket}/${path}`;
 }
