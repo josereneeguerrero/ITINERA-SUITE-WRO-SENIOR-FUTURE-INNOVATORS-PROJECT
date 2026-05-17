@@ -56,7 +56,7 @@ export function StreamingText({
 
   const displayText = targetRef.current.slice(0, shown);
   const isBehind    = shown < targetRef.current.length;
-  const showCursor  = (isStreaming || isBehind) && !reducedMotion.current;
+  const showCursor  = (isStreaming || isBehind) && !noAnimation;
 
   return (
     <span className={cn("whitespace-pre-wrap", className)}>
