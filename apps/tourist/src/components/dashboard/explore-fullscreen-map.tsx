@@ -554,6 +554,7 @@ export function ExploreFullscreenMap({
   initialPlace = "",
   initialRouteSlug = "",
   initialRouteName = "",
+  initialQuery = "",
 }: {
   places: Place[];
   categories: Category[];
@@ -563,8 +564,9 @@ export function ExploreFullscreenMap({
   initialPlace?: string;
   initialRouteSlug?: string;
   initialRouteName?: string;
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
 
   // Build AI initial message from category slug → category name

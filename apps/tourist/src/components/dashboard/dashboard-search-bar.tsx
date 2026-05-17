@@ -12,8 +12,8 @@ export function DashboardSearchBar({ isGuest }: { isGuest: boolean }) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
-    const base = isGuest ? "/explore?guest=true" : "/explore";
-    router.push(`${base}&q=${encodeURIComponent(q)}`);
+    const base = isGuest ? "/explore?guest=true&q=" : "/explore?q=";
+    router.push(`${base}${encodeURIComponent(q)}`);
   }
 
   return (

@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/image-auto-slider";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardSearchBar } from "@/components/dashboard/dashboard-search-bar";
-import { DashboardRegions } from "@/components/dashboard/dashboard-regions";
 import { DashboardMyRoutes } from "@/components/dashboard/dashboard-my-routes";
 import { Map, Sparkles, Globe2, Bot } from "lucide-react";
 
@@ -315,7 +314,7 @@ export default async function DashboardPage({
 
       {/* ── Quick stats ── */}
       <section className="mx-auto mt-5 w-full max-w-6xl px-6 md:px-10">
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap justify-center gap-2.5">
           {[
             { icon: Map,      label: `${placeCount ?? "—"} destinos culturales` },
             { icon: Globe2,   label: "18 departamentos" },
@@ -338,11 +337,6 @@ export default async function DashboardPage({
         <div className="relative mt-6 px-4">
           <CategoryCarousel categories={categories} isGuest={isGuest} />
         </div>
-      </section>
-
-      {/* ── Regiones de Honduras (18 departamentos) ── */}
-      <section className="mt-12">
-        <DashboardRegions isGuest={isGuest} />
       </section>
 
       <DashboardHomeMap places={mapPlaces} isGuest={isGuest} />
