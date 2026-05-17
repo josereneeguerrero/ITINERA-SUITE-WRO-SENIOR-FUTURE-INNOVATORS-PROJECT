@@ -73,36 +73,30 @@ export function IaChatCenter({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-[#d7e2de] bg-white/90 px-4 pt-5 pb-0 backdrop-blur-sm sm:px-6">
-        <div className="mx-auto max-w-3xl">
+      <div className="shrink-0 px-4 pt-4 pb-3 sm:px-6">
+        <div className="mx-auto max-w-3xl space-y-3">
 
-          {/* Title row */}
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0D9488]">
-                <Bot className="h-5 w-5 text-white" aria-hidden />
-              </div>
-              <div>
-                <h1 className="font-jakarta text-lg font-bold text-[#0f172a]">Itinera IA</h1>
-                <p className="font-inter text-xs text-[#64748b]">Tu guía cultural inteligente · Honduras</p>
-              </div>
+          {/* Floating pill — minimal, centered */}
+          <div className="flex items-center justify-between rounded-2xl border border-[#d7e2de]/80 bg-white/92 px-5 py-3 shadow-sm backdrop-blur-xl">
+            <div className="w-20" /> {/* spacer */}
+            <h1 className="font-jakarta text-base font-bold text-[#0f172a]">Itinera IA</h1>
+            <div className="flex w-20 justify-end">
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clear}
+                  title="Nueva conversación"
+                  className="flex cursor-pointer items-center gap-1 font-inter text-xs font-semibold text-[#94a3b8] transition-colors hover:text-[#0D9488]"
+                >
+                  <RotateCcw className="h-3 w-3" aria-hidden />
+                  Limpiar
+                </button>
+              )}
             </div>
-
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={clear}
-                title="Nueva conversación"
-                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[#d7e2de] bg-white px-3 py-1.5 font-inter text-xs font-semibold text-[#334155] transition-colors hover:border-[#0D9488]/30 hover:text-[#0D9488]"
-              >
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                Nueva conversación
-              </button>
-            )}
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1" role="tablist">
+          <div className="flex gap-1 rounded-xl border border-[#d7e2de] bg-white p-1 shadow-sm" role="tablist">
             {TABS.map(({ id, label, icon: Icon, available }) => (
               <button
                 key={id}
@@ -110,23 +104,20 @@ export function IaChatCenter({
                 aria-selected={tab === id}
                 disabled={!available}
                 onClick={() => available && setTab(id as typeof tab)}
-                className={`relative flex cursor-pointer items-center gap-1.5 rounded-t-xl px-4 py-2.5 font-inter text-sm font-semibold transition-all duration-150 ${
+                className={`relative flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-inter text-sm font-semibold transition-all duration-150 ${
                   tab === id
-                    ? "bg-[#f0f5f2] text-[#0D9488]"
+                    ? "bg-[#0D9488] text-white shadow-sm"
                     : available
                       ? "text-[#64748b] hover:text-[#334155]"
                       : "cursor-not-allowed text-[#bcc9c6]"
                 }`}
               >
-                <Icon className="h-4 w-4" aria-hidden />
+                <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
                 {!available && (
-                  <span className="ml-1 rounded-full bg-[#f1f5f9] px-1.5 py-0.5 font-inter text-[9px] font-bold uppercase text-[#94a3b8]">
+                  <span className="ml-0.5 rounded-full bg-[#f1f5f9] px-1.5 py-0.5 font-inter text-[9px] font-bold uppercase text-[#94a3b8]">
                     Próx.
                   </span>
-                )}
-                {tab === id && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#0D9488]" />
                 )}
               </button>
             ))}
@@ -137,7 +128,7 @@ export function IaChatCenter({
       {/* ── Messages area ──────────────────────────────────────────────── */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-6 pb-36 sm:px-6"
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-6 pb-52 sm:px-6"
       >
         <div className="mx-auto max-w-3xl space-y-5">
 
@@ -265,7 +256,7 @@ export function IaChatCenter({
       </div>
 
       {/* ── Input bar ──────────────────────────────────────────────────── */}
-      <div className="fixed bottom-[72px] left-0 right-0 z-30 px-4 sm:px-6">
+      <div className="fixed bottom-[100px] left-0 right-0 z-30 px-4 sm:px-6">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-end gap-2 rounded-2xl border border-[#d7e2de] bg-white px-3 py-2 shadow-lg">
             {/* Mic */}
@@ -315,7 +306,7 @@ export function IaChatCenter({
               }
             </button>
           </div>
-          <p className="mt-1 px-1 text-center font-inter text-[10px] text-[#94a3b8]">
+          <p className="mt-1.5 px-1 text-center font-inter text-[11px] text-[#94a3b8]">
             Enter para enviar · Shift+Enter nueva línea
           </p>
         </div>

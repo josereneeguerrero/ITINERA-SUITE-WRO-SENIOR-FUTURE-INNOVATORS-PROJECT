@@ -364,7 +364,14 @@ async function logInteraction(
 }
 
 export async function POST(req: Request) {
-  const { messages, deviceId } = await req.json() as { messages: { role: string; content: string }[]; deviceId?: string };
+  const { messages, context, deviceId } = await req.json() as {
+    messages: { role: string; content: string }[];
+    context?: { page?: string; [key: string]: unknown };
+    deviceId?: string;
+  };
+
+  // ia-center = no map. All other pages (explore, places, stories) = map mode.
+  const isMapMode = context?.page !== "ia-center";
 
   // Store device ID for logging (thread-local alternative to params)
   (globalThis as any).currentDeviceId = deviceId;
@@ -406,8 +413,8 @@ export async function POST(req: Request) {
         // ── 2. Clear command ───────────────────────────────────────────────
 
         if (isClear(lastMsg)) {
-          emit({ type: "text-delta", textDelta: "Listo, limpié los filtros." });
-          emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {} });
+          emit({ type: "text-delta", textDelta: isMapMode ? "Listo, limpié los filtros." : "Listo, cuéntame qué quieres explorar." });
+          if (isMapMode) emit({ type: "ui-actions", intent: "clear", actions: [{ type: "clear" }], entities: {} });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
           return;
@@ -444,9 +451,11 @@ export async function POST(req: Request) {
               resultCount: places.length,
             }, places.map(p => p.slug));
 
-            // Apply both region and category filters on the map
-            emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: region }], entities: { region } });
-            emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: historyCategory }], entities: { category: historyCategory } });
+            // Apply both region and category filters on the map (map mode only)
+            if (isMapMode) {
+              emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: region }], entities: { region } });
+              emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: historyCategory }], entities: { category: historyCategory } });
+            }
 
             if (places.length === 0) {
               emit({ type: "text-delta", textDelta: `No encontré lugares de ese tipo en ${REGION_NAMES[region] || region}.` });
@@ -458,7 +467,7 @@ export async function POST(req: Request) {
                 toolName: "search_places",
                 result: { places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }] },
               });
-              emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
+              if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
               // Log selection
               await logInteraction("select_place", { region, category: historyCategory, place: place.slug }, [], place.slug);
             } else {
@@ -484,18 +493,22 @@ export async function POST(req: Request) {
 
           // No category in history either — orient the user and ask
           const regionName = REGION_NAMES[region] || region;
-          const text = `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas?`;
+          const text = isMapMode
+            ? `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas?`
+            : `Excelente elección. ${regionName} tiene mucho por ofrecer. ¿Qué tipo de experiencia buscas?`;
 
           // Log region-only search (awaiting category)
           await logInteraction("search_region_only", { region });
 
           emit({ type: "text-delta", textDelta: text });
-          emit({
-            type: "ui-actions",
-            intent: "filter_region",
-            actions: [{ type: "filter_region", slug: region }],
-            entities: { region },
-          });
+          if (isMapMode) {
+            emit({
+              type: "ui-actions",
+              intent: "filter_region",
+              actions: [{ type: "filter_region", slug: region }],
+              entities: { region },
+            });
+          }
           emit({
             type: "suggestions",
             suggestions: [
@@ -538,11 +551,13 @@ export async function POST(req: Request) {
             resultCount: places.length,
           }, places.map(p => p.slug));
 
-          // ── Always apply map filters for region + category ─────────────────
-          if (searchRegion) {
-            emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: searchRegion }], entities: { region: searchRegion } });
+          // ── Apply map filters (map mode only) ─────────────────────────────
+          if (isMapMode) {
+            if (searchRegion) {
+              emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: searchRegion }], entities: { region: searchRegion } });
+            }
+            emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: category }], entities: { category } });
           }
-          emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: category }], entities: { category } });
 
           // ── Zero results ──────────────────────────────────────────────────
           if (places.length === 0) {
@@ -561,7 +576,7 @@ export async function POST(req: Request) {
               toolName: "search_places",
               result: { places: [{ slug: place.slug, name: place.name, rating: place.rating, url: `/places/${place.slug}` }] },
             });
-            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: place.slug }], entities: {} });
             // Log selection
             await logInteraction("select_place", { region: searchRegion, category, place: place.slug }, [], place.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -579,7 +594,7 @@ export async function POST(req: Request) {
               toolName: "search_places",
               result: { places: [{ slug: namedPlace.slug, name: namedPlace.name, rating: namedPlace.rating, url: `/places/${namedPlace.slug}` }] },
             });
-            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: namedPlace.slug }], entities: {} });
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: namedPlace.slug }], entities: {} });
             // Log selection from multiple results
             await logInteraction("select_place", { region: searchRegion, category, place: namedPlace.slug }, [], namedPlace.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -620,8 +635,8 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
               })),
             },
           });
-          // Show all places on map
-          emit({ type: "ui-actions", intent: "show_places_list", actions: [{ type: "show_places", slugs: places.map(p => p.slug) }], entities: {} });
+          // Show all places on map (map mode only)
+          if (isMapMode) emit({ type: "ui-actions", intent: "show_places_list", actions: [{ type: "show_places", slugs: places.map(p => p.slug) }], entities: {} });
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -645,7 +660,7 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
               toolName: "search_places",
               result: { places: [{ slug: match.slug, name: match.name, rating: match.rating, url: `/places/${match.slug}` }] },
             });
-            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: match.slug }], entities: {} });
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: match.slug }], entities: {} });
             // Log direct place search
             await logInteraction("search_place_by_name", { place: match.slug }, [], match.slug);
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -667,7 +682,7 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
             const p = semanticPlaces[0];
             emit({ type: "text-delta", textDelta: `${p.name_es} — ${p.summary_es || p.category_es} ⭐${Number(p.aggregated_rating ?? 0).toFixed(1)}` });
             emit({ type: "tool-result", toolName: "search_places", result: { places: [{ slug: p.slug, name: p.name_es, url: `/places/${p.slug}` }] } });
-            emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: p.slug }], entities: {} });
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: p.slug }], entities: {} });
           } else {
             const placesText = semanticPlaces.map(p =>
               `• ${p.name_es} (${p.category_es}${p.region_es ? ", " + p.region_es : ""}) — ${p.summary_es || ""} | ⭐${Number(p.aggregated_rating ?? 0).toFixed(1)}`
@@ -683,8 +698,8 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
 
             emit({ type: "text-delta", textDelta: semanticResult.text });
             emit({ type: "tool-result", toolName: "search_places", result: { places: semanticPlaces.map(p => ({ slug: p.slug, name: p.name_es, url: `/places/${p.slug}` })) } });
-            // Show all semantic places on map
-            emit({ type: "ui-actions", intent: "show_semantic_places", actions: [{ type: "show_places", slugs: semanticPlaces.map(p => p.slug) }], entities: {} });
+            // Show all semantic places on map (map mode only)
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_semantic_places", actions: [{ type: "show_places", slugs: semanticPlaces.map(p => p.slug) }], entities: {} });
           }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -697,7 +712,9 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
         const defaultResult = await generateText({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
-          system: "Eres Itinera IA de Honduras. El usuario hizo una pregunta. Responde de forma breve, amigable. Pregunta qué región o tipo de lugar busca. NUNCA inventes lugares.",
+          system: isMapMode
+            ? "Eres Itinera IA de Honduras. El usuario hizo una pregunta. Responde de forma breve, amigable. Pregunta qué región o tipo de lugar busca. NUNCA inventes lugares."
+            : "Eres Itinera IA, guía cultural de Honduras. Estás en el Centro IA — NO tienes acceso a ningún mapa. Responde de forma rica y conversacional sobre cultura, historia, gastronomía y turismo de Honduras. Cuando menciones lugares, indica que el usuario puede explorarlos en /explore o leer sus detalles en la plataforma. NUNCA digas 'te muestro en el mapa'. NUNCA inventes hechos.",
           messages: [{ role: "user", content: lastMsg }],
           temperature: 0.7,
         });
