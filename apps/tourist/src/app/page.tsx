@@ -648,19 +648,17 @@ export default async function HomePage() {
             {/* Badges */}
             <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3 py-1.5 font-inter text-xs font-bold text-[#00685f]">
-                <Trophy className="h-3 w-3" aria-hidden /> WRO Future Innovators · Senior
+                <Trophy className="h-3 w-3" aria-hidden /> WRO Future Innovators · Senior 2026
               </span>
               <span className="rounded-full border border-[#d7e2de] bg-white px-3 py-1.5 font-inter text-xs font-bold text-[#334155]">
-                Instituto Felipe Enrique Agustinus · Valle
-              </span>
-              <span className="rounded-full border border-[#d7e2de] bg-white px-3 py-1.5 font-inter text-xs font-bold text-[#334155]">
-                3 integrantes
+                Universidad Católica de Honduras · UNICAH
               </span>
             </div>
 
             <p className="mx-auto mb-10 max-w-2xl text-center font-inter text-sm leading-7 text-[#334155] sm:text-base">
-              Somos un equipo de tres estudiantes hondureños apasionados por la tecnología y la cultura.
-              Representamos oficialmente a Honduras en la{" "}
+              Somos tres estudiantes de la{" "}
+              <strong className="text-[#0f172a]">Universidad Católica de Honduras</strong> apasionados
+              por la tecnología y la cultura. Representamos oficialmente a Honduras en la{" "}
               <strong className="text-[#0f172a]">World Robot Olympiad</strong> y construimos Itinera
               para demostrar que la inteligencia artificial puede poner a Honduras en el mapa que merece.
             </p>
@@ -670,7 +668,7 @@ export default async function HomePage() {
           <ScrollReveal>
             <div className="mb-10 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-6 sm:p-8">
               <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-3xl">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-4xl">
                   🥉
                 </div>
                 <div className="flex-1">
@@ -681,8 +679,8 @@ export default async function HomePage() {
                     Medalla de Bronce — Future Innovators Senior
                   </h3>
                   <p className="mt-1.5 font-inter text-sm text-[#334155]">
-                    Puntuación de <strong className="text-[#0f172a]">91.75 pts</strong> compitiendo como
-                    delegación oficial de Honduras. Reconocidos por el{" "}
+                    Puntuación de <strong className="text-[#0f172a]">91.75 pts</strong> como delegación
+                    oficial de Honduras. Reconocidos por el{" "}
                     <strong className="text-[#0f172a]">COHEP</strong> y respaldados por la{" "}
                     <strong className="text-[#0f172a]">Honduras STEM Foundation</strong>.
                   </p>
@@ -690,6 +688,27 @@ export default async function HomePage() {
               </div>
             </div>
           </ScrollReveal>
+
+          {/* Team members */}
+          <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              { name: "José Renée Guerrero Gutiérrez" },
+              { name: "Pablo David Cruz Hernández" },
+              { name: "Oscar Alejandro Portillo Umanzor" },
+            ].map(({ name }, i) => (
+              <ScrollReveal key={name} delay={i * 80}>
+                <div className="flex items-center gap-3 rounded-2xl border border-[#d7e2de] bg-white p-4 shadow-sm">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0D9488]/10 font-jakarta text-sm font-extrabold text-[#0D9488]">
+                    {name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-jakarta text-sm font-bold text-[#0f172a]">{name}</p>
+                    <p className="font-inter text-xs text-[#64748b]">INNOVAKERS · UNICAH</p>
+                  </div>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             {[
