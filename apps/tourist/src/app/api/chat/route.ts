@@ -203,6 +203,27 @@ const REGION_NAMES: Record<string, string> = {
   yoro:                "Yoro",
 };
 
+// ── Narrative Intent Detection ──────────────────────────────────────────
+// "Cuéntame sobre X", "Háblame de X", "Explícame X" → rich LLM narrative
+// vs "Muéstrame X", "Dame X" → concise search/card result
+
+const NARRATIVE_PREFIXES = [
+  "cuentame", "hablame", "explicame", "que es", "cual es", "cuales son",
+  "historia de", "historia del", "historia sobre", "origen de", "origen del",
+  "dime mas", "mas sobre", "sabias que", "curiosidades", "descripcion",
+  "informacion sobre", "informacion de", "como es", "por que es",
+  "que significa", "que sabes sobre", "que hay sobre", "cuanto tiene",
+  "cuando fue", "quien construyo", "quien fundo",
+];
+
+function isNarrativeIntent(text: string): boolean {
+  const n = norm(text);
+  return NARRATIVE_PREFIXES.some(p => {
+    const np = norm(p);
+    return n.startsWith(np) || n.includes(" " + np + " ") || n.includes(" " + np);
+  });
+}
+
 // ── Follow-up Detection ─────────────────────────────────────────────────
 // Detects short vague messages that continue a previous topic
 // "dame una lista", "sí", "cuáles son", "muéstrame" → inherit last context
@@ -515,6 +536,59 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
             const r = detectRegion(m.content);
             if (r) { contextRegion = r; break; }
           }
+        }
+
+        // ── 3b. Narrative intent ────────────────────────────────────────────
+        // "Cuéntame sobre X", "Háblame de X", "Explícame X" → rich LLM story
+        // Fires BEFORE category/region branches so it doesn't get short-circuited
+
+        if (isNarrativeIntent(lastMsg)) {
+          // Try to find the specific place being asked about
+          const narrCandidates = await fetchPlaceByName(lastMsg);
+          const narrPlace = narrCandidates.length > 0
+            ? (findNamedPlace(lastMsg, narrCandidates) ?? narrCandidates[0])
+            : null;
+
+          const placeContext = narrPlace
+            ? `Lugar de la base de datos:\nNombre: ${narrPlace.name}\nCategoría: ${narrPlace.category}\nRegión: ${narrPlace.region}\nResumen: ${narrPlace.summary}\nCalificación: ⭐${narrPlace.rating}`
+            : "";
+
+          const narrResult = await generateText({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            model: (getGroq() as any)("llama-3.3-70b-versatile"),
+            system: isMapMode
+              ? `Eres Itinera IA, guía de Honduras. El usuario quiere saber más sobre un lugar o tema. ${placeContext ? `Datos reales:\n${placeContext}\n` : ""}Responde en 2-3 frases concisas con lo más relevante. No inventes datos.`
+              : `${IA_CENTER_SYSTEM}
+
+El usuario hizo una pregunta educativa/narrativa. ${placeContext
+  ? `Tienes estos datos reales del lugar en la base de datos de Itinera:\n${placeContext}\n\nÚsalos como base y AMPLÍA con contexto histórico, cultural y arquitectónico real que conozcas. Estructura la respuesta en 2-3 párrafos: el primero sobre la esencia/historia, el segundo sobre detalles únicos o curiosidades, el tercero (opcional) sobre cómo visitarlo o qué esperar. Nunca inventes datos que no puedas verificar.`
+  : "No encontraste este lugar en la base de datos de Itinera. Responde con lo que sabes de forma honesta, indicando que no tienes datos verificados en Itinera pero sí conocimiento general. Sé informativo pero deja claro cuándo es conocimiento general vs datos de la plataforma."}`,
+            messages: messages as { role: "user" | "assistant"; content: string }[],
+            temperature: 0.65,
+          });
+
+          emit({ type: "text-delta", textDelta: narrResult.text });
+
+          // Show the place card at the end as reference, if found
+          if (narrPlace) {
+            emit({
+              type: "tool-result",
+              toolName: "search_places",
+              result: { places: [{ slug: narrPlace.slug, name: narrPlace.name, rating: narrPlace.rating, url: `/places/${narrPlace.slug}` }] },
+            });
+            if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: narrPlace.slug }], entities: {} });
+          }
+
+          // Suggest follow-ups
+          emit({ type: "suggestions", suggestions: [
+            { label: "¿Cómo llegar?",           value: `¿Cómo llego a ${narrPlace?.name ?? "este lugar"}?` },
+            { label: "Historia del lugar",       value: `Cuéntame la historia completa de ${narrPlace?.name ?? "este lugar"}` },
+            { label: "Lugares cercanos",         value: `¿Qué otros lugares hay cerca de ${narrPlace?.name ?? "aquí"}?` },
+          ]});
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
         }
 
         // ── 4. Region only (no category in current message) ───────────────
