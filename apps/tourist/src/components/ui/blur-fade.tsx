@@ -39,15 +39,10 @@ export function BlurFade({
 }: BlurFadeProps) {
   const ref = useRef(null);
   const inViewResult = useInView(ref, { once: true, margin: inViewMargin });
-  // Fallback: if IntersectionObserver doesn't fire (Android Chrome quirk),
-  // force visible after 400ms so content never stays invisible
-  const [fallback, setFallback] = useState(false);
-  useEffect(() => {
-    if (!inView) return;
-    const t = setTimeout(() => setFallback(true), 400);
-    return () => clearTimeout(t);
-  }, [inView]);
-  const isInView = !inView || inViewResult || fallback;
+  // After mount, treat element as in-view so SSR opacity:0 never persists
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const isInView = !inView || mounted || inViewResult;
 
   const defaultVariants: Variants = {
     hidden: { y: yOffset, opacity: 0, filter: `blur(${blur})` },
