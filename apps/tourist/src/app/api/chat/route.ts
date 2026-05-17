@@ -516,6 +516,58 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
           return;
         }
 
+        // ── 2b. Place expert mode ──────────────────────────────────────────
+        // When user is on a place page, answer as an expert on THAT place.
+        // Uses real DB data (summary, tips, category, region) as context.
+
+        if (context?.placeSlug && context?.page === "place") {
+          const placeName     = (context.placeName     as string | undefined) ?? "este lugar";
+          const placeSummary  = (context.placeSummary  as string | undefined) ?? "";
+          const placeTips     = (context.placeTips     as string | undefined) ?? "";
+          const placeCategory = (context.placeCategory as string | undefined) ?? "";
+          const placeRegion   = (context.placeRegion   as string | undefined) ?? "Honduras";
+          const placeRating   = (context.placeRating   as number | undefined);
+          const placeAccessible = (context.placeAccessible as boolean | undefined);
+
+          const PLACE_SYSTEM = `Eres el guía IA de Itinera especializado en "${placeName}".
+
+DATOS REALES DE ESTE LUGAR:
+Nombre: ${placeName}
+Categoría: ${placeCategory}
+Región: ${placeRegion}
+${placeRating ? `Calificación: ⭐${placeRating.toFixed(1)}` : ""}
+${placeAccessible ? "Accesibilidad: Accesible para personas con movilidad reducida" : ""}
+${placeSummary ? `Descripción: ${placeSummary}` : ""}
+${placeTips ? `Consejos de visita: ${placeTips}` : ""}
+
+TU MISIÓN:
+- Responder preguntas específicas sobre "${placeName}": historia, qué ver, consejos prácticos, mejor época, cómo llegar, gastronomía local
+- Usar los datos reales anteriores como base, ampliar con conocimiento cultural verificado
+- Si preguntan sobre horarios o precios exactos que no tienes, sé honesto: "No tenemos esos datos actualizados — te recomiendo verificar directamente"
+- Respuestas de 2-3 párrafos, prácticas y evocadoras
+
+TONO: Guía local experto, apasionado por este destino específico.`;
+
+          const placeResult = await generateText({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            model: (getGroq() as any)("llama-3.3-70b-versatile"),
+            system: PLACE_SYSTEM,
+            messages: messages as { role: "user" | "assistant"; content: string }[],
+            temperature: 0.65,
+          });
+
+          emit({ type: "text-delta", textDelta: placeResult.text });
+          emit({ type: "suggestions", suggestions: [
+            { label: "Historia del lugar",   value: `Cuéntame la historia de ${placeName}` },
+            { label: "Consejos para visitar", value: `¿Qué consejos me das para visitar ${placeName}?` },
+            { label: "¿Cuándo ir?",          value: `¿Cuál es la mejor época para visitar ${placeName}?` },
+          ]});
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
         // ── 2b. Story narrator mode ────────────────────────────────────────
         // When user is reading a story, use full story content as context.
         // This fires before region/category detection so story questions

@@ -19,6 +19,12 @@ export interface ChatContext {
   storyRegion?:   string;          // region name (Spanish)
   storyPlaces?:   string[];        // names of linked places
   storyPlaceSlugs?: string[];      // slugs of linked places (for cards)
+  placeSummary?:   string;         // ai_summary or description of current place
+  placeTips?:      string;         // ai_tips of current place
+  placeCategory?:  string;         // category name (Spanish)
+  placeRegion?:    string;         // region name (Spanish)
+  placeRating?:    number;
+  placeAccessible?: boolean;
   activeRouteSlugs?: string[];
   filters?: Record<string, unknown>;
   visibleSlugs?: string[];

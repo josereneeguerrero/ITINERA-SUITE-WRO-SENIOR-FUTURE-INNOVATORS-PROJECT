@@ -9,7 +9,14 @@ import { StreamingText } from "@/components/ui/streaming-text";
 interface Place {
   slug: string;
   name_i18n: Record<string, string>;
+  description_i18n?: Record<string, string> | null;
+  ai_summary_i18n?: Record<string, string> | null;
+  ai_tips_i18n?: Record<string, string> | null;
+  aggregated_rating?: number;
+  price_level?: number;
+  accessibility?: boolean;
   place_categories: { name_i18n: Record<string, string> } | null;
+  regions?: { name_i18n: Record<string, string> } | null;
 }
 
 const PLACE_CHIPS = [
@@ -23,12 +30,23 @@ export function PlaceAIPanel({ place }: { place: Place }) {
   const [input, setInput] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const name = (place.name_i18n as Record<string,string>)?.es ?? place.slug;
+  const name     = (place.name_i18n        as Record<string,string>)?.es ?? place.slug;
+  const summary  = (place.ai_summary_i18n  as Record<string,string>)?.es ?? "";
+  const tips     = (place.ai_tips_i18n     as Record<string,string>)?.es ?? "";
+  const desc     = (place.description_i18n as Record<string,string>)?.es ?? "";
+  const catName  = (place.place_categories?.name_i18n as Record<string,string>)?.es ?? "";
+  const regName  = (place.regions?.name_i18n           as Record<string,string>)?.es ?? "";
 
   const { messages, isLoading, send } = useStreamingChat({
-    page:      "place",
-    placeSlug: place.slug,
-    placeName: name,
+    page:          "place",
+    placeSlug:     place.slug,
+    placeName:     name,
+    placeSummary:  summary || desc,
+    placeTips:     tips,
+    placeCategory: catName,
+    placeRegion:   regName,
+    placeRating:   place.aggregated_rating,
+    placeAccessible: place.accessibility,
   });
 
   // Scroll only the internal container — never the whole page
