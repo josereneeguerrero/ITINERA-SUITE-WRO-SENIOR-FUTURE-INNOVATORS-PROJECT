@@ -156,19 +156,26 @@ export function PlannerMiniMap({
           opacity={0.9}
         />
 
-        {/* Numbered markers — always visible */}
+        {/* Numbered markers — small (22px) to avoid overlap near clusters */}
         {places.map((place) => (
-          <MapMarker key={place.slug} longitude={place.lng} latitude={place.lat}>
+          <MapMarker
+            key={place.slug}
+            longitude={place.lng}
+            latitude={place.lat}
+            anchor="bottom"        // pin points down to exact location
+            offset={[0, 4]}        // tiny vertical nudge so the bottom of the pin hits the point
+          >
             <MarkerContent>
               <div style={{
-                width: 32, height: 32,
+                width: 22, height: 22,
                 borderRadius: "50%",
                 backgroundColor: place.dayColor,
-                border: "3px solid white",
-                boxShadow: `0 2px 8px rgba(0,0,0,0.3), 0 0 0 1px ${place.dayColor}`,
+                border: "2.5px solid white",
+                boxShadow: `0 1px 6px rgba(0,0,0,0.35), 0 0 0 1px ${place.dayColor}80`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontFamily: "var(--font-jakarta), sans-serif",
-                fontSize: 13, fontWeight: 700, color: "white", cursor: "default",
+                fontSize: 11, fontWeight: 700, color: "white", cursor: "default",
+                flexShrink: 0,
               }}>
                 {place.stopNumber}
               </div>
