@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Map, MapMarker, MarkerContent, MapRoute, type MapRef } from "@/components/ui/map";
 import type { DayPlan } from "@/app/api/plan/route";
 
@@ -11,6 +11,8 @@ const DAY_COLORS = [
 interface MiniPlace {
   slug: string;
   name: string;
+  category: string;
+  region: string;
   lat: number;
   lng: number;
   stopNumber: number;
@@ -49,6 +51,14 @@ async function fetchRoadRoute(coords: [number, number][]): Promise<RouteResult> 
   }
 }
 
+// ─── Tour timing constants ─────────────────────────────────────────────────────
+const FLY_DURATION   = 1400; // ms — flyTo each stop
+const VIEW_DURATION  = 2600; // ms — pause at each stop
+const RETURN_DURATION = 1600; // ms — flyTo back to overview
+const OVERVIEW_PAUSE  = 2200; // ms — pause on full route before repeating
+const ZOOM_IN        = 13;   // zoom level for individual stop
+const TOUR_START_DELAY = 1800; // ms after route is drawn before tour begins
+
 export function PlannerMiniMap({
   days,
   onRouteReady,
@@ -56,9 +66,10 @@ export function PlannerMiniMap({
   days: DayPlan[];
   onRouteReady?: (stats: { distanceKm: number; durationMin: number }) => void;
 }) {
-  const mapRef = useRef<MapRef>(null);
+  const mapRef    = useRef<MapRef>(null);
+  const tourTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Flatten places with valid coords
+  // Flatten places with coords
   const places: MiniPlace[] = [];
   let stop = 0;
   days.forEach((day, dayIdx) => {
@@ -67,6 +78,7 @@ export function PlannerMiniMap({
         stop++;
         places.push({
           slug: p.slug, name: p.name,
+          category: p.category, region: p.region,
           lat: p.lat, lng: p.lng,
           stopNumber: stop,
           dayColor: DAY_COLORS[dayIdx % DAY_COLORS.length],
@@ -76,18 +88,72 @@ export function PlannerMiniMap({
   });
 
   const stopCoords: [number, number][] = places.map(p => [p.lng, p.lat]);
-
-  // Road route state — full OSRM geometry
-  const [fullRoute, setFullRoute] = useState<[number, number][]>([]);
-  // Animated slice — grows frame by frame
-  const [visibleRoute, setVisibleRoute] = useState<[number, number][]>([]);
   const coordsKey = stopCoords.map(c => c.join(",")).join("|");
+
+  // Bounds calculation
+  const lats = places.map(p => p.lat);
+  const lngs = places.map(p => p.lng);
+  const minLat = places.length ? Math.min(...lats) : 14;
+  const maxLat = places.length ? Math.max(...lats) : 15;
+  const minLng = places.length ? Math.min(...lngs) : -87.5;
+  const maxLng = places.length ? Math.max(...lngs) : -86.5;
+  const latPad = Math.max(0.12, (maxLat - minLat) * 0.3);
+  const lngPad = Math.max(0.12, (maxLng - minLng) * 0.3);
+  const overviewBounds: [[number, number], [number, number]] = [
+    [minLng - lngPad, minLat - latPad],
+    [maxLng + lngPad, maxLat + latPad],
+  ];
+
+  // Route animation state
+  const [fullRoute,    setFullRoute]    = useState<[number, number][]>([]);
+  const [visibleRoute, setVisibleRoute] = useState<[number, number][]>([]);
+  const [routeDone,    setRouteDone]    = useState(false);
+
+  // Tour state
+  const [tourCard, setTourCard] = useState<MiniPlace | null>(null);
+
+  const flyToOverview = useCallback(() => {
+    mapRef.current?.fitBounds(overviewBounds, { duration: RETURN_DURATION, padding: 50 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey]);
+
+  // Tour loop — recursive via setTimeout
+  const startTour = useCallback(() => {
+    if (!places.length) return;
+
+    function visitPlace(index: number) {
+      if (index >= places.length) {
+        // All stops visited → fly back to full overview
+        flyToOverview();
+        setTourCard(null);
+        tourTimer.current = setTimeout(() => startTour(), RETURN_DURATION + OVERVIEW_PAUSE);
+        return;
+      }
+      const p = places[index];
+      mapRef.current?.flyTo({
+        center: [p.lng, p.lat],
+        zoom: ZOOM_IN,
+        duration: FLY_DURATION,
+        essential: true,
+      });
+      tourTimer.current = setTimeout(() => {
+        setTourCard(p);
+        tourTimer.current = setTimeout(() => {
+          setTourCard(null);
+          visitPlace(index + 1);
+        }, VIEW_DURATION);
+      }, FLY_DURATION);
+    }
+
+    visitPlace(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey, places.length]);
 
   // 1. Fetch road route when places change
   useEffect(() => {
     if (stopCoords.length < 2) return;
-    setFullRoute([]);
-    setVisibleRoute([]);
+    setFullRoute([]); setVisibleRoute([]); setRouteDone(false); setTourCard(null);
+    if (tourTimer.current) clearTimeout(tourTimer.current);
     fetchRoadRoute(stopCoords).then(result => {
       setFullRoute(result.coords);
       if (result.distanceKm && result.durationMin) {
@@ -97,92 +163,109 @@ export function PlannerMiniMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordsKey]);
 
-  // 2. Animate the route drawing once we have it
+  // 2. Animate the route drawing
   useEffect(() => {
     if (fullRoute.length < 2) return;
     setVisibleRoute([fullRoute[0]]);
     let idx = 1;
-    // Reveal ~4 road points every 20ms → smooth animation, ~total 1.5-3s
     const id = setInterval(() => {
       idx = Math.min(idx + 4, fullRoute.length);
       setVisibleRoute(fullRoute.slice(0, idx));
-      if (idx >= fullRoute.length) clearInterval(id);
+      if (idx >= fullRoute.length) {
+        clearInterval(id);
+        setRouteDone(true);
+      }
     }, 20);
     return () => clearInterval(id);
   }, [fullRoute]);
 
-  // 3. fitBounds after map loads to show all stops
+  // 3. Start tour after route is fully drawn
+  useEffect(() => {
+    if (!routeDone || places.length < 1) return;
+    tourTimer.current = setTimeout(() => startTour(), TOUR_START_DELAY);
+    return () => { if (tourTimer.current) clearTimeout(tourTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeDone]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { if (tourTimer.current) clearTimeout(tourTimer.current); };
+  }, []);
+
+  // 4. fitBounds after map loads to show all places initially
   useEffect(() => {
     if (places.length < 1) return;
-    const lats = places.map(p => p.lat);
-    const lngs = places.map(p => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const latPad = Math.max(0.12, (maxLat - minLat) * 0.3);
-    const lngPad = Math.max(0.12, (maxLng - minLng) * 0.3);
-    const timeout = setTimeout(() => {
-      mapRef.current?.fitBounds(
-        [[minLng - lngPad, minLat - latPad], [maxLng + lngPad, maxLat + latPad]],
-        { duration: 600, padding: 50 }
-      );
+    const t = setTimeout(() => {
+      mapRef.current?.fitBounds(overviewBounds, { duration: 600, padding: 50 });
     }, 350);
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordsKey]);
 
   if (places.length === 0) return null;
 
-  const lats = places.map(p => p.lat);
-  const lngs = places.map(p => p.lng);
-  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#d7e2de] shadow-sm"
-      style={{ height: 340 }}>
-      <Map
-        ref={mapRef}
-        theme="light"
-        center={[centerLng, centerLat]}
-        zoom={7}
-        interactive={false}
-        attributionControl={{ compact: true }}
-      >
-        {/* Road route — animates along real roads */}
-        <MapRoute
-          coordinates={visibleRoute}
-          color="#0D9488"
-          width={4}
-          opacity={0.9}
-        />
+    <div style={{ position: "relative", height: 340 }}>
+      {/* Map */}
+      <div className="overflow-hidden rounded-2xl border border-[#d7e2de] shadow-sm h-full">
+        <Map
+          ref={mapRef}
+          theme="light"
+          center={[centerLng, centerLat]}
+          zoom={7}
+          interactive={false}
+          attributionControl={{ compact: true }}
+        >
+          <MapRoute coordinates={visibleRoute} color="#0D9488" width={4} opacity={0.9} />
 
-        {/* Numbered markers — small (22px) to avoid overlap near clusters */}
-        {places.map((place) => (
-          <MapMarker
-            key={place.slug}
-            longitude={place.lng}
-            latitude={place.lat}
-            anchor="bottom"        // pin points down to exact location
-            offset={[0, 4]}        // tiny vertical nudge so the bottom of the pin hits the point
-          >
-            <MarkerContent>
-              <div style={{
-                width: 22, height: 22,
-                borderRadius: "50%",
-                backgroundColor: place.dayColor,
-                border: "2.5px solid white",
-                boxShadow: `0 1px 6px rgba(0,0,0,0.35), 0 0 0 1px ${place.dayColor}80`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "var(--font-jakarta), sans-serif",
-                fontSize: 11, fontWeight: 700, color: "white", cursor: "default",
-                flexShrink: 0,
-              }}>
-                {place.stopNumber}
-              </div>
-            </MarkerContent>
-          </MapMarker>
-        ))}
-      </Map>
+          {places.map((place) => (
+            <MapMarker key={place.slug} longitude={place.lng} latitude={place.lat}
+              anchor="bottom" offset={[0, 4]}>
+              <MarkerContent>
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                  backgroundColor: place.dayColor,
+                  border: "2.5px solid white",
+                  boxShadow: `0 1px 6px rgba(0,0,0,0.35), 0 0 0 1px ${place.dayColor}80`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "var(--font-jakarta), sans-serif",
+                  fontSize: 11, fontWeight: 700, color: "white", cursor: "default",
+                }}>
+                  {place.stopNumber}
+                </div>
+              </MarkerContent>
+            </MapMarker>
+          ))}
+        </Map>
+      </div>
+
+      {/* Tour card — floats over the map while zoomed into a stop */}
+      <div
+        className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transition-all duration-300"
+        style={{ opacity: tourCard ? 1 : 0, transform: `translateX(-50%) translateY(${tourCard ? "0" : "8px"})` }}
+      >
+        {tourCard && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-[#d7e2de] bg-white/95 px-4 py-2.5 shadow-lg backdrop-blur-sm">
+            <div
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-jakarta text-[11px] font-bold text-white"
+              style={{ backgroundColor: tourCard.dayColor }}
+            >
+              {tourCard.stopNumber}
+            </div>
+            <div className="min-w-0">
+              <p className="font-jakarta text-sm font-bold text-[#0f172a] leading-tight">{tourCard.name}</p>
+              {(tourCard.category || tourCard.region) && (
+                <p className="font-inter text-[11px] text-[#64748b] leading-tight">
+                  {[tourCard.category, tourCard.region].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
