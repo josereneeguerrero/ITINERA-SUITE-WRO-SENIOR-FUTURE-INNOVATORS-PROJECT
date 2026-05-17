@@ -56,16 +56,73 @@ const INTEREST_TO_SLUG: Record<string, string> = {
   "Arte y Museos":       "arts",
 };
 
-// ── Departure city → preferred region slugs ────────────────────────────────────
+// ── Departure city → coordinates + preferred regions ──────────────────────────
 
 const DEPARTURE_REGIONS: Record<string, string[]> = {
-  "Tegucigalpa": ["francisco-morazan", "comayagua", "copan"],
+  "Tegucigalpa":   ["francisco-morazan", "comayagua", "copan"],
   "San Pedro Sula": ["cortes", "santa-barbara", "copan"],
-  "La Ceiba": ["atlantida", "colon", "islas-de-la-bahia"],
-  "Otra": [],
+  "La Ceiba":      ["atlantida", "colon", "islas-de-la-bahia"],
+  "Otra":          [],
 };
 
-// ── Distribute places across days ──────────────────────────────────────────────
+// Approx center coordinates for each departure city [lng, lat]
+const DEPARTURE_COORDS: Record<string, [number, number]> = {
+  "Tegucigalpa":   [-87.2068, 14.0818],
+  "San Pedro Sula": [-88.0200, 15.5000],
+  "La Ceiba":      [-86.8738, 15.7743],
+  "Otra":          [-86.9, 14.8],   // geographic center of Honduras
+};
+
+// ── Haversine distance (km) between two [lng, lat] points ─────────────────────
+
+function haversineKm(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Nearest-neighbor ordering from a start point ──────────────────────────────
+// Greedy TSP heuristic: always pick the closest unvisited place next.
+// Dramatically reduces cross-country zigzagging vs random order.
+
+function nearestNeighborOrder(
+  places: PlaceCard[],
+  startLng: number,
+  startLat: number
+): PlaceCard[] {
+  const withCoords  = places.filter(p => p.lat !== null && p.lng !== null);
+  const withoutCoords = places.filter(p => p.lat === null || p.lng === null);
+
+  if (withCoords.length <= 1) return places;
+
+  const unvisited = [...withCoords];
+  const ordered: PlaceCard[] = [];
+  let curLng = startLng;
+  let curLat = startLat;
+
+  while (unvisited.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    unvisited.forEach((p, i) => {
+      const d = haversineKm(curLng, curLat, p.lng!, p.lat!);
+      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+    });
+    const next = unvisited.splice(nearestIdx, 1)[0];
+    ordered.push(next);
+    curLng = next.lng!;
+    curLat = next.lat!;
+  }
+
+  return [...ordered, ...withoutCoords];
+}
+
+// ── Distribute ordered places across days ──────────────────────────────────────
+// Places are already geographically ordered — just slice in order.
 
 function distributePlaces(places: PlaceCard[], days: number): PlaceCard[][] {
   if (places.length === 0) return Array.from({ length: days }, () => []);
@@ -74,16 +131,12 @@ function distributePlaces(places: PlaceCard[], days: number): PlaceCard[][] {
   const minPerDay = 1;
   const result: PlaceCard[][] = Array.from({ length: days }, () => []);
 
-  // Shuffle slightly to avoid same-category clustering
-  const shuffled = [...places].sort(() => Math.random() - 0.5);
-
-  // Fill days greedily: try to fill each day to maxPerDay, last days get remainder
   let idx = 0;
-  for (let d = 0; d < days && idx < shuffled.length; d++) {
-    const remaining = shuffled.length - idx;
+  for (let d = 0; d < days && idx < places.length; d++) {
+    const remaining = places.length - idx;
     const daysLeft = days - d;
     const forThisDay = Math.min(maxPerDay, Math.max(minPerDay, Math.ceil(remaining / daysLeft)));
-    result[d] = shuffled.slice(idx, idx + forThisDay);
+    result[d] = places.slice(idx, idx + forThisDay);
     idx += forThisDay;
   }
 
@@ -183,8 +236,13 @@ export async function POST(req: Request) {
       }, { status: 200 });
     }
 
-    // Distribute across days
-    const dayGroups = distributePlaces(sorted, days);
+    // ── Nearest-neighbor ordering from departure city ──────────────────────────
+    // Eliminates cross-country zigzagging by always visiting the closest next place.
+    const [depLng, depLat] = DEPARTURE_COORDS[departure] ?? DEPARTURE_COORDS["Otra"];
+    const geographicallyOrdered = nearestNeighborOrder(sorted, depLng, depLat);
+
+    // Distribute across days in geographic order
+    const dayGroups = distributePlaces(geographicallyOrdered, days);
 
     // Generate plan title
     const interestLabels = interests.slice(0, 2).join(" y ");
