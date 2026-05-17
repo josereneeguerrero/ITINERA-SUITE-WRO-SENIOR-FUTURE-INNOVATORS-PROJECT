@@ -39,7 +39,7 @@ type PlannerState = "form" | "generating" | "result" | "saved";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function IaPlanner({ isGuest }: { isGuest: boolean }) {
+export function IaPlanner({ isGuest, defaultInterests = [] }: { isGuest: boolean; defaultInterests?: string[] }) {
   const [state, setState] = useState<PlannerState>("form");
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
 
   // Form state
   const [days, setDays] = useState(2);
-  const [interests, setInterests] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>(defaultInterests);
   const [departure, setDeparture] = useState("Tegucigalpa");
   const [groupType, setGroupType] = useState("Amigos");
 

@@ -7,6 +7,7 @@ import {
   RotateCcw, Send, Sparkles, X,
 } from "lucide-react";
 import { IaPlanner } from "@/components/ia/ia-planner";
+import { IaDescubrir } from "@/components/ia/ia-descubrir";
 import { useStreamingChat } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 import { StreamingText } from "@/components/ui/streaming-text";
@@ -16,7 +17,7 @@ import { StreamingText } from "@/components/ui/streaming-text";
 const TABS = [
   { id: "chat",        label: "Chat IA",      icon: Sparkles,    available: true  },
   { id: "planner",     label: "Planificador",  icon: CalendarDays, available: true  },
-  { id: "discover",    label: "Descubrir",     icon: Compass,      available: false },
+  { id: "discover",    label: "Descubrir",     icon: Compass,      available: true  },
 ] as const;
 
 // ─── Suggestions ──────────────────────────────────────────────────────────────
@@ -39,8 +40,9 @@ export function IaChatCenter({
   isGuest: boolean;
   userName: string | null;
 }) {
-  const [tab, setTab]     = useState<"chat" | "planner" | "discover">("chat");
-  const [message, setMessage] = useState("");
+  const [tab, setTab]           = useState<"chat" | "planner" | "discover">("chat");
+  const [plannerPreset, setPlannerPreset] = useState<string[]>([]);
+  const [message, setMessage]   = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   // Messages that existed on mount are historical — show them instantly
   const historicalCount = useRef<number | null>(null);
@@ -139,7 +141,17 @@ export function IaChatCenter({
       </div>
 
       {/* ── Planificador (tab=planner) ─────────────────────────────────── */}
-      {tab === "planner" && <IaPlanner isGuest={isGuest} />}
+      {tab === "planner" && <IaPlanner isGuest={isGuest} defaultInterests={plannerPreset} />}
+
+      {/* ── Descubrir (tab=discover) ───────────────────────────────────── */}
+      {tab === "discover" && (
+        <IaDescubrir
+          onPlanWith={(interests) => {
+            setPlannerPreset(interests);
+            setTab("planner");
+          }}
+        />
+      )}
 
       {/* ── Messages area (tab=chat only) ──────────────────────────────── */}
       {tab === "chat" && <div
