@@ -114,12 +114,18 @@ function norm(text: string): string {
 // ── Region Detection ──────────────────────────────────────────────────
 
 const REGIONS = [
-  { slug: "comayagua", keywords: ["comayagua"] },
-  { slug: "copan", keywords: ["copan", "copán", "ruinas"] },
-  { slug: "bay-islands", keywords: ["roatan", "islas de la bahia", "bahia", "islas"] },
-  { slug: "tegucigalpa", keywords: ["tegucigalpa", "tegus", "francisco morazan", "morazan", "capital"] },
-  { slug: "cortes", keywords: ["cortes", "san pedro sula", "sps"] },
-  { slug: "la-ceiba", keywords: ["la ceiba", "ceiba"] },
+  { slug: "comayagua",     keywords: ["comayagua"] },
+  { slug: "copan",         keywords: ["copan", "copán", "ruinas", "copan ruinas", "copán ruinas"] },
+  { slug: "bay-islands",   keywords: ["roatan", "roatán", "islas de la bahia", "bahia", "islas", "utila", "guanaja"] },
+  { slug: "francisco-morazan", keywords: ["tegucigalpa", "tegus", "francisco morazan", "morazan", "capital"] },
+  { slug: "cortes",        keywords: ["cortes", "cortés", "san pedro sula", "sps"] },
+  { slug: "atlantida",     keywords: ["la ceiba", "ceiba", "atlantida", "atlántida", "tela", "lancetilla"] },
+  { slug: "colon",         keywords: ["colon", "colón", "trujillo"] },
+  { slug: "olancho",       keywords: ["olancho", "juticalpa"] },
+  { slug: "santa-barbara", keywords: ["santa barbara", "santa bárbara"] },
+  { slug: "lempira",       keywords: ["lempira", "gracias", "gracias a dios"] },
+  { slug: "choluteca",     keywords: ["choluteca"] },
+  { slug: "yoro",          keywords: ["yoro"] },
 ];
 
 function detectRegion(text: string): string | null {
@@ -183,12 +189,18 @@ function detectCategory(text: string): string | null {
 // ── Region Names ───────────────────────────────────────────────────────
 
 const REGION_NAMES: Record<string, string> = {
-  comayagua: "Comayagua",
-  copan: "Copán",
-  "bay-islands": "Islas de la Bahía",
-  tegucigalpa: "Tegucigalpa",
-  cortes: "Cortés",
-  "la-ceiba": "La Ceiba",
+  comayagua:           "Comayagua",
+  copan:               "Copán",
+  "bay-islands":       "Islas de la Bahía",
+  "francisco-morazan": "Tegucigalpa / Francisco Morazán",
+  cortes:              "Cortés",
+  atlantida:           "Atlántida",
+  colon:               "Colón",
+  olancho:             "Olancho",
+  "santa-barbara":     "Santa Bárbara",
+  lempira:             "Lempira",
+  choluteca:           "Choluteca",
+  yoro:                "Yoro",
 };
 
 // ── Greeting Detection ──────────────────────────────────────────────────
@@ -457,10 +469,17 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
         const region = detectRegion(lastMsg);
         const category = detectCategory(lastMsg);
 
-        // If no region in current message, look in the last 6 user messages
+        // If no region in current message, look in recent user messages first
         let contextRegion = region;
         if (!contextRegion) {
           for (const m of messages.filter(m => m.role === "user").slice(-6)) {
+            const r = detectRegion(m.content);
+            if (r) { contextRegion = r; break; }
+          }
+        }
+        // Still no region? Scan last 2 assistant messages (e.g. AI said "Atlántida" and user replies "y para comer ahí?")
+        if (!contextRegion) {
+          for (const m of messages.filter(m => m.role === "assistant").slice(-2)) {
             const r = detectRegion(m.content);
             if (r) { contextRegion = r; break; }
           }
@@ -603,9 +622,27 @@ Termina con una frase breve invitando a explorar un tema específico.`,
             emit({ type: "ui-actions", intent: "filter_category", actions: [{ type: "filter_category", slug: category }], entities: { category } });
           }
 
-          // ── Zero results ──────────────────────────────────────────────────
+          // ── Zero results → LLM cultural response + honest DB note ────────
           if (places.length === 0) {
-            emit({ type: "text-delta", textDelta: "No encontré lugares registrados para esa búsqueda en Honduras." });
+            const regionName = searchRegion ? (REGION_NAMES[searchRegion] || searchRegion) : "Honduras";
+            const zeroResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: isMapMode
+                ? `Eres Itinera IA. No encontraste lugares de esa categoría en la DB para ${regionName}. Informa brevemente (1 frase) que no tienes datos registrados de eso aún y sugiere explorar en /explore o preguntar por otra cosa. No inventes nombres.`
+                : `${IA_CENTER_SYSTEM}
+
+No encontraste lugares registrados de esa categoría en la base de datos para ${regionName}.
+Responde honestamente en 2-3 frases: menciona que la gastronomía / categoría solicitada no está completamente registrada en Itinera aún, ofrece contexto cultural general real si lo sabes (platos típicos de la zona, mercados conocidos, etc.) y sugiere buscar en /explore o en Google Maps para negocios actualizados. Nunca inventes nombres de restaurantes o negocios.`,
+              messages: [{ role: "user", content: lastMsg }],
+              temperature: 0.5,
+            });
+            emit({ type: "text-delta", textDelta: zeroResult.text });
+            emit({ type: "suggestions", suggestions: [
+              { label: "¿Qué comer en Honduras?",      value: "¿Cuáles son los platos típicos de Honduras?" },
+              { label: "Explorar la zona",              value: `¿Qué más hay para ver en ${regionName}?` },
+              { label: "Planificar itinerario",         value: `Arma un itinerario de 2 días en ${regionName}` },
+            ]});
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
             return;
