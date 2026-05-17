@@ -50,6 +50,9 @@ type ExplorePlace = {
   featured: boolean;
   lat?: number | null;
   lng?: number | null;
+  phone?: string | null;
+  website?: string | null;
+  address_i18n?: Record<string, string> | null;
   place_categories: { name_i18n: Record<string, string>; icon_name: string; slug: string } | null;
   regions: { name_i18n: Record<string, string>; slug: string } | null;
 };
@@ -159,7 +162,7 @@ export default async function ExplorePage({
     supabase
       .from("places")
       .select(
-        "id,slug,name_i18n,description_i18n,ai_summary_i18n,aggregated_rating,review_count,price_level,accessibility,local_favorite,featured,lat,lng,place_categories(name_i18n,icon_name,slug),regions(name_i18n,slug)"
+        "id,slug,name_i18n,description_i18n,ai_summary_i18n,aggregated_rating,review_count,price_level,accessibility,local_favorite,featured,lat,lng,phone,website,address_i18n,place_categories(name_i18n,icon_name,slug),regions(name_i18n,slug)"
       )
       .eq("status", "published")
       .order("featured", { ascending: false })

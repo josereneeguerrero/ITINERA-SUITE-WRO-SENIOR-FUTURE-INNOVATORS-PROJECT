@@ -358,7 +358,7 @@ function ExploreDashboardView({
                 mapZoom={mapZoom}
                 onSelectPlace={(p) => setSelectedPlaceSlug((p as Place | null)?.slug ?? null)}
               />
-              <PlaceDrawer place={selectedPlace as never} onClose={() => setSelectedPlaceSlug(null)} onAddToRoute={() => selectedPlace && addToRoute(selectedPlace)} onSave={() => selectedPlace && toggleSave(selectedPlace)} />
+              <PlaceDrawer place={selectedPlace as never} onClose={() => setSelectedPlaceSlug(null)} onAddToRoute={() => selectedPlace && addToRoute(selectedPlace)} onSave={() => selectedPlace && toggleSave(selectedPlace)} isSaved={selectedPlace ? savedSlugs.has(selectedPlace.slug) : false} />
             </div>
             <div className="absolute inset-x-0 bottom-0 z-10 max-h-[44%] overflow-y-auto border-t border-[#E2E8F0] bg-white/95 p-3 backdrop-blur-sm">
               {activeRoute ? (
