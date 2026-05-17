@@ -8,12 +8,13 @@ function isMobile(ua: string): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip static assets, API routes, and the mobile page itself
+  // Skip static assets, API routes, landing and mobile page
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/favicon") ||
-    pathname === "/mobile"
+    pathname === "/mobile" ||
+    pathname === "/"        // landing visible en móvil
   ) {
     return NextResponse.next();
   }
