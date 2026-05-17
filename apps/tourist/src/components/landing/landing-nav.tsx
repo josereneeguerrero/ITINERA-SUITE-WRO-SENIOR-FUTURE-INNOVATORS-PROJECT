@@ -34,7 +34,7 @@ export function LandingNav() {
         opacity: visible ? 1 : 0,
       }}
     >
-      <div className="flex items-center justify-between rounded-2xl border border-[#d7e2de]/80 bg-white/92 px-5 py-3 shadow-sm backdrop-blur-xl">
+      <div className="flex items-center justify-between rounded-2xl border border-[#d7e2de]/80 bg-white px-5 py-3 shadow-sm">
         <Link
           href="/"
           className="cursor-pointer font-jakarta text-lg font-bold text-[#0D9488] transition-opacity hover:opacity-80"
