@@ -579,12 +579,54 @@ El usuario hizo una pregunta educativa/narrativa. ${placeContext
             if (isMapMode) emit({ type: "ui-actions", intent: "show_place", actions: [{ type: "show_place", slug: narrPlace.slug }], entities: {} });
           }
 
-          // Suggest follow-ups
+          // Suggest follow-ups — use region name to avoid re-triggering same place search
+          const narrRegionName = narrPlace?.region || "la zona";
           emit({ type: "suggestions", suggestions: [
-            { label: "¿Cómo llegar?",           value: `¿Cómo llego a ${narrPlace?.name ?? "este lugar"}?` },
-            { label: "Historia del lugar",       value: `Cuéntame la historia completa de ${narrPlace?.name ?? "este lugar"}` },
-            { label: "Lugares cercanos",         value: `¿Qué otros lugares hay cerca de ${narrPlace?.name ?? "aquí"}?` },
+            { label: "¿Cómo llegar?",       value: `¿Cómo llego a ${narrPlace?.name ?? "este lugar"}?` },
+            { label: "Historia completa",    value: `Cuéntame la historia completa de ${narrPlace?.name ?? "este lugar"}` },
+            { label: "Más lugares",          value: `¿Qué más puedo visitar en ${narrRegionName}?` },
           ]});
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
+        // ── 3c. Nearby intent ──────────────────────────────────────────────
+        // "¿Qué más hay en Comayagua?", "¿Qué puedo visitar cerca?", "otros lugares"
+        // → region-only search (any category), so the user gets variety not same category
+
+        const NEARBY_KEYWORDS = ["que mas hay", "que mas puedo", "que puedo visitar", "que hay en",
+          "otros lugares", "cerca de", "hay cerca", "lugares cercanos", "alrededor", "que visitar en",
+          "que ver en", "que hacer en"];
+
+        const hasNearbyIntent = NEARBY_KEYWORDS.some(kw => norm(lastMsg).includes(norm(kw)));
+
+        if (hasNearbyIntent && contextRegion) {
+          // Fetch all categories in that region
+          const nearbyPlaces = await fetchPlaces(contextRegion, null);
+          const regionName   = REGION_NAMES[contextRegion] || contextRegion;
+
+          if (nearbyPlaces.length === 0) {
+            emit({ type: "text-delta", textDelta: `Aún no tenemos más lugares registrados en ${regionName}. Explora /explore para ver todo el mapa.` });
+          } else {
+            const nearbyResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: isMapMode
+                ? `Eres Itinera IA. Presenta brevemente estos lugares de ${regionName} en 2-3 frases. No inventes datos.\n${nearbyPlaces.map(p => `• ${p.name} (${p.category}) ⭐${p.rating}`).join("\n")}`
+                : `${IA_CENTER_SYSTEM}\n\nEl usuario quiere saber qué más visitar en ${regionName}.\nLugares disponibles:\n${nearbyPlaces.map(p => `• ${p.name} (${p.category}) — ${p.summary || ""} ⭐${p.rating}`).join("\n")}\n\nIMPORTANTE: Las tarjetas se mostrarán automáticamente. Escribe 1-2 frases de introducción variada — menciona la diversidad de opciones. No repitas detalles de cada lugar.`,
+              messages: [{ role: "user", content: lastMsg }],
+              temperature: 0.5,
+            });
+            emit({ type: "text-delta", textDelta: nearbyResult.text });
+            emit({
+              type: "tool-result",
+              toolName: "search_places",
+              result: { places: nearbyPlaces.map(p => ({ slug: p.slug, name: p.name, rating: p.rating, url: `/places/${p.slug}` })) },
+            });
+            if (isMapMode) emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: contextRegion }], entities: { region: contextRegion } });
+          }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
