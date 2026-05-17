@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ScrollToTop } from "@/components/ui/scroll-to-top";
-import { MobileGuard } from "@/components/ui/mobile-guard";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -54,7 +53,6 @@ export default function RootLayout({
       className={`${plusJakartaSans.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#F8FAFC] text-[#0F172A] font-inter">
-        <MobileGuard />
         <ScrollToTop />
         {children}
       </body>
