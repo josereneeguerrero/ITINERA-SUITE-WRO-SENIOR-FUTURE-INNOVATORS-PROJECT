@@ -4,6 +4,7 @@ import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { ImageAutoSlider, type ImageAutoSliderItem } from "@/components/ui/image-auto-slider";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { BlurFade } from "@/components/ui/blur-fade";
+import { Highlight } from "@/components/ui/hero-highlight";
 import {
   ArrowRight,
   BookOpen,
@@ -407,10 +408,13 @@ export default async function HomePage() {
           {/* Headline */}
           <BlurFade delay={0.2} inView duration={0.6} yOffset={10} blur="8px">
             <h1
-              className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.07] text-[#0f172a] sm:max-w-4xl"
+              className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.12] text-[#0f172a] sm:max-w-4xl"
               style={{ fontSize: "clamp(38px, 6vw, 80px)" }}
             >
-              Honduras tiene más de lo que te cuentan
+              Honduras tiene{" "}
+              <Highlight>
+                más de lo que te cuentan
+              </Highlight>
             </h1>
           </BlurFade>
 
