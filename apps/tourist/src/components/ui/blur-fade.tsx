@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   AnimatePresence,
   motion,
@@ -39,7 +39,15 @@ export function BlurFade({
 }: BlurFadeProps) {
   const ref = useRef(null);
   const inViewResult = useInView(ref, { once: true, margin: inViewMargin });
-  const isInView = !inView || inViewResult;
+  // Fallback: if IntersectionObserver doesn't fire (Android Chrome quirk),
+  // force visible after 400ms so content never stays invisible
+  const [fallback, setFallback] = useState(false);
+  useEffect(() => {
+    if (!inView) return;
+    const t = setTimeout(() => setFallback(true), 400);
+    return () => clearTimeout(t);
+  }, [inView]);
+  const isInView = !inView || inViewResult || fallback;
 
   const defaultVariants: Variants = {
     hidden: { y: yOffset, opacity: 0, filter: `blur(${blur})` },
