@@ -331,7 +331,7 @@ function ProductMockup() {
 export default async function HomePage() {
   const supabase = await createClient();
 
-  const [{ data: places }, { count: placeCount }, { count: storyCount }] = await Promise.all([
+  const [{ data: places }] = await Promise.all([
     supabase
       .from("places")
       .select(
@@ -341,12 +341,6 @@ export default async function HomePage() {
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
       .limit(20),
-    supabase.from("places").select("id", { count: "exact", head: true }).eq("status", "published"),
-    supabase
-      .from("stories")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "published")
-      .eq("moderation_status", "approved"),
   ]);
 
   const shuffled = shuffle((places ?? []) as Place[]).slice(0, 12);
@@ -378,19 +372,9 @@ export default async function HomePage() {
         }));
 
   const metrics: Array<{ icon: LucideIcon; label: string }> = [
-    {
-      icon: Map,
-      label: placeCount
-        ? formatCount(placeCount, "destino publicado", "destinos publicados")
-        : "Destinos culturales",
-    },
-    { icon: Globe2, label: "Honduras, en profundidad" },
-    {
-      icon: Sparkles,
-      label: storyCount
-        ? formatCount(storyCount, "historia con IA", "historias con IA")
-        : "Historias con IA",
-    },
+    { icon: Map,      label: "Destinos culturales verificados" },
+    { icon: Globe2,   label: "Honduras, en profundidad" },
+    { icon: Sparkles, label: "Historias narradas con IA" },
   ];
 
   return (
@@ -749,7 +733,7 @@ export default async function HomePage() {
                 icon: Star,
                 title: "Impacto real",
                 description:
-                  "16+ destinos culturales de Honduras publicados, historias narradas con IA, rutas guardables y búsqueda semántica activa. No es un prototipo: es una plataforma desplegada y funcionando.",
+                  "Destinos culturales de Honduras publicados, historias narradas con IA, rutas guardables y búsqueda semántica activa. No es un prototipo: es una plataforma desplegada y funcionando.",
                 iconColor: "text-sky-600",
                 bg: "bg-sky-50",
                 border: "border-sky-100",
