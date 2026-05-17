@@ -195,11 +195,13 @@ export async function POST(req: Request) {
     const planTitleResult = await generateText({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       model: (getGroq() as any)("llama-3.3-70b-versatile"),
-      system: `Eres Itinera IA. Genera un título evocador y breve (máximo 6 palabras) para un itinerario de Honduras.
-Días: ${days}. Intereses: ${interestLabels}. Salida desde: ${departure}. Grupo: ${groupType}.
-Solo el título, sin puntuación extra. En español.`,
-      messages: [{ role: "user", content: "título del itinerario" }],
-      temperature: 0.8,
+      system: `Eres Itinera IA. Crea un título poético de máximo 5 palabras en español natural y correcto para un itinerario de Honduras.
+El título debe ser descriptivo del viaje, no mencionar el tipo de grupo.
+Usa frases como: "Ruta Maya del Occidente", "Fe y Sabor en Comayagua", "Playas del Caribe Hondureño".
+Intereses: ${interestLabels}. Salida: ${departure}. Días: ${days}.
+SOLO el título, sin comillas, sin puntuación extra.`,
+      messages: [{ role: "user", content: "título" }],
+      temperature: 0.85,
     });
 
     // Generate day descriptions in parallel

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ArrowRight, BookMarked, CalendarDays, Check, Compass,
-  Loader2, MapPin, RotateCcw, Route, Save, Sparkles, Star,
+  ArrowRight, BookMarked, CalendarDays, Check, Clock,
+  Compass, Loader2, Map, MapPin, RefreshCw, RotateCcw,
+  Route, Save, Sparkles, Star,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { GeneratedPlan } from "@/app/api/plan/route";
 import { PlannerMiniMap } from "@/components/ia/planner-mini-map";
+
+const PENDING_PLAN_KEY = "itinera-pending-plan";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,12 +45,27 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [savedRouteId, setSavedRouteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [routeStats, setRouteStats] = useState<{ distanceKm: number; durationMin: number } | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<GeneratedPlan | null>(null);
 
   // Form state
   const [days, setDays] = useState(2);
   const [interests, setInterests] = useState<string[]>([]);
   const [departure, setDeparture] = useState("Tegucigalpa");
   const [groupType, setGroupType] = useState("Amigos");
+
+  // Restore pending plan after guest auth
+  useEffect(() => {
+    if (isGuest) return;
+    try {
+      const raw = sessionStorage.getItem(PENDING_PLAN_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as GeneratedPlan;
+        sessionStorage.removeItem(PENDING_PLAN_KEY);
+        setPendingPlan(saved);
+      }
+    } catch { /* ignore */ }
+  }, [isGuest]);
 
   const toggleInterest = (label: string) => {
     setInterests(prev =>
@@ -64,6 +82,7 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
     setState("generating");
     setError(null);
     setPlan(null);
+    setRouteStats(null);
 
     try {
       const res = await fetch("/api/plan", {
@@ -160,8 +179,21 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
     setPlan(null);
     setError(null);
     setSavedRouteId(null);
-    setInterests([]);
-    setDays(2);
+    setRouteStats(null);
+    // NOTE: intentionally keep form values (interests, days, departure, groupType)
+    // so "Planificar otro viaje" just resets the result, not the preferences
+  }
+
+  function handleRegenerate() {
+    void handleGenerate(); // same form state, new generation
+  }
+
+  function handleGuestSave() {
+    // Persist plan so it survives through the auth flow
+    if (plan) {
+      try { sessionStorage.setItem(PENDING_PLAN_KEY, JSON.stringify(plan)); } catch { /* ignore */ }
+    }
+    window.location.href = `/bienvenida?redirect=${encodeURIComponent("/ia")}`;
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -351,20 +383,69 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
           </div>
         )}
 
+        {/* ── PENDING PLAN BANNER (after auth) ── */}
+        {pendingPlan && state === "form" && (
+          <div className="rounded-2xl border border-[#0D9488]/25 bg-[#0D9488]/8 p-4">
+            <p className="font-jakarta text-sm font-bold text-[#0f172a]">
+              Tienes un itinerario pendiente
+            </p>
+            <p className="mt-0.5 font-inter text-xs text-[#64748b]">
+              Generaste «{pendingPlan.title}» antes de iniciar sesión.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button type="button"
+                onClick={() => { setPlan(pendingPlan); setState("result"); setPendingPlan(null); }}
+                className="cursor-pointer rounded-xl bg-[#0D9488] px-4 py-2 font-inter text-xs font-bold text-white transition-all hover:bg-[#0f766e]">
+                Restaurar itinerario
+              </button>
+              <button type="button" onClick={() => setPendingPlan(null)}
+                className="cursor-pointer rounded-xl border border-[#d7e2de] bg-white px-4 py-2 font-inter text-xs font-semibold text-[#334155] transition-all hover:border-[#0D9488]/30">
+                Descartar
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── RESULT ── */}
         {state === "result" && plan && (
           <div className="space-y-5">
             {/* Plan header */}
             <div className="rounded-2xl border border-[#0D9488]/20 bg-gradient-to-br from-[#0D9488]/8 to-transparent p-5">
-              <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-white/80 px-2.5 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#00685f]">
-                <Sparkles className="h-3 w-3" aria-hidden /> Tu itinerario personalizado
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-white/80 px-2.5 py-1 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-[#00685f]">
+                    <Sparkles className="h-3 w-3" aria-hidden /> Tu itinerario personalizado
+                  </div>
+                  <h2 className="mt-2 font-jakarta text-2xl font-extrabold text-[#0f172a]">{plan.title}</h2>
+                  <p className="mt-1 font-inter text-sm text-[#64748b]">{plan.subtitle}</p>
+                  {/* Route stats from OSRM */}
+                  {routeStats && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center gap-1.5 font-inter text-xs font-semibold text-[#334155]">
+                        <Map className="h-3.5 w-3.5 text-[#0D9488]" aria-hidden />
+                        {routeStats.distanceKm} km total
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 font-inter text-xs font-semibold text-[#334155]">
+                        <Clock className="h-3.5 w-3.5 text-[#0D9488]" aria-hidden />
+                        ~{routeStats.durationMin < 60
+                          ? `${routeStats.durationMin} min`
+                          : `${Math.floor(routeStats.durationMin / 60)}h ${routeStats.durationMin % 60 > 0 ? `${routeStats.durationMin % 60}min` : ""}`.trim()
+                        } en carretera
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Regenerate button */}
+                <button type="button" onClick={handleRegenerate}
+                  title="Regenerar con las mismas preferencias"
+                  className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-[#d7e2de] bg-white px-3 py-2 font-inter text-xs font-semibold text-[#334155] shadow-sm transition-all hover:border-[#0D9488]/30 hover:text-[#0D9488]">
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Regenerar
+                </button>
               </div>
-              <h2 className="mt-2 font-jakarta text-2xl font-extrabold text-[#0f172a]">{plan.title}</h2>
-              <p className="mt-1 font-inter text-sm text-[#64748b]">{plan.subtitle}</p>
             </div>
 
-            {/* Mini map — full-width hero between header and days */}
-            <PlannerMiniMap days={plan.days} />
+            {/* Mini map — full-width, reports route stats */}
+            <PlannerMiniMap days={plan.days} onRouteReady={setRouteStats} />
 
             {/* Day cards */}
             <div className="space-y-4">
@@ -438,10 +519,10 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
             {/* Actions */}
             <div className="flex flex-col gap-3">
               {isGuest ? (
-                <a href="/bienvenida?redirect=/routes"
+                <button type="button" onClick={handleGuestSave}
                   className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e]">
                   <Save className="h-5 w-5" aria-hidden /> Crear cuenta para guardar
-                </a>
+                </button>
               ) : (
                 <button type="button" onClick={() => void handleSave()} disabled={saving}
                   className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] disabled:opacity-60">
@@ -450,8 +531,15 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
                     : <><Save className="h-5 w-5" aria-hidden /> Guardar como ruta</>}
                 </button>
               )}
-              <button type="button" onClick={handleReset}
+
+              {/* Ver en mapa interactivo */}
+              <a href={isGuest ? "/explore?guest=true" : "/explore"}
                 className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-white px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">
+                <MapPin className="h-4 w-4 text-[#0D9488]" aria-hidden /> Ver en mapa interactivo
+              </a>
+
+              <button type="button" onClick={handleReset}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-[#f0f5f2] px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">
                 <RotateCcw className="h-4 w-4" aria-hidden /> Planificar otro viaje
               </button>
             </div>

@@ -17,25 +17,45 @@ interface MiniPlace {
   dayColor: string;
 }
 
-// Fetch real road route from OSRM — same API used in /explore
-async function fetchRoadRoute(coords: [number, number][]): Promise<[number, number][]> {
-  if (coords.length < 2) return coords;
+interface RouteResult {
+  coords: [number, number][];
+  distanceKm: number | null;
+  durationMin: number | null;
+}
+
+async function fetchRoadRoute(coords: [number, number][]): Promise<RouteResult> {
+  if (coords.length < 2) return { coords, distanceKm: null, durationMin: null };
   try {
     const waypoints = coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
     const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`;
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return coords;
+    if (!res.ok) return { coords, distanceKm: null, durationMin: null };
     const data = await res.json() as {
-      routes?: Array<{ geometry?: { coordinates?: [number, number][] } }>;
+      routes?: Array<{
+        distance?: number;
+        duration?: number;
+        geometry?: { coordinates?: [number, number][] };
+      }>;
     };
-    const roadCoords = data.routes?.[0]?.geometry?.coordinates;
-    return roadCoords && roadCoords.length > 1 ? roadCoords : coords;
+    const route = data.routes?.[0];
+    const roadCoords = route?.geometry?.coordinates;
+    return {
+      coords: roadCoords && roadCoords.length > 1 ? roadCoords : coords,
+      distanceKm: typeof route?.distance === "number" ? Math.round(route.distance / 1000) : null,
+      durationMin: typeof route?.duration === "number" ? Math.round(route.duration / 60) : null,
+    };
   } catch {
-    return coords; // fallback to straight lines silently
+    return { coords, distanceKm: null, durationMin: null };
   }
 }
 
-export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
+export function PlannerMiniMap({
+  days,
+  onRouteReady,
+}: {
+  days: DayPlan[];
+  onRouteReady?: (stats: { distanceKm: number; durationMin: number }) => void;
+}) {
   const mapRef = useRef<MapRef>(null);
 
   // Flatten places with valid coords
@@ -68,7 +88,12 @@ export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
     if (stopCoords.length < 2) return;
     setFullRoute([]);
     setVisibleRoute([]);
-    fetchRoadRoute(stopCoords).then(setFullRoute);
+    fetchRoadRoute(stopCoords).then(result => {
+      setFullRoute(result.coords);
+      if (result.distanceKm && result.durationMin) {
+        onRouteReady?.({ distanceKm: result.distanceKm, durationMin: result.durationMin });
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordsKey]);
 
