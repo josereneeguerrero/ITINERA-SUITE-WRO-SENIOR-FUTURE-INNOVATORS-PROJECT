@@ -22,7 +22,7 @@ const STORY_CHIPS = [
 
 export function StoryAIPanel({ story }: { story: Story }) {
   const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const title  = (story.title_i18n as Record<string,string>)?.es ?? story.slug;
   const region = (story.regions as { name_i18n: Record<string,string> } | null)?.name_i18n?.es;
@@ -33,8 +33,11 @@ export function StoryAIPanel({ story }: { story: Story }) {
     storyTitle: title,
   });
 
+  // Scroll only the internal container — never the whole page
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if ((messages.length > 0 || isLoading) && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages, isLoading]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -67,7 +70,7 @@ export function StoryAIPanel({ story }: { story: Story }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
         style={{ backgroundColor: "#F8FAFC" }}>
 
         {messages.length === 0 && (
@@ -145,7 +148,6 @@ export function StoryAIPanel({ story }: { story: Story }) {
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}

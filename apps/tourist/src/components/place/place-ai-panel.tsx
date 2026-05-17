@@ -20,7 +20,7 @@ const PLACE_CHIPS = [
 
 export function PlaceAIPanel({ place }: { place: Place }) {
   const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const name = (place.name_i18n as Record<string,string>)?.es ?? place.slug;
 
@@ -30,8 +30,11 @@ export function PlaceAIPanel({ place }: { place: Place }) {
     placeName: name,
   });
 
+  // Scroll only the internal container — never the whole page
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if ((messages.length > 0 || isLoading) && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages, isLoading]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -61,7 +64,7 @@ export function PlaceAIPanel({ place }: { place: Place }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
         style={{ backgroundColor: "#F8FAFC" }}>
 
         {/* Welcome */}
@@ -143,7 +146,6 @@ export function PlaceAIPanel({ place }: { place: Place }) {
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Quick actions */}
