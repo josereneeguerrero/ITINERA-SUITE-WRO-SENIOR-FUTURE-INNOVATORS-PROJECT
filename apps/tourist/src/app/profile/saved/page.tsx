@@ -34,7 +34,7 @@ export default async function SavedPage() {
     .order("created_at", { ascending: false });
 
   const places = (favorites ?? [])
-    .map(f => f.places as {
+    .map(f => f.places as unknown as {
       slug: string;
       name_i18n: Record<string, string>;
       ai_summary_i18n: Record<string, string> | null;
