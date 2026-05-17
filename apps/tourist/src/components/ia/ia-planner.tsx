@@ -363,11 +363,18 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
               <p className="mt-1 font-inter text-sm text-[#64748b]">{plan.subtitle}</p>
             </div>
 
-            {/* Live mini map — animated route */}
-            <PlannerMiniMap days={plan.days} />
+            {/* ── Desktop layout: days left + map sticky right ── */}
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
 
-            {/* Day cards */}
-            {plan.days.map(day => (
+              {/* Left — day cards */}
+              <div className="min-w-0 flex-1 space-y-4">
+                {/* Mobile-only map (compact, above days) */}
+                <div className="lg:hidden">
+                  <PlannerMiniMap days={plan.days} />
+                </div>
+
+                {/* Day cards */}
+                {plan.days.map(day => (
               <div key={day.dayNumber} className="rounded-2xl border border-[#d7e2de] bg-white shadow-sm overflow-hidden">
                 {/* Day header */}
                 <div className="border-b border-[#f1f5f9] bg-[#f8fafc] px-5 py-3">
@@ -435,36 +442,37 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
             {/* Actions */}
             <div className="flex flex-col gap-3">
               {isGuest ? (
-                <a
-                  href="/bienvenida?redirect=/routes"
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e]"
-                >
-                  <Save className="h-5 w-5" aria-hidden />
-                  Crear cuenta para guardar
+                <a href="/bienvenida?redirect=/routes"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e]">
+                  <Save className="h-5 w-5" aria-hidden /> Crear cuenta para guardar
                 </a>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] disabled:opacity-60"
-                >
-                  {saving ? (
-                    <><Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Guardando...</>
-                  ) : (
-                    <><Save className="h-5 w-5" aria-hidden /> Guardar como ruta</>
-                  )}
+                <button type="button" onClick={() => void handleSave()} disabled={saving}
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-6 py-4 font-jakarta text-base font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] disabled:opacity-60">
+                  {saving
+                    ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Guardando...</>
+                    : <><Save className="h-5 w-5" aria-hidden /> Guardar como ruta</>}
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-white px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]"
-              >
+              <button type="button" onClick={handleReset}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-white px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">
                 <RotateCcw className="h-4 w-4" aria-hidden /> Planificar otro viaje
               </button>
             </div>
+
+              </div>{/* end left column */}
+
+              {/* Right — sticky mini map (desktop only) */}
+              <aside className="hidden lg:block lg:w-[320px] lg:shrink-0">
+                <div className="sticky top-4">
+                  <PlannerMiniMap days={plan.days} />
+                  <p className="mt-2 text-center font-inter text-[11px] text-[#94a3b8]">
+                    Ruta trazada en tiempo real
+                  </p>
+                </div>
+              </aside>
+
+            </div>{/* end desktop flex layout */}
           </div>
         )}
 

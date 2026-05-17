@@ -39,29 +39,27 @@ export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
   const allCoords: [number, number][] = allPlaces.map(p => [p.lng, p.lat]);
 
   // Animated route: reveal one coordinate at a time
-  const [visibleCoords, setVisibleCoords] = useState<[number, number][]>([]);
-  const [visibleCount, setVisibleCount] = useState(0);
-  const animDone = useRef(false);
+  const [visibleCoords, setVisibleCoords] = useState<[number, number][]>(
+    allCoords.length > 0 ? [allCoords[0]] : []
+  );
+  const [visibleCount, setVisibleCount] = useState(allCoords.length > 0 ? 1 : 0);
+  const coordsKey = allCoords.map(c => c.join(",")).join("|");
 
   useEffect(() => {
-    if (allCoords.length < 2 || animDone.current) return;
-    animDone.current = true;
-
-    // Start with first point immediately
+    if (allCoords.length < 2) return;
+    // Reset and restart animation when places change
     setVisibleCoords([allCoords[0]]);
     setVisibleCount(1);
-
     let step = 1;
     const interval = setInterval(() => {
       step++;
       setVisibleCoords(allCoords.slice(0, step));
       setVisibleCount(step);
       if (step >= allCoords.length) clearInterval(interval);
-    }, 700); // 700ms per stop — dramatic and visible
-
+    }, 700);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey]); // Re-run only when places actually change
 
   // Compute center and bounds for initial viewport
   const lats = allPlaces.map(p => p.lat);
@@ -86,16 +84,14 @@ export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
         interactive={false}
         attributionControl={{ compact: true }}
       >
-        {/* Animated route line */}
-        {visibleCoords.length >= 2 && (
-          <MapRoute
-            coordinates={visibleCoords}
-            color="#0D9488"
-            width={3}
-            opacity={0.9}
-            dashArray={[6, 3]}
-          />
-        )}
+        {/* Animated route — always mounted, MapRoute handles empty coords */}
+        <MapRoute
+          coordinates={visibleCoords}
+          color="#0D9488"
+          width={3}
+          opacity={0.9}
+          dashArray={[6, 3]}
+        />
 
         {/* Place markers — appear as the route reaches them */}
         {allPlaces.map((place, i) => {
