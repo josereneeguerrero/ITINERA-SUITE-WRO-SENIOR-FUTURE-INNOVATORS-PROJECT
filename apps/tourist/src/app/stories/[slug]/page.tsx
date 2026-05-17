@@ -55,10 +55,10 @@ export default async function StoryPage({
           storySummary: (story.summary_i18n  as Record<string, string>)?.es,
           storyBody:    ((story.body_markdown_i18n as Record<string, string>)?.es ?? "").slice(0, 1500),
           storyRegion:  (story.regions as unknown as { name_i18n: Record<string, string> } | null)?.name_i18n?.es,
-          storyPlaces: ((story.story_places ?? []) as Array<{ places: { name_i18n: Record<string, string> } | null }>)
+          storyPlaces: ((story.story_places ?? []) as unknown as Array<{ places: { name_i18n: Record<string, string> } | null }>)
             .map(sp => (sp.places?.name_i18n as Record<string, string>)?.es)
             .filter((n): n is string => Boolean(n)),
-          storyPlaceSlugs: ((story.story_places ?? []) as Array<{ places: { slug: string; name_i18n: Record<string, string>; aggregated_rating: number } | null }>)
+          storyPlaceSlugs: ((story.story_places ?? []) as unknown as Array<{ places: { slug: string; name_i18n: Record<string, string>; aggregated_rating: number } | null }>)
             .map(sp => sp.places?.slug)
             .filter((s): s is string => Boolean(s)),
         }}
