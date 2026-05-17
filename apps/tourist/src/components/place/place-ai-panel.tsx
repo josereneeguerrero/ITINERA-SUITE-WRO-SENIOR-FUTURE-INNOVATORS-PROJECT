@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Mic, Plus, Calendar } from "lucide-react";
 import { useStreamingChat } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
+import { StreamingText } from "@/components/ui/streaming-text";
 
 interface Place {
   slug: string;
@@ -114,8 +115,14 @@ export function PlaceAIPanel({ place }: { place: Place }) {
                   {msg.content && (
                     <div className="px-3 py-2.5 rounded-2xl rounded-tl-sm shadow-sm"
                       style={{ backgroundColor: "white", border: "1px solid #E2E8F0" }}>
-                      <p className="font-inter text-xs text-[#0F172A] leading-relaxed whitespace-pre-line">
-                        {msg.content}
+                      <StreamingText
+                            key={`place-${i}`}
+                            content={msg.content}
+                            isStreaming={isLoading && i === messages.length - 1}
+                            speed={8}
+                            charsPerTick={2}
+                            className="font-inter text-xs leading-relaxed"
+                          />
                       </p>
                     </div>
                   )}

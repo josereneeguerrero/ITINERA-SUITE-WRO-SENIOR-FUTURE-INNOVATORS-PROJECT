@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useStreamingChat } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
+import { StreamingText } from "@/components/ui/streaming-text";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -184,9 +185,16 @@ export function IaChatCenter({
                         : "rounded-tl-sm border border-[#d7e2de] bg-white text-[#0f172a]"
                     }`}
                   >
-                    <p className="font-inter text-sm leading-relaxed whitespace-pre-wrap">
-                      {msg.content}
-                    </p>
+                    {msg.role === "user" ? (
+                      <p className="font-inter text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    ) : (
+                      <StreamingText
+                        key={`msg-${i}`}
+                        content={msg.content}
+                        isStreaming={isLoading && i === messages.length - 1}
+                        className="font-inter text-sm leading-relaxed"
+                      />
+                    )}
                   </div>
                 )}
 

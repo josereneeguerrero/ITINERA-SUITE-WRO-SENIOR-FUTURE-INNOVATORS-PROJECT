@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Mic, Send, Bot, X } from "lucide-react";
 import { useStreamingChat, type ChatContext, type UIActionsChunk, type Suggestion } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
+import { StreamingText } from "@/components/ui/streaming-text";
 
 function ToolButton({
   label,
@@ -223,7 +224,18 @@ export function FloatingAiAssistant({
                       }`}
                     >
                       {chatMessage.content ? (
-                        <p className="whitespace-pre-wrap">{chatMessage.content}</p>
+                        chatMessage.role === "user" ? (
+                          <p className="whitespace-pre-wrap">{chatMessage.content}</p>
+                        ) : (
+                          <StreamingText
+                            key={`widget-${index}`}
+                            content={chatMessage.content}
+                            isStreaming={isLoading && index === messages.length - 1}
+                            speed={8}
+                            charsPerTick={2}
+                            className="text-sm leading-relaxed"
+                          />
+                        )
                       ) : (
                         <p className="text-slate-500">Pensando...</p>
                       )}
