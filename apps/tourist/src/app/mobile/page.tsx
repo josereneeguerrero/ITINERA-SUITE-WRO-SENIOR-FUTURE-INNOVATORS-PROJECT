@@ -43,13 +43,13 @@ export default function MobilePage() {
         </div>
 
         {/* Still let them see landing */}
-        <Link
-          href="/"
+        <a
+          href="https://itinera-suite-wro-senior-future-inn.vercel.app"
           className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-[#d7e2de] bg-white px-4 py-2.5 font-inter text-sm font-semibold text-[#475569] transition-colors hover:border-[#0D9488]/30 hover:text-[#0D9488]"
         >
           <Globe className="h-4 w-4" />
-          Ver presentación del proyecto
-        </Link>
+          Abrir en navegador de escritorio
+        </a>
       </div>
 
       {/* Badge */}

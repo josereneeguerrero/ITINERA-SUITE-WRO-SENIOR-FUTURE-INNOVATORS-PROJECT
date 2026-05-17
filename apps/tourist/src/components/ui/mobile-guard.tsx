@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-const MOBILE_ALLOWED = ["/", "/mobile"];
+const MOBILE_ALLOWED = ["/mobile"];
 
 function isMobile(): boolean {
   return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|mobile/i
