@@ -283,45 +283,6 @@ export function StoryDetail({
         </div>
       </div>
 
-      {/* Inline styles for story body prose */}
-      <style jsx global>{`
-        .story-body .story-p {
-          font-family: var(--font-inter), sans-serif;
-          font-size: 15px;
-          line-height: 1.85;
-          color: #334155;
-          margin-bottom: 1.25rem;
-        }
-        .story-body .story-h2 {
-          font-family: var(--font-jakarta), sans-serif;
-          font-weight: 700;
-          font-size: 20px;
-          color: #0f172a;
-          margin-top: 2.5rem;
-          margin-bottom: 0.75rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 2px solid rgba(13,148,136,0.2);
-        }
-        .story-body .story-h3 {
-          font-family: var(--font-jakarta), sans-serif;
-          font-weight: 600;
-          font-size: 16px;
-          color: #0f172a;
-          margin-top: 1.75rem;
-          margin-bottom: 0.5rem;
-        }
-        .story-body .story-strong {
-          font-weight: 600;
-          color: #0f172a;
-        }
-        .story-body .story-li {
-          margin-left: 1.25rem;
-          margin-bottom: 0.25rem;
-          color: #334155;
-          font-size: 15px;
-          list-style-type: disc;
-        }
-      `}</style>
     </article>
   );
 }
