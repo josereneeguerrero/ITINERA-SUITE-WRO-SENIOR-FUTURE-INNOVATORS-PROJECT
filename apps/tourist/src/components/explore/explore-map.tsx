@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import { Bookmark, Eye, Navigation, Star, X } from "lucide-react";
+import { Bookmark, Eye, Navigation, Star, X, Phone, Globe, MapPin } from "lucide-react";
 import { getCategoryColor } from "@/lib/category-theme";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -20,6 +20,9 @@ interface Place {
   local_favorite?: boolean;
   lat?: number | null;
   lng?: number | null;
+  phone?: string | null;
+  website?: string | null;
+  address_i18n?: Record<string, string> | null;
   place_categories: { name_i18n: Record<string, string>; icon_name: string; slug?: string } | null;
   regions: { name_i18n: Record<string, string> } | null;
 }
@@ -674,7 +677,49 @@ export function ExploreMap({
                   : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
               }`}>{selectedRouteFeedback.message}</div>
             ) : null}
+            {/* Contact info */}
+            {(selectedPlace.phone || selectedPlace.website) && (
+              <div className="space-y-1.5">
+                {selectedPlace.phone && (
+                  <a href={`tel:${selectedPlace.phone}`}
+                    className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 font-inter text-xs text-[#334155] transition-colors hover:border-[#0D9488]/30 hover:bg-[#f0f5f2]">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#0D9488]" />
+                    {selectedPlace.phone}
+                  </a>
+                )}
+                {selectedPlace.website && (
+                  <a href={selectedPlace.website} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 font-inter text-xs text-[#0D9488] transition-colors hover:border-[#0D9488]/30 hover:bg-[#f0f5f2] truncate">
+                    <Globe className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{selectedPlace.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+                  </a>
+                )}
+                {selectedPlace.address_i18n?.es && (
+                  <div className="flex items-start gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 font-inter text-xs text-[#64748B]">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#94A3B8]" />
+                    {selectedPlace.address_i18n.es}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="h-px bg-[#E2E8F0]" />
+
+            {/* Cómo llegar */}
+            <a
+              href={
+                selectedPlace.lat && selectedPlace.lng
+                  ? `https://www.google.com/maps/dir/?api=1&destination=${selectedPlace.lat},${selectedPlace.lng}`
+                  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((selectedPlace.name_i18n?.es ?? selectedPlace.slug) + " Honduras")}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#E2E8F0] font-inter text-sm font-semibold text-[#475569] transition-colors hover:border-[#0D9488]/30 hover:bg-[#f0f5f2] hover:text-[#0D9488]"
+            >
+              <Navigation className="h-3.5 w-3.5" />
+              Cómo llegar
+            </a>
+
             <a href={`/places/${selectedPlace.slug}`}
               className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] font-inter text-sm font-bold text-white transition-colors hover:bg-[#0f766e]">
               <Eye className="h-3.5 w-3.5" />Ver detalle
