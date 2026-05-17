@@ -502,7 +502,7 @@ TONO: Como un guía local experto que lleva años narrando las historias de Hond
                 model: (getGroq() as any)("llama-3.3-70b-versatile"),
                 system: isMapMode
                   ? `Eres Itinera IA, guía de Honduras. Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo info real. Responde en español.\n\n${places.map(p => `• ${p.name} — ${p.summary || "Atracción"} | ⭐${p.rating}`).join("\n")}`
-                  : `${IA_CENTER_SYSTEM}\n\nLugares encontrados en la base de datos de Itinera:\n${places.map(p => `• ${p.name} (${p.category}${p.region ? ", " + p.region : ""}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")}\n\nDescribe estos lugares con riqueza cultural. Para cada uno menciona qué lo hace especial y por qué vale la pena visitarlo. Responde en español.`,
+                  : `${IA_CENTER_SYSTEM}\n\nLugares encontrados:\n${places.map(p => `• ${p.name} (${p.category}${p.region ? ", " + p.region : ""}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")}\n\nPresenta estos lugares de forma atractiva en 2-3 párrafos. Menciona lo más destacado de cada uno sin entrar en todo el detalle. Deja que el usuario pregunte más sobre el que le interese. Responde en español.`,
                 messages: [{ role: "user", content: lastMsg }],
                 temperature: 0.4,
               });
@@ -536,13 +536,19 @@ TONO: Como un guía local experto que lleva años narrando las historias de Hond
               { label: "Arte",         value: "museos" },
             ]});
           } else {
-            // Centro IA — descripción cultural rica de la región
+            // Centro IA — overview enganchador, NO todo de golpe
             const regionResult = await generateText({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               model: (getGroq() as any)("llama-3.3-70b-versatile"),
-              system: `${IA_CENTER_SYSTEM}\n\nEl usuario preguntó sobre ${regionName}. Describe esta región de Honduras con riqueza cultural e histórica: qué la hace única, lugares icónicos, historia relevante, gastronomía y el mejor momento para visitarla. Sé detallado pero accesible.`,
+              system: `${IA_CENTER_SYSTEM}
+
+El usuario mencionó ${regionName}. Da un overview cultural atractivo de 2 a 3 párrafos máximo.
+IMPORTANTE: NO cubras todo (historia + gastronomía + clima + cómo llegar) en esta primera respuesta.
+Presenta la esencia y el encanto de la región de forma que el usuario quiera saber más.
+Menciona 1-2 elementos icónicos. El resto lo explorarán con los botones de sugerencia.
+Termina con una frase breve invitando a explorar un tema específico.`,
               messages: [{ role: "user", content: lastMsg }],
-              temperature: 0.5,
+              temperature: 0.6,
             });
             emit({ type: "text-delta", textDelta: regionResult.text });
             emit({ type: "suggestions", suggestions: [
@@ -645,7 +651,7 @@ TONO: Como un guía local experto que lleva años narrando las historias de Hond
             model: (getGroq() as any)("llama-3.3-70b-versatile"),
             system: isMapMode
               ? `Eres Itinera IA, guía de Honduras.\n\nLugares encontrados (${context}):\n${placesText}\n\nDescribe brevemente estos lugares al usuario. Máximo 3 frases. Solo información real. Responde en español. No inventes.`
-              : `${IA_CENTER_SYSTEM}\n\nContexto de búsqueda: ${context}\nLugares encontrados:\n${placesText}\n\nDescribe estos lugares con riqueza cultural. Para cada uno, menciona su historia, qué lo hace único en Honduras y por qué vale la pena visitarlo.`,
+              : `${IA_CENTER_SYSTEM}\n\nContexto de búsqueda: ${context}\nLugares encontrados:\n${placesText}\n\nPresenta estos lugares en 2-3 párrafos de forma atractiva. Destaca lo más relevante de cada uno. No cubras todo — deja espacio para que el usuario profundice en el que más le interese.`,
             messages: messages as { role: "user" | "assistant"; content: string }[],
             temperature: isMapMode ? 0.3 : 0.5,
           });
@@ -744,7 +750,7 @@ TONO: Como un guía local experto que lleva años narrando las historias de Hond
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
           system: isMapMode
             ? "Eres Itinera IA de Honduras. El usuario hizo una pregunta. Responde de forma breve, amigable. Pregunta qué región o tipo de lugar busca. NUNCA inventes lugares."
-            : `${IA_CENTER_SYSTEM}\n\nEl usuario hizo una pregunta o comentario libre. Responde con profundidad cultural. Si hace una pregunta general sobre Honduras, respóndela con detalle. Si menciona un tema que no conoces, dilo honestamente. Si la pregunta es ambigua, pide clarificación de forma amigable.`,
+            : `${IA_CENTER_SYSTEM}\n\nEl usuario hizo una pregunta o comentario libre. Responde de forma conversacional en 2-3 párrafos — suficiente para ser útil e interesante, sin volcar todo lo que sabes de una vez. Si hay más que explorar, termina con una pregunta o invitación breve para seguir la conversación.`,
           messages: [{ role: "user", content: lastMsg }],
           temperature: 0.7,
         });
