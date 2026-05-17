@@ -80,7 +80,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "Moods no reconocidos" }, { status: 400 });
     }
 
-    // Fetch places matching those categories (fetch extra pool for randomization)
+    // Resolve category slugs → actual UUIDs (PostgREST can't filter on embedded slug)
+    const { data: catRows } = await db
+      .from("place_categories")
+      .select("id")
+      .in("slug", categorySlugs);
+    const categoryIds = (catRows ?? []).map((c: { id: string }) => c.id);
+
+    // Fetch places matching those category IDs
     const { data: rawPlaces } = await db
       .from("places")
       .select(`
@@ -89,7 +96,7 @@ export async function POST(req: Request) {
         regions(name_i18n)
       `)
       .eq("status", "published")
-      .in("place_categories.slug", categorySlugs)
+      .in("category_id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
       .limit(30);

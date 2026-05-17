@@ -182,9 +182,16 @@ export async function POST(req: Request) {
     // Preferred regions based on departure
     const preferredRegions = DEPARTURE_REGIONS[departure] ?? [];
 
-    // Fetch places matching categories — prefer nearby regions first
+    // Resolve category slugs → UUIDs (PostgREST can't filter on embedded resource slug)
+    const { data: catRows } = await db
+      .from("place_categories")
+      .select("id")
+      .in("slug", categorySlugs);
+    const categoryIds = (catRows ?? []).map((c: { id: string }) => c.id);
+
+    // Fetch places matching those category IDs
     const limit = days * 3 + 3;
-    let placesQuery = db
+    const { data: rawPlaces } = await db
       .from("places")
       .select(`
         slug, name_i18n, ai_summary_i18n, aggregated_rating, lat, lng,
@@ -192,12 +199,10 @@ export async function POST(req: Request) {
         regions(name_i18n, slug)
       `)
       .eq("status", "published")
-      .in("place_categories.slug", categorySlugs)
+      .in("category_id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
-      .limit(limit * 2); // fetch extra to filter/sort
-
-    const { data: rawPlaces } = await placesQuery;
+      .limit(limit * 2);
 
     if (!rawPlaces || rawPlaces.length === 0) {
       return Response.json({
