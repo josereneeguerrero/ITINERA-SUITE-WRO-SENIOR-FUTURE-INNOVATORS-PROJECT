@@ -43,11 +43,12 @@ export function IaDescubrir({
   onPlanWith?: (interests: string[]) => void;
 }) {
   const [selected,  setSelected]  = useState<string[]>([]);
-  const [loading,   setLoading]   = useState(false);
-  const [cards,     setCards]     = useState<DiscoverCard[]>([]);
+  const [loading,       setLoading]       = useState(false);
+  const [cards,         setCards]         = useState<DiscoverCard[]>([]);
   const [plannerInterests, setPlannerInterests] = useState<string[]>([]);
-  const [error,     setError]     = useState<string | null>(null);
-  const [hasResult, setHasResult] = useState(false);
+  const [missingMoods,  setMissingMoods]  = useState<string[]>([]);
+  const [error,         setError]         = useState<string | null>(null);
+  const [hasResult,     setHasResult]     = useState(false);
 
   function toggleMood(id: string) {
     setSelected(prev =>
@@ -73,6 +74,7 @@ export function IaDescubrir({
       const data = await res.json() as {
         cards?: DiscoverCard[];
         plannerInterests?: string[];
+        missingMoods?: string[];
         error?: string;
         message?: string;
       };
@@ -84,6 +86,7 @@ export function IaDescubrir({
       } else {
         setCards(data.cards);
         setPlannerInterests(data.plannerInterests ?? []);
+        setMissingMoods(data.missingMoods ?? []);
         setHasResult(true);
       }
     } catch {
@@ -98,6 +101,7 @@ export function IaDescubrir({
     setHasResult(false);
     setError(null);
     setPlannerInterests([]);
+    setMissingMoods([]);
   }
 
   return (
@@ -176,6 +180,14 @@ export function IaDescubrir({
           </div>
         )}
 
+        {/* ── Missing moods notice ───────────────────────────────────────── */}
+        {missingMoods.length > 0 && (
+          <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-2.5 font-inter text-xs text-amber-700">
+            <span className="font-semibold">Sin resultados aún para:</span>{" "}
+            {missingMoods.join(", ")} — estamos agregando más contenido pronto.
+          </div>
+        )}
+
         {/* ── Cards grid ─────────────────────────────────────────────────── */}
         {cards.length > 0 && (
           <>
@@ -185,49 +197,66 @@ export function IaDescubrir({
                 return (
                   <div
                     key={card.slug}
-                    className="group flex flex-col gap-3 rounded-2xl border border-[#d7e2de] bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0D9488]/30 hover:shadow-md"
+                    className="group flex flex-col rounded-2xl border border-[#d7e2de] bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0D9488]/30 hover:shadow-md overflow-hidden"
                   >
-                    {/* Top row: icon + category + rating */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#d7e2de] bg-[#f0f5f2]">
-                          <CatIcon className="h-4 w-4 text-[#0D9488]" aria-hidden />
-                        </div>
-                        <span className="font-inter text-xs font-semibold text-[#0D9488]">
-                          {card.category}
-                        </span>
+                    {/* Image slot — shows photo when available, elegant placeholder when not */}
+                    {card.imageUrl ? (
+                      <img
+                        src={card.imageUrl}
+                        alt={card.name}
+                        className="h-36 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-28 w-full bg-gradient-to-br from-[#f0f5f2] to-[#e2ede9] flex items-center justify-center">
+                        <CatIcon className="h-8 w-8 text-[#0D9488]/30" aria-hidden />
                       </div>
-                      {card.rating > 0 && (
-                        <div className="flex items-center gap-1 font-inter text-xs font-semibold text-amber-500">
-                          <Star className="h-3 w-3 fill-current" aria-hidden />
-                          {card.rating.toFixed(1)}
+                    )}
+
+                    <div className="flex flex-col gap-2 p-4">
+                      {/* Category + mood tag + rating */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-inter text-xs font-semibold text-[#0D9488]">
+                            {card.category}
+                          </span>
+                          {card.matchedMood && (
+                            <span className="rounded-full bg-[#0D9488]/8 px-2 py-0.5 font-inter text-[10px] font-semibold text-[#0D9488]">
+                              {card.matchedMood}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
+                        {card.rating > 0 && (
+                          <div className="flex items-center gap-1 font-inter text-xs font-semibold text-amber-500">
+                            <Star className="h-3 w-3 fill-current" aria-hidden />
+                            {card.rating.toFixed(1)}
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Name + region */}
-                    <div>
-                      <p className="font-jakarta text-base font-bold text-[#0f172a] group-hover:text-[#0D9488] transition-colors leading-snug">
-                        {card.name}
+                      {/* Name + region */}
+                      <div>
+                        <p className="font-jakarta text-sm font-bold text-[#0f172a] group-hover:text-[#0D9488] transition-colors leading-snug">
+                          {card.name}
+                        </p>
+                        {card.region && (
+                          <p className="mt-0.5 font-inter text-[11px] text-[#94a3b8]">{card.region}</p>
+                        )}
+                      </div>
+
+                      {/* AI curiosity — short, punchy */}
+                      <p className="font-inter text-xs leading-5 text-[#64748b] italic line-clamp-2">
+                        {card.curiosity}
                       </p>
-                      {card.region && (
-                        <p className="mt-0.5 font-inter text-xs text-[#94a3b8]">{card.region}</p>
-                      )}
+
+                      {/* Action */}
+                      <Link
+                        href={card.url}
+                        className="mt-1 flex cursor-pointer items-center gap-1 self-end font-inter text-xs font-bold text-[#0D9488] transition-all hover:gap-2"
+                      >
+                        Ver lugar
+                        <ArrowRight className="h-3 w-3" aria-hidden />
+                      </Link>
                     </div>
-
-                    {/* AI curiosity */}
-                    <p className="font-inter text-xs leading-5 text-[#64748b] italic">
-                      &ldquo;{card.curiosity}&rdquo;
-                    </p>
-
-                    {/* Action */}
-                    <Link
-                      href={card.url}
-                      className="mt-auto flex cursor-pointer items-center gap-1 self-end font-inter text-xs font-bold text-[#0D9488] transition-all hover:gap-2"
-                    >
-                      Ver lugar
-                      <ArrowRight className="h-3 w-3" aria-hidden />
-                    </Link>
                   </div>
                 );
               })}

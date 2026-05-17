@@ -25,8 +25,10 @@ export type DiscoverCard = {
   categorySlug: string;
   region: string;
   rating: number;
-  curiosity: string;   // AI-generated 1-sentence cultural fact
+  curiosity: string;     // AI-generated 1-sentence cultural fact
   url: string;
+  imageUrl: string | null; // Thumbnail — null until media_assets is populated
+  matchedMood: string | null; // Which mood triggered this card
 };
 
 // ── Mood → category slug(s) ───────────────────────────────────────────────────
@@ -104,6 +106,12 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let filtered = ((rawPlaces ?? []) as any[]).filter(p => p.place_categories);
 
+    // Track which moods were actually found vs missing (for honest UX)
+    const foundSlugs = new Set(filtered.map((p: { place_categories?: { slug?: string } }) => p.place_categories?.slug));
+    const missingMoods = moods.filter(m =>
+      (MOOD_TO_SLUGS[m] ?? []).every(s => !foundSlugs.has(s))
+    );
+
     // Fallback: if < 3 results for selected moods, expand to all featured places
     if (filtered.length < 3) {
       const { data: fallbackPlaces } = await db
@@ -120,7 +128,6 @@ export async function POST(req: Request) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fallbackFiltered = ((fallbackPlaces ?? []) as any[]).filter(p => p.place_categories);
-      // Merge: keep category matches first, then fill with fallback (no duplicates)
       const existingSlugs = new Set(filtered.map((p: { slug: string }) => p.slug));
       const extras = fallbackFiltered.filter((p: { slug: string }) => !existingSlugs.has(p.slug));
       filtered = [...filtered, ...extras];
@@ -133,6 +140,18 @@ export async function POST(req: Request) {
       }, { status: 200 });
     }
 
+    // Build slug→mood map for card tagging
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const slugToMood = new Map<string, string>();
+    filtered.forEach((p: { place_categories?: { slug?: string } }) => {
+      const catSlug = p.place_categories?.slug ?? "";
+      for (const mood of moods) {
+        if ((MOOD_TO_SLUGS[mood] ?? []).includes(catSlug) && !slugToMood.has(catSlug)) {
+          slugToMood.set(catSlug, mood);
+        }
+      }
+    });
+
     // Shuffle for variety on each call — Fisher-Yates
     for (let i = filtered.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -142,7 +161,7 @@ export async function POST(req: Request) {
     // Pick 6 random places from the shuffled pool
     const picked = filtered.slice(0, 6);
 
-    // Generate 1-sentence curiosity per place in parallel
+    // Generate 1-sentence punchy curiosity per place in parallel
     const curiosities = await Promise.all(
       picked.map(async (p) => {
         const name    = p.name_i18n?.es ?? p.slug;
@@ -151,33 +170,38 @@ export async function POST(req: Request) {
           const result = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             model: (groq as any)("llama-3.3-70b-versatile"),
-            system: `Eres Itinera IA, guía cultural de Honduras. Escribe UNA sola frase corta e interesante sobre este lugar: "${name}". ${summary ? `Contexto: ${summary}` : ""} Sé evocador, usa datos reales o detalles únicos. Cada vez que te pregunten, elige un ángulo diferente: historia, fauna, gastronomía, arquitectura, leyenda local, dato geográfico, etc. En español. Sin comillas. Sin mencionar "Honduras" explícitamente.`,
-            messages: [{ role: "user", content: `curiosidad única #${Math.floor(Math.random() * 1000)}` }],
+            system: `Eres Itinera IA. Escribe UNA frase MUY CORTA (máximo 15 palabras) sobre "${name}" con un dato sorprendente, poco conocido o evocador. ${summary ? `Contexto: ${summary}` : ""} Elige UN ángulo: cifra récord, leyenda, animal único, hecho histórico insólito, dato geográfico raro. En español. Solo la frase, sin comillas ni puntos al final.`,
+            messages: [{ role: "user", content: `#${Math.floor(Math.random() * 9999)}` }],
             temperature: 0.95,
           });
-          return result.text.trim().replace(/^["']|["']$/g, "");
+          return result.text.trim().replace(/^["'¡¿]|["'!?.]$/g, "");
         } catch {
-          return summary ? summary.slice(0, 120) : "Un lugar que vale la pena descubrir.";
+          return summary ? summary.slice(0, 80) : "Un lugar que vale la pena descubrir";
         }
       })
     );
 
-    const cards: DiscoverCard[] = picked.map((p, i) => ({
-      slug:         p.slug,
-      name:         p.name_i18n?.es ?? p.slug,
-      category:     p.place_categories?.name_i18n?.es ?? "",
-      categorySlug: p.place_categories?.slug ?? "",
-      region:       p.regions?.name_i18n?.es ?? "",
-      rating:       Number(p.aggregated_rating ?? 0),
-      curiosity:    curiosities[i],
-      url:          `/places/${p.slug}`,
-    }));
+    const cards: DiscoverCard[] = picked.map((p, i) => {
+      const catSlug = p.place_categories?.slug ?? "";
+      return {
+        slug:         p.slug,
+        name:         p.name_i18n?.es ?? p.slug,
+        category:     p.place_categories?.name_i18n?.es ?? "",
+        categorySlug: catSlug,
+        region:       p.regions?.name_i18n?.es ?? "",
+        rating:       Number(p.aggregated_rating ?? 0),
+        curiosity:    curiosities[i],
+        url:          `/places/${p.slug}`,
+        imageUrl:     null, // Ready for media_assets — populate when photos available
+        matchedMood:  slugToMood.get(catSlug) ?? null,
+      };
+    });
 
     // Collect interests for planner pre-fill
     const interestSet = new Set<string>();
     moods.forEach(m => (MOOD_TO_INTERESTS[m] ?? []).forEach(i => interestSet.add(i)));
 
-    return Response.json({ cards, plannerInterests: [...interestSet] });
+    return Response.json({ cards, plannerInterests: [...interestSet], missingMoods });
   } catch (err) {
     console.error("[Discover API Error]", err);
     return Response.json({ error: "Error al descubrir lugares. Intenta de nuevo." }, { status: 500 });
