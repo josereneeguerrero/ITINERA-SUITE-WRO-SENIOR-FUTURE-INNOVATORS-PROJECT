@@ -131,20 +131,18 @@ const REGIONS = [
 function detectRegion(text: string): string | null {
   const n = norm(text);
   if (!n) return null;
+  const words = n.split(/\s+/);
 
   for (const region of REGIONS) {
     for (const keyword of region.keywords) {
       const nk = norm(keyword);
-      // Can be more lenient for regions (multi-word like "islas de la bahia")
-      // Accept full match or as a word in the text
-      const hasRegion =
-        n === nk ||
-        n.startsWith(nk + " ") ||
-        n.includes(" " + nk + " ") ||
-        n.endsWith(" " + nk) ||
-        (nk.includes(" ") && n.includes(nk)); // Multi-word regions like "islas de la bahia"
-
-      if (hasRegion) {
+      // Multi-word keyword: substring match
+      if (nk.includes(" ")) {
+        if (n.includes(nk)) return region.slug;
+        continue;
+      }
+      // Single word: exact match or starts-with (prefix)
+      if (words.some(w => w === nk || w.startsWith(nk))) {
         return region.slug;
       }
     }
@@ -167,18 +165,20 @@ const CATEGORIES = [
 function detectCategory(text: string): string | null {
   const n = norm(text);
   if (!n) return null;
+  // Split into individual words for prefix-aware matching (handles plurals)
+  const words = n.split(/\s+/);
 
   for (const category of CATEGORIES) {
     for (const keyword of category.keywords) {
       const nk = norm(keyword);
-      // Word-boundary check: keyword must be a whole word in the text
-      const hasWord =
-        n === nk ||
-        n.startsWith(nk + " ") ||
-        n.includes(" " + nk + " ") ||
-        n.endsWith(" " + nk);
-
-      if (hasWord) {
+      // Multi-word keyword (e.g. "san pedro sula"): check substring
+      if (nk.includes(" ")) {
+        if (n.includes(nk)) return category.slug;
+        continue;
+      }
+      // Single word: exact match OR word starts with keyword (plural/inflection)
+      // e.g. "religioso" matches "religiosos", "iglesia" matches "iglesias"
+      if (words.some(w => w === nk || w.startsWith(nk))) {
         return category.slug;
       }
     }
@@ -202,6 +202,26 @@ const REGION_NAMES: Record<string, string> = {
   choluteca:           "Choluteca",
   yoro:                "Yoro",
 };
+
+// ── Follow-up Detection ─────────────────────────────────────────────────
+// Detects short vague messages that continue a previous topic
+// "dame una lista", "sí", "cuáles son", "muéstrame" → inherit last context
+
+const FOLLOWUP_TRIGGERS = [
+  "lista", "si", "dale", "ok", "cuales", "muestrame", "ensename",
+  "dame", "dime", "adelante", "claro", "exacto", "esos", "esas",
+  "esos mismos", "cuales son", "los que dijiste", "mencionaste",
+];
+
+function isFollowUp(text: string): boolean {
+  const n = norm(text);
+  const words = n.split(/\s+/);
+  // Short message (≤6 words) with at least one follow-up trigger word
+  return words.length <= 6 && FOLLOWUP_TRIGGERS.some(t => {
+    const nt = norm(t);
+    return words.some(w => w === nt || w.startsWith(nt));
+  });
+}
 
 // ── Greeting Detection ──────────────────────────────────────────────────
 
@@ -466,8 +486,20 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
         // ── 3. Detect region and category ──────────────────────────────────
         // Also scan recent history so "adjunta restaurants" after "Comayagua" works
 
-        const region = detectRegion(lastMsg);
-        const category = detectCategory(lastMsg);
+        let region = detectRegion(lastMsg);
+        let category = detectCategory(lastMsg);
+
+        // ── 3a. Follow-up inheritance ──────────────────────────────────────
+        // "Dame una lista", "sí", "cuáles son" → inherit last known region+category
+        // from the full conversation history (user + assistant messages)
+        if (isFollowUp(lastMsg) && !region && !category) {
+          const allRecent = [...messages].reverse().slice(0, 10); // last 10 msgs, newest first
+          for (const m of allRecent) {
+            if (!region)   region   = detectRegion(m.content);
+            if (!category) category = detectCategory(m.content);
+            if (region && category) break;
+          }
+        }
 
         // If no region in current message, look in recent user messages first
         let contextRegion = region;
