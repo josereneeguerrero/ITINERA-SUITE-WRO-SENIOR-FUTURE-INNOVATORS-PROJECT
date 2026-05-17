@@ -16,7 +16,7 @@ function isMobile(ua: string): boolean {
   return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|mobile/i.test(ua);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow static assets and API routes
