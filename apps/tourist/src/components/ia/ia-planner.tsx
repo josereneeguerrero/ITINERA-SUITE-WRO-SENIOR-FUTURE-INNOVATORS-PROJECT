@@ -532,11 +532,21 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
                 </button>
               )}
 
-              {/* Ver en mapa interactivo */}
-              <a href={isGuest ? "/explore?guest=true" : "/explore"}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-white px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">
-                <MapPin className="h-4 w-4 text-[#0D9488]" aria-hidden /> Ver en mapa interactivo
-              </a>
+              {/* Ver en mapa interactivo — pasa slugs del plan */}
+              {(() => {
+                const slugs = plan.days
+                  .flatMap(d => d.places.map(p => p.slug))
+                  .join(",");
+                const base = isGuest ? "/explore?guest=true" : "/explore?";
+                const sep  = isGuest ? "&" : "";
+                const href = `${base}${sep}planRoute=${encodeURIComponent(slugs)}`;
+                return (
+                  <a href={href}
+                    className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-white px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">
+                    <MapPin className="h-4 w-4 text-[#0D9488]" aria-hidden /> Ver en mapa interactivo
+                  </a>
+                );
+              })()}
 
               <button type="button" onClick={handleReset}
                 className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#d7e2de] bg-[#f0f5f2] px-6 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488]">

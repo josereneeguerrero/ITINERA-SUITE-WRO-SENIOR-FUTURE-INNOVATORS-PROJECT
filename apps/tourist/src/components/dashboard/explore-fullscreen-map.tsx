@@ -555,6 +555,7 @@ export function ExploreFullscreenMap({
   initialRouteSlug = "",
   initialRouteName = "",
   initialQuery = "",
+  initialPlanSlugs = [] as string[],
 }: {
   places: Place[];
   categories: Category[];
@@ -565,6 +566,7 @@ export function ExploreFullscreenMap({
   initialRouteSlug?: string;
   initialRouteName?: string;
   initialQuery?: string;
+  initialPlanSlugs?: string[];
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -607,6 +609,27 @@ export function ExploreFullscreenMap({
     setRoutePanelExpanded(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRouteSlug]);
+
+  // Load full plan as route (coming from /ia Planificador "Ver en mapa")
+  useEffect(() => {
+    if (!initialPlanSlugs.length || !places.length) return;
+    const stops = initialPlanSlugs
+      .map((slug, i) => {
+        const p = places.find(pl => pl.slug === slug);
+        if (!p) return null;
+        return {
+          order: i + 1,
+          slug: p.slug,
+          name: (p.name_i18n as Record<string, string>)?.es ?? slug,
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+    if (!stops.length) return;
+    setActiveRoute({ title: "Mi itinerario", stops });
+    setRoutePanelExpanded(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPlanSlugs.join(","), places.length]);
+
   const [activeRegion, setActiveRegion] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [savedOnly, setSavedOnly] = useState(false);
