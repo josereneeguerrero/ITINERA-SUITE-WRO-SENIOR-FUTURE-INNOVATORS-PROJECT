@@ -6,206 +6,163 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  Lock,
-  Mail,
-  User,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Heart, Lock, Mail, Map, Sparkles, User } from "lucide-react";
 
 export default function RegisterPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [name, setName]             = useState("");
+  const [email, setEmail]           = useState("");
+  const [password, setPassword]     = useState("");
+  const [showPassword, setShow]     = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [success, setSuccess]       = useState<string | null>(null);
+  const [loading, setLoading]       = useState(false);
 
   const router = useRouter();
   const redirect = useMemo(
-    () =>
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("redirect") ??
-          "/dashboard"
-        : "/dashboard",
+    () => typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("redirect") ?? "/dashboard"
+      : "/dashboard",
     []
   );
 
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
+    setLoading(true); setError(null); setSuccess(null);
     const supabase = createClient();
-    const { data, error: registerError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: name },
-      },
+    const { data, error: err } = await supabase.auth.signUp({
+      email, password, options: { data: { full_name: name } },
     });
-
-    if (registerError) {
-      setError(registerError.message);
-      setLoading(false);
-      return;
-    }
-
+    if (err) { setError(err.message); setLoading(false); return; }
     if (!data.session) {
-      setSuccess("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.");
-      setLoading(false);
-      return;
+      setSuccess("¡Cuenta creada! Revisa tu correo para confirmar y luego inicia sesión.");
+      setLoading(false); return;
     }
-
     router.replace(redirect);
     router.refresh();
     setLoading(false);
   }
 
   return (
-    <main className="itinera-topo relative min-h-screen overflow-hidden bg-[#0A0F0F] px-4 pb-10 pt-24 sm:px-6">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_18%,rgba(13,148,136,0.24),transparent_35%),radial-gradient(circle_at_80%_84%,rgba(245,158,11,0.12),transparent_34%)]" />
+    <main className="relative min-h-screen overflow-hidden bg-[#f0f5f2]">
+      {/* Aurora */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden style={{ background: [
+        "radial-gradient(ellipse 70% 60% at 10% 15%, rgba(13,148,136,0.15) 0%, transparent 60%)",
+        "radial-gradient(ellipse 55% 50% at 90% 80%, rgba(0,104,95,0.11) 0%, transparent 55%)",
+      ].join(", ") }} />
 
-      <header className="absolute left-0 right-0 top-0 z-20 border-b border-white/10 bg-[#0A0F0F]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link
-            href="/"
-            className="font-jakarta text-xl font-bold text-[#89f5e7] transition-opacity duration-200 hover:opacity-85"
-          >
-            Itinera
-          </Link>
-          <Link
-            href={`/bienvenida?redirect=${encodeURIComponent(redirect)}`}
-            className="inline-flex items-center gap-2 font-inter text-sm font-semibold text-white/72 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Volver
-          </Link>
-        </div>
+      {/* Nav */}
+      <header className="relative z-20 flex h-16 items-center justify-between px-5 sm:px-8">
+        <Link href="/" className="cursor-pointer font-jakarta text-lg font-bold text-[#0D9488] transition-opacity hover:opacity-80">
+          Itinera
+        </Link>
+        <Link href={`/bienvenida?redirect=${encodeURIComponent(redirect)}`}
+          className="inline-flex cursor-pointer items-center gap-1.5 font-inter text-sm font-semibold text-[#334155] transition-colors hover:text-[#0D9488]">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Volver
+        </Link>
       </header>
 
-      <section className="relative z-10 mx-auto w-full max-w-5xl">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_430px]">
-          <article className="itinera-reveal rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:p-10">
-            <h1 className="font-jakarta text-[34px] font-extrabold leading-[1.1] text-white sm:text-[42px]">
-              Crea tu cuenta en Itinera
-            </h1>
-            <p className="mt-4 max-w-xl font-inter text-base leading-7 text-white/72">
-              Te tomara un minuto y podras guardar lugares, armar rutas y usar tu asistente cultural personalizado.
-            </p>
-            <div className="mt-7 rounded-xl border border-white/12 bg-white/[0.03] p-4">
-              <p className="font-inter text-sm text-white/70">
-                Con tu cuenta obtienes:
-              </p>
-              <ul className="mt-3 space-y-2 font-inter text-sm text-white/82">
-                <li>Favoritos sincronizados</li>
-                <li>Experiencia IA adaptada a tus intereses</li>
-                <li>Acceso continuo desde web y futuras apps</li>
-              </ul>
+      {/* Content */}
+      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pb-16 pt-8 sm:px-8 lg:flex-row lg:items-center lg:gap-12 lg:pt-10">
+
+        {/* Left */}
+        <div className="flex-1">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3.5 py-1.5 font-inter text-xs font-bold uppercase tracking-[0.16em] text-[#00685f]">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden /> Únete gratis
+          </div>
+          <h1 className="max-w-md text-balance font-jakarta font-extrabold leading-[1.08] text-[#0f172a]"
+            style={{ fontSize: "clamp(28px, 4vw, 46px)" }}>
+            Crea tu cuenta en Itinera
+          </h1>
+          <p className="mt-4 max-w-sm font-inter text-[15px] leading-7 text-[#334155]">
+            Te tomará un minuto. Luego podrás guardar lugares, armar rutas y usar tu asistente cultural personalizado.
+          </p>
+          <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { icon: Map,      label: "Favoritos sincronizados" },
+              { icon: Heart,    label: "Lugares guardados" },
+              { icon: Sparkles, label: "IA adaptada a ti" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="rounded-xl border border-[#d7e2de] bg-white/80 p-4 shadow-sm">
+                <Icon className="h-4 w-4 text-[#0D9488]" aria-hidden />
+                <p className="mt-2 font-inter text-xs leading-5 text-[#334155]">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right — form card */}
+        <div className="w-full rounded-2xl border border-[#d7e2de] bg-white p-6 shadow-[0_8px_40px_rgba(15,23,42,0.08)] sm:p-7 lg:w-[400px] lg:shrink-0">
+          <p className="mb-5 font-jakarta text-lg font-bold text-[#0f172a]">Crear cuenta</p>
+
+          <form onSubmit={handleRegister} className="space-y-4">
+            {/* Name */}
+            <div>
+              <label htmlFor="name" className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">
+                Nombre
+              </label>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden />
+                <input id="name" type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="Tu nombre"
+                  className="h-11 w-full rounded-xl border border-[#d7e2de] bg-white pl-10 pr-3 font-inter text-sm text-[#0f172a] placeholder:text-[#94a3b8] outline-none transition-all focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10" />
+              </div>
             </div>
-          </article>
 
-          <aside className="itinera-reveal rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:p-6">
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.16em] text-white/68">
-                  Nombre
-                </label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    placeholder="Tu nombre"
-                    className="h-11 w-full rounded-xl border border-white/16 bg-white/[0.04] pl-10 pr-3 font-inter text-sm text-white placeholder:text-white/45 outline-none transition-colors focus:border-[#89f5e7]"
-                  />
-                </div>
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">
+                Correo electrónico
+              </label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden />
+                <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  placeholder="tu@email.com"
+                  className="h-11 w-full rounded-xl border border-[#d7e2de] bg-white pl-10 pr-3 font-inter text-sm text-[#0f172a] placeholder:text-[#94a3b8] outline-none transition-all focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10" />
               </div>
+            </div>
 
-              <div>
-                <label className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.16em] text-white/68">
-                  Correo electronico
-                </label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="tu@email.com"
-                    className="h-11 w-full rounded-xl border border-white/16 bg-white/[0.04] pl-10 pr-3 font-inter text-sm text-white placeholder:text-white/45 outline-none transition-colors focus:border-[#89f5e7]"
-                  />
-                </div>
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.14em] text-[#64748b]">
+                Contraseña
+              </label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden />
+                <input id="password" type={showPassword ? "text" : "password"} value={password}
+                  onChange={e => setPassword(e.target.value)} required minLength={6}
+                  placeholder="Mínimo 6 caracteres"
+                  className="h-11 w-full rounded-xl border border-[#d7e2de] bg-white pl-10 pr-11 font-inter text-sm text-[#0f172a] placeholder:text-[#94a3b8] outline-none transition-all focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10" />
+                <button type="button" onClick={() => setShow(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#94a3b8] transition-colors hover:text-[#334155]"
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+            </div>
 
-              <div>
-                <label className="mb-1.5 block font-inter text-xs font-bold uppercase tracking-[0.16em] text-white/68">
-                  Contrasena
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="h-11 w-full rounded-xl border border-white/16 bg-white/[0.04] pl-10 pr-11 font-inter text-sm text-white outline-none transition-colors focus:border-[#89f5e7]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/55 transition-colors hover:text-white"
-                    aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
+            {/* Error / Success */}
+            {error && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-inter text-xs text-red-700">{error}</p>
+            )}
+            {success && (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 font-inter text-xs text-emerald-700">{success}</p>
+            )}
 
-              {error ? (
-                <p className="rounded-lg border border-red-300/35 bg-red-500/10 px-3 py-2 font-inter text-xs text-red-200">
-                  {error}
-                </p>
-              ) : null}
-              {success ? (
-                <p className="rounded-lg border border-emerald-300/35 bg-emerald-500/10 px-3 py-2 font-inter text-xs text-emerald-200">
-                  {success}
-                </p>
-              ) : null}
+            {/* Submit */}
+            <button type="submit" disabled={loading}
+              className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0D9488] font-inter text-sm font-bold text-white shadow-md shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
+              {loading ? "Creando cuenta..." : "Crear cuenta"}
+              {!loading && <ArrowRight className="h-4 w-4" aria-hidden />}
+            </button>
+          </form>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00685f] px-4 font-inter text-sm font-bold text-white shadow-lg shadow-teal-950/30 transition-colors duration-200 hover:bg-[#008378] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loading ? "Creando cuenta..." : "Crear cuenta"}
-                {!loading ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
-              </button>
-            </form>
-
-            <p className="mt-4 text-center font-inter text-xs text-white/62">
-              Ya tienes cuenta?{" "}
-              <Link
-                href={`/login?redirect=${encodeURIComponent(redirect)}`}
-                className="font-bold text-[#89f5e7] hover:underline"
-              >
-                Iniciar sesion
-              </Link>
-            </p>
-          </aside>
+          <p className="mt-5 text-center font-inter text-xs text-[#94a3b8]">
+            ¿Ya tienes cuenta?{" "}
+            <Link href={`/login?redirect=${encodeURIComponent(redirect)}`}
+              className="cursor-pointer font-bold text-[#0D9488] hover:underline">
+              Iniciar sesión
+            </Link>
+          </p>
         </div>
       </section>
     </main>

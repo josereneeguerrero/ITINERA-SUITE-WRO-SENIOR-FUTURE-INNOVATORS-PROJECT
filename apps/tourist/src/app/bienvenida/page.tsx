@@ -4,11 +4,12 @@ import {
   ArrowRight,
   BookOpen,
   LogIn,
-  MapPin,
+  Map,
+  Route,
   Sparkles,
-  Star,
   UserPlus,
 } from "lucide-react";
+import { BlurFade } from "@/components/ui/blur-fade";
 
 export const dynamic = "force-dynamic";
 
@@ -22,119 +23,158 @@ export default async function BienvenidaPage({
   const guestUrl = `${redirect}${redirect.includes("?") ? "&" : "?"}guest=true`;
 
   return (
-    <main className="itinera-topo relative min-h-screen overflow-hidden bg-[#0A0F0F] px-4 pb-8 pt-24 sm:px-6">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(13,148,136,0.24),transparent_35%),radial-gradient(circle_at_80%_88%,rgba(245,158,11,0.12),transparent_36%)]" />
+    <main className="relative min-h-screen overflow-hidden bg-[#f0f5f2]">
 
-      <header className="absolute left-0 right-0 top-0 z-20 border-b border-white/10 bg-[#0A0F0F]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link
-            href="/"
-            className="font-jakarta text-xl font-bold text-[#89f5e7] transition-opacity duration-200 hover:opacity-85"
-          >
-            Itinera
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 font-inter text-sm font-semibold text-white/72 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Volver al inicio
-          </Link>
-        </div>
+      {/* Aurora static gradient — same palette as landing hero */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: [
+            "radial-gradient(ellipse 70% 60% at 10% 15%, rgba(13,148,136,0.16) 0%, transparent 60%)",
+            "radial-gradient(ellipse 55% 50% at 90% 80%, rgba(0,104,95,0.12) 0%, transparent 55%)",
+            "radial-gradient(ellipse 45% 35% at 60% 95%, rgba(245,158,11,0.06) 0%, transparent 50%)",
+          ].join(", "),
+        }}
+        aria-hidden
+      />
+
+      {/* Nav */}
+      <header className="relative z-20 flex h-16 items-center justify-between px-5 sm:px-8">
+        <Link
+          href="/"
+          className="cursor-pointer font-jakarta text-lg font-bold text-[#0D9488] transition-opacity hover:opacity-80"
+        >
+          Itinera
+        </Link>
+        <Link
+          href="/"
+          className="inline-flex cursor-pointer items-center gap-1.5 font-inter text-sm font-semibold text-[#334155] transition-colors hover:text-[#0D9488]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Volver al inicio
+        </Link>
       </header>
 
-      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 lg:flex-row lg:items-stretch">
-        <article className="itinera-reveal flex-1 rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-3 py-1.5 font-inter text-xs font-bold uppercase tracking-[0.16em] text-[#F59E0B]">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            Honduras te espera
-          </div>
+      {/* Content */}
+      <section className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 pb-16 pt-8 sm:px-8 lg:flex-row lg:items-center lg:gap-12 lg:pt-12">
 
-          <h1 className="mt-6 max-w-xl text-balance font-jakarta text-[36px] font-extrabold leading-[1.08] text-white sm:text-[46px]">
-            Empieza a descubrir Honduras con contexto cultural real
-          </h1>
+        {/* ── Left: value prop ── */}
+        <div className="flex-1">
+          <BlurFade delay={0.1} inView duration={0.5} yOffset={8}>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3.5 py-1.5 font-inter text-xs font-bold uppercase tracking-[0.16em] text-[#00685f]">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              Honduras te espera
+            </div>
+          </BlurFade>
 
-          <p className="mt-5 max-w-2xl font-inter text-base leading-7 text-white/72">
-            Crea tu cuenta para guardar favoritos, construir rutas y conversar con Itinera IA durante todo tu viaje.
-          </p>
+          <BlurFade delay={0.2} inView duration={0.6} yOffset={10} blur="8px">
+            <h1 className="max-w-lg text-balance font-jakarta font-extrabold leading-[1.08] text-[#0f172a]"
+              style={{ fontSize: "clamp(30px, 4.5vw, 52px)" }}>
+              Empieza a descubrir Honduras con contexto cultural real
+            </h1>
+          </BlurFade>
 
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              { icon: MapPin, text: "Destinos culturales publicados" },
-              { icon: BookOpen, text: "Historias locales validadas" },
-              { icon: Star, text: "Asistente IA contextual" },
-            ].map(({ icon: Icon, text }) => (
-              <div
-                key={text}
-                className="rounded-xl border border-white/12 bg-white/[0.03] p-4"
+          <BlurFade delay={0.3} inView duration={0.5} yOffset={6}>
+            <p className="mt-5 max-w-md font-inter text-[15px] leading-7 text-[#334155]">
+              Crea tu cuenta para guardar favoritos, construir rutas y conversar con Itinera IA durante todo tu viaje.
+            </p>
+          </BlurFade>
+
+          <BlurFade delay={0.4} inView duration={0.5} yOffset={6}>
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                { icon: Map,      label: "Destinos culturales verificados" },
+                { icon: BookOpen, label: "Historias narradas con IA" },
+                { icon: Route,    label: "Rutas guardables y compartibles" },
+              ].map(({ icon: Icon, label }) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-[#d7e2de] bg-white/80 p-4 shadow-sm backdrop-blur-sm"
+                >
+                  <Icon className="h-4 w-4 text-[#0D9488]" aria-hidden />
+                  <p className="mt-2 font-inter text-xs leading-5 text-[#334155]">{label}</p>
+                </div>
+              ))}
+            </div>
+          </BlurFade>
+        </div>
+
+        {/* ── Right: auth card ── */}
+        <BlurFade delay={0.25} inView duration={0.6} yOffset={12} blur="6px"
+          className="w-full lg:w-[400px] lg:shrink-0">
+          <div className="rounded-2xl border border-[#d7e2de] bg-white p-6 shadow-[0_8px_40px_rgba(15,23,42,0.08)] sm:p-7">
+
+            <p className="mb-5 font-jakarta text-lg font-bold text-[#0f172a]">
+              Elige cómo continuar
+            </p>
+
+            <div className="space-y-3">
+              {/* Register */}
+              <Link
+                href={`/register?redirect=${encodeURIComponent(redirect)}`}
+                className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl bg-[#0D9488] px-4 py-3.5 text-white shadow-md shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] hover:shadow-lg hover:shadow-teal-500/25 active:scale-[0.98]"
               >
-                <Icon className="h-4 w-4 text-[#89f5e7]" aria-hidden="true" />
-                <p className="mt-2 font-inter text-xs leading-5 text-white/72">{text}</p>
-              </div>
-            ))}
-          </div>
-        </article>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
+                    <UserPlus className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="text-left">
+                    <span className="block font-inter text-sm font-bold">Crear cuenta gratis</span>
+                    <span className="block font-inter text-xs text-white/75">Tarda menos de 1 minuto</span>
+                  </span>
+                </div>
+                <ArrowRight className="h-4 w-4 text-white/80 transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
+              </Link>
 
-        <aside className="itinera-reveal w-full rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:p-5 lg:w-[430px]">
-          <div className="space-y-3">
-            <Link
-              href={`/register?redirect=${encodeURIComponent(redirect)}`}
-              className="group flex w-full items-center justify-between gap-3 rounded-xl bg-[#00685f] px-4 py-4 text-white shadow-lg shadow-teal-950/30 transition-colors duration-200 hover:bg-[#008378]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/18">
-                  <UserPlus className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="text-left">
-                  <span className="block font-inter text-sm font-bold">Crear cuenta gratis</span>
-                  <span className="block font-inter text-xs text-white/72">Tarda menos de 1 minuto</span>
-                </span>
-              </div>
-              <ArrowRight className="h-4 w-4 text-white/75 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-            </Link>
+              {/* Login */}
+              <Link
+                href={`/login?redirect=${encodeURIComponent(redirect)}`}
+                className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-[#d7e2de] bg-[#f0f5f2] px-4 py-3.5 text-[#0f172a] transition-all duration-200 hover:border-[#0D9488]/30 hover:bg-white active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#d7e2de] bg-white">
+                    <LogIn className="h-4 w-4 text-[#0D9488]" aria-hidden />
+                  </span>
+                  <span className="text-left">
+                    <span className="block font-inter text-sm font-bold">Ya tengo cuenta</span>
+                    <span className="block font-inter text-xs text-[#64748b]">Iniciar sesión</span>
+                  </span>
+                </div>
+                <ArrowRight className="h-4 w-4 text-[#94a3b8] transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
+              </Link>
 
-            <Link
-              href={`/login?redirect=${encodeURIComponent(redirect)}`}
-              className="group flex w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-4 text-white transition-colors duration-200 hover:bg-white/[0.08]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/12">
-                  <LogIn className="h-4 w-4 text-[#89f5e7]" aria-hidden="true" />
-                </span>
-                <span className="text-left">
-                  <span className="block font-inter text-sm font-bold">Ya tengo cuenta</span>
-                  <span className="block font-inter text-xs text-white/68">Iniciar sesion</span>
-                </span>
+              {/* Divider */}
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-[#e2e8f0]" />
+                <span className="font-inter text-xs text-[#94a3b8]">o</span>
+                <div className="h-px flex-1 bg-[#e2e8f0]" />
               </div>
-              <ArrowRight className="h-4 w-4 text-white/72 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-            </Link>
 
-            <div className="flex items-center gap-3 py-1">
-              <div className="h-px flex-1 bg-white/16" />
-              <span className="font-inter text-xs text-white/55">o</span>
-              <div className="h-px flex-1 bg-white/16" />
+              {/* Guest */}
+              <Link
+                href={guestUrl}
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#d7e2de] bg-white px-4 py-3 font-inter text-sm font-semibold text-[#334155] transition-all duration-200 hover:border-[#0D9488]/30 hover:text-[#0D9488] active:scale-[0.98]"
+              >
+                Continuar como invitado
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
             </div>
 
-            <Link
-              href={guestUrl}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 font-inter text-sm font-semibold text-white/80 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white"
-            >
-              Continuar como invitado
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </Link>
+            <p className="mt-5 text-center font-inter text-[11px] leading-5 text-[#94a3b8]">
+              Al registrarte aceptas los términos de uso de Itinera.
+            </p>
           </div>
+        </BlurFade>
 
-          <p className="mt-5 text-center font-inter text-[11px] leading-5 text-white/52">
-            Al registrarte aceptas los terminos de uso de Itinera.
-          </p>
-        </aside>
       </section>
 
-      <footer className="relative z-10 mt-10 text-center">
-        <p className="font-inter text-[11px] text-white/45">
+      {/* Footer */}
+      <footer className="relative z-10 pb-8 text-center">
+        <p className="font-inter text-[11px] text-[#94a3b8]">
           WRO 2026 · INNOVAKERS · UNICAH · Honduras
         </p>
       </footer>
+
     </main>
   );
 }

@@ -10,6 +10,7 @@ import {
   BookOpen,
   Bot,
   Brain,
+  Building2,
   Compass,
   Cpu,
   EyeOff,
@@ -120,6 +121,15 @@ const FEATURE_CARDS: Array<{
     iconColor: "#0284C7",
     bg: "bg-sky-50",
     border: "border-sky-100",
+  },
+  {
+    icon: Building2,
+    title: "Modelo de Negocio",
+    description:
+      "Operadores turísticos, hoteles e instituciones culturales potencian su visibilidad con campañas verificadas. Los viajeros descubren experiencias auténticas; los negocios locales crecen.",
+    iconColor: "#059669",
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
   },
 ];
 
@@ -408,20 +418,18 @@ export default async function HomePage() {
           {/* Headline */}
           <BlurFade delay={0.2} inView duration={0.6} yOffset={10} blur="8px">
             <h1
-              className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.12] text-[#0f172a] sm:max-w-4xl"
+              className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.07] text-[#0f172a] sm:max-w-4xl"
               style={{ fontSize: "clamp(38px, 6vw, 80px)" }}
             >
-              Honduras tiene{" "}
-              <Highlight>
-                más de lo que te cuentan
-              </Highlight>
+              Honduras tiene más de lo que te cuentan
             </h1>
           </BlurFade>
 
           {/* Subtitle */}
           <BlurFade delay={0.32} inView duration={0.5} yOffset={8}>
             <p className="mx-auto mt-7 max-w-[20rem] text-balance font-inter text-[15px] leading-7 text-[#334155] sm:max-w-2xl sm:text-lg">
-              Itinera es una guía cultural impulsada por inteligencia artificial. Descubre historias locales,
+              Itinera es una guía cultural impulsada por{" "}
+              <Highlight className="whitespace-nowrap">inteligencia artificial</Highlight>. Descubre historias locales,
               rutas auténticas y el verdadero contexto de cada rincón de Honduras.
             </p>
           </BlurFade>
