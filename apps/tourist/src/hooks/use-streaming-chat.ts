@@ -14,6 +14,11 @@ export interface ChatContext {
   storySlug?:  string;
   placeName?:  string;
   storyTitle?: string;
+  storySummary?:  string;          // 1-2 sentence hook of the story
+  storyBody?:     string;          // first ~1500 chars of body markdown
+  storyRegion?:   string;          // region name (Spanish)
+  storyPlaces?:   string[];        // names of linked places
+  storyPlaceSlugs?: string[];      // slugs of linked places (for cards)
   activeRouteSlugs?: string[];
   filters?: Record<string, unknown>;
   visibleSlugs?: string[];

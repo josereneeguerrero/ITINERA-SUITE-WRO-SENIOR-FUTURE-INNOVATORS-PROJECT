@@ -516,6 +516,96 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
           return;
         }
 
+        // ── 2b. Story narrator mode ────────────────────────────────────────
+        // When user is reading a story, use full story content as context.
+        // This fires before region/category detection so story questions
+        // don't get misrouted to place searches.
+
+        if (context?.storySlug) {
+          const storyTitle    = (context.storyTitle    as string | undefined) ?? "esta historia";
+          const storySummary  = (context.storySummary  as string | undefined) ?? "";
+          const storyBody     = (context.storyBody     as string | undefined) ?? "";
+          const storyRegion   = (context.storyRegion   as string | undefined) ?? "Honduras";
+          const storyPlaces   = (context.storyPlaces   as string[] | undefined) ?? [];
+          const storyPlaceSlugs = (context.storyPlaceSlugs as string[] | undefined) ?? [];
+
+          // Check if user is asking to visit the linked places
+          const VISIT_KEYWORDS = ["visitar", "ir", "llegar", "donde", "dónde", "vivir", "explorar", "conocer", "ver"];
+          const wantsToVisit = VISIT_KEYWORDS.some(kw => norm(lastMsg).includes(norm(kw)))
+            && storyPlaceSlugs.length > 0;
+
+          const STORY_SYSTEM = `Eres el Narrador IA de Itinera — especialista en la historia que el usuario está leyendo ahora mismo.
+
+HISTORIA ACTUAL:
+Título: "${storyTitle}"
+Región: ${storyRegion}
+${storySummary ? `Resumen: ${storySummary}` : ""}
+${storyBody ? `Contenido:\n${storyBody}` : ""}
+${storyPlaces.length > 0 ? `Lugares vinculados a esta historia: ${storyPlaces.join(", ")}` : ""}
+
+TU MISIÓN:
+- Responder preguntas sobre ESTA historia específica: sus temas, personajes, contexto histórico, impacto ambiental o cultural
+- Profundizar en lo que el texto menciona, ampliar con datos reales verificados
+- Si el usuario pregunta sobre los lugares vinculados, descríbelos y ofrece llevarlos a verlos
+- NUNCA salgas del contexto de esta historia para hablar de otras cosas no relacionadas
+- Si la pregunta es totalmente ajena a la historia, redirige amablemente: "Esa pregunta está fuera del contexto de esta historia. Te recomiendo el Chat IA en el Centro IA para eso."
+
+TONO: Narrador apasionado, como un guía cultural que conoce esta historia profundamente. Respuestas de 2-3 párrafos, evocadoras y precisas.`;
+
+          if (wantsToVisit && storyPlaceSlugs.length > 0) {
+            // Fetch the actual place data for cards
+            const db = getDB();
+            const { data: linkedPlaces } = await db
+              .from("places")
+              .select("slug, name_i18n, ai_summary_i18n, aggregated_rating, place_categories(name_i18n, slug), regions(name_i18n)")
+              .in("slug", storyPlaceSlugs)
+              .eq("status", "published");
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const placeCards = (linkedPlaces ?? []).map((p: any) => ({
+              slug: p.slug,
+              name: p.name_i18n?.es ?? p.slug,
+              rating: Number(p.aggregated_rating ?? 0),
+              url: `/places/${p.slug}`,
+            }));
+
+            const visitResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: `${STORY_SYSTEM}\n\nEl usuario quiere visitar los lugares de la historia. Escribe 1-2 frases invitándolo a explorarlos. Las tarjetas de los lugares se mostrarán automáticamente.`,
+              messages: [{ role: "user", content: lastMsg }],
+              temperature: 0.6,
+            });
+
+            emit({ type: "text-delta", textDelta: visitResult.text });
+            if (placeCards.length > 0) {
+              emit({ type: "tool-result", toolName: "search_places", result: { places: placeCards } });
+            }
+          } else {
+            // Regular story question — answer from content
+            const storyResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: STORY_SYSTEM,
+              messages: messages as { role: "user" | "assistant"; content: string }[],
+              temperature: 0.65,
+            });
+
+            emit({ type: "text-delta", textDelta: storyResult.text });
+
+            // Suggest follow-up questions dynamically
+            emit({ type: "suggestions", suggestions: [
+              { label: "Contexto histórico",    value: `¿Cuál es el contexto histórico de "${storyTitle}"?` },
+              { label: "Impacto actual",        value: `¿Qué impacto tiene hoy lo que cuenta "${storyTitle}"?` },
+              ...(storyPlaces.length > 0 ? [{ label: "Visitar estos lugares", value: `¿Dónde puedo vivir esta historia en persona?` }] : []),
+            ]});
+          }
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
+
         // ── 3. Detect region and category ──────────────────────────────────
         // Also scan recent history so "adjunta restaurants" after "Comayagua" works
 

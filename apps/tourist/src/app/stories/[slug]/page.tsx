@@ -51,7 +51,16 @@ export default async function StoryPage({
         context={{
           page: "story",
           storySlug: slug,
-          storyTitle: (story.title_i18n as Record<string, string>)?.es,
+          storyTitle:   (story.title_i18n    as Record<string, string>)?.es,
+          storySummary: (story.summary_i18n  as Record<string, string>)?.es,
+          storyBody:    ((story.body_markdown_i18n as Record<string, string>)?.es ?? "").slice(0, 1500),
+          storyRegion:  (story.regions as { name_i18n: Record<string, string> } | null)?.name_i18n?.es,
+          storyPlaces: ((story.story_places ?? []) as Array<{ places: { name_i18n: Record<string, string> } | null }>)
+            .map(sp => (sp.places?.name_i18n as Record<string, string>)?.es)
+            .filter((n): n is string => Boolean(n)),
+          storyPlaceSlugs: ((story.story_places ?? []) as Array<{ places: { slug: string; name_i18n: Record<string, string>; aggregated_rating: number } | null }>)
+            .map(sp => sp.places?.slug)
+            .filter((s): s is string => Boolean(s)),
         }}
       />
     </main>
