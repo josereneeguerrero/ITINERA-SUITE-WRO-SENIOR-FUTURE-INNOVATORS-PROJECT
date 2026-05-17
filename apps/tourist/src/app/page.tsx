@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import { ImageAutoSlider, type ImageAutoSliderItem } from "@/components/ui/image-auto-slider";
 import { LandingNav } from "@/components/landing/landing-nav";
+import { BlurFade } from "@/components/ui/blur-fade";
 import {
   ArrowRight,
   BookOpen,
@@ -412,56 +413,70 @@ export default async function HomePage() {
         <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center text-center">
 
           {/* WRO badge */}
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-4 py-2 font-inter text-xs font-bold uppercase tracking-[0.18em] text-[#00685f]">
-            <Trophy className="h-3.5 w-3.5" aria-hidden />
-            WRO Future Innovators 2026
-          </div>
+          <BlurFade delay={0.1} inView duration={0.5} yOffset={8}>
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-4 py-2 font-inter text-xs font-bold uppercase tracking-[0.18em] text-[#00685f]">
+              <Trophy className="h-3.5 w-3.5" aria-hidden />
+              WRO Future Innovators 2026
+            </div>
+          </BlurFade>
 
           {/* Headline */}
-          <h1
-            className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.07] text-[#0f172a] sm:max-w-4xl"
-            style={{ fontSize: "clamp(38px, 6vw, 80px)" }}
-          >
-            Honduras tiene más de lo que te cuentan
-          </h1>
+          <BlurFade delay={0.2} inView duration={0.6} yOffset={10} blur="8px">
+            <h1
+              className="mx-auto max-w-[18rem] text-balance font-jakarta font-extrabold leading-[1.07] text-[#0f172a] sm:max-w-4xl"
+              style={{ fontSize: "clamp(38px, 6vw, 80px)" }}
+            >
+              Honduras tiene más de lo que te cuentan
+            </h1>
+          </BlurFade>
 
-          <p className="mx-auto mt-7 max-w-[20rem] text-balance font-inter text-[15px] leading-7 text-[#334155] sm:max-w-2xl sm:text-lg">
-            Itinera es una guía cultural impulsada por inteligencia artificial. Descubre historias locales,
-            rutas auténticas y el verdadero contexto de cada rincón de Honduras.
-          </p>
+          {/* Subtitle */}
+          <BlurFade delay={0.32} inView duration={0.5} yOffset={8}>
+            <p className="mx-auto mt-7 max-w-[20rem] text-balance font-inter text-[15px] leading-7 text-[#334155] sm:max-w-2xl sm:text-lg">
+              Itinera es una guía cultural impulsada por inteligencia artificial. Descubre historias locales,
+              rutas auténticas y el verdadero contexto de cada rincón de Honduras.
+            </p>
+          </BlurFade>
 
           {/* Primary CTAs */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/bienvenida?redirect=/dashboard"
-              className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl bg-[#0D9488] px-7 py-3 font-inter text-sm font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] hover:shadow-xl hover:shadow-teal-500/25 active:scale-95"
-            >
-              Explorar Honduras <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
-            <a
-              href="#demo"
-              className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-[#d7e2de] bg-white/80 px-7 py-3 font-inter text-sm font-bold text-[#334155] backdrop-blur-sm transition-all duration-200 hover:border-[#0D9488]/40 hover:bg-white hover:text-[#0D9488]"
-            >
-              Ver cómo funciona
-            </a>
-          </div>
+          <BlurFade delay={0.44} inView duration={0.5} yOffset={6}>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <Link
+                href="/bienvenida?redirect=/dashboard"
+                className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl bg-[#0D9488] px-7 py-3 font-inter text-sm font-bold text-white shadow-lg shadow-teal-500/20 transition-all duration-200 hover:bg-[#0f766e] hover:shadow-xl hover:shadow-teal-500/25 active:scale-95"
+              >
+                Explorar Honduras <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+              <a
+                href="#demo"
+                className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-[#d7e2de] bg-white/80 px-7 py-3 font-inter text-sm font-bold text-[#334155] backdrop-blur-sm transition-all duration-200 hover:border-[#0D9488]/40 hover:bg-white hover:text-[#0D9488]"
+              >
+                Ver cómo funciona
+              </a>
+            </div>
+          </BlurFade>
 
           {/* Live metric chips */}
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
-            {metrics.map((m) => (
-              <HeroChip key={m.label} icon={m.icon} label={m.label} />
-            ))}
-          </div>
+          <BlurFade delay={0.56} inView duration={0.5} yOffset={6}>
+            <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
+              {metrics.map((m) => (
+                <HeroChip key={m.label} icon={m.icon} label={m.label} />
+              ))}
+            </div>
+          </BlurFade>
 
           {/* Tech stack credits */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            {["MapLibre GL", "Supabase pgvector", "NVIDIA Jetson", "Next.js 16"].map((tech, i, arr) => (
-              <span key={tech} className="font-inter text-[11px] font-medium text-[#94a3b8]">
-                {tech}
-                {i < arr.length - 1 && <span className="ml-3 text-[#d7e2de]">·</span>}
-              </span>
-            ))}
-          </div>
+          <BlurFade delay={0.66} inView duration={0.4} yOffset={4} blur="4px">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+              {["MapLibre GL", "Supabase pgvector", "NVIDIA Jetson", "Next.js 16"].map((tech, i, arr) => (
+                <span key={tech} className="font-inter text-[11px] font-medium text-[#94a3b8]">
+                  {tech}
+                  {i < arr.length - 1 && <span className="ml-3 text-[#d7e2de]">·</span>}
+                </span>
+              ))}
+            </div>
+          </BlurFade>
+
         </div>
       </section>
 
