@@ -211,6 +211,7 @@ export function IaChatCenter({
                         key={`${tool.toolName}-${j}`}
                         toolName={tool.toolName}
                         result={tool.result}
+                        mapMode={false}
                       />
                     ))}
                   </div>

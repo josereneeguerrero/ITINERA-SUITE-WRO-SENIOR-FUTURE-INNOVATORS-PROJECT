@@ -517,7 +517,7 @@ TONO: Como un guía local experto — apasionado, preciso y honesto cuando no ti
                 model: (getGroq() as any)("llama-3.3-70b-versatile"),
                 system: isMapMode
                   ? `Eres Itinera IA, guía de Honduras. Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo info real. Responde en español.\n\n${places.map(p => `• ${p.name} — ${p.summary || "Atracción"} | ⭐${p.rating}`).join("\n")}`
-                  : `${IA_CENTER_SYSTEM}\n\nLugares encontrados:\n${places.map(p => `• ${p.name} (${p.category}${p.region ? ", " + p.region : ""}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")}\n\nPresenta estos lugares de forma atractiva en 2-3 párrafos. Menciona lo más destacado de cada uno sin entrar en todo el detalle. Deja que el usuario pregunte más sobre el que le interese. Responde en español.`,
+                  : `${IA_CENTER_SYSTEM}\n\nLugares encontrados en la base de datos:\n${places.map(p => `• ${p.name} (${p.category}${p.region ? ", " + p.region : ""}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")}\n\nIMPORTANTE: Las tarjetas de estos lugares se mostrarán automáticamente al usuario. Tu respuesta debe ser MUY BREVE — máximo 1-2 frases — como introducción antes de las tarjetas. Ejemplo: "Aquí tienes algunas opciones en Comayagua:" o "Encontré estos lugares que podrían interesarte:". NO repitas la información de las tarjetas. Responde en español.`,
                 messages: [{ role: "user", content: lastMsg }],
                 temperature: 0.4,
               });
@@ -658,7 +658,7 @@ Termina con una frase breve invitando a explorar un tema específico.`,
             model: (getGroq() as any)("llama-3.3-70b-versatile"),
             system: isMapMode
               ? `Eres Itinera IA, guía de Honduras.\n\nLugares encontrados (${context}):\n${placesText}\n\nDescribe brevemente estos lugares al usuario. Máximo 3 frases. Solo información real. Responde en español. No inventes.`
-              : `${IA_CENTER_SYSTEM}\n\nContexto de búsqueda: ${context}\nLugares encontrados:\n${placesText}\n\nPresenta estos lugares en 2-3 párrafos de forma atractiva. Destaca lo más relevante de cada uno. No cubras todo — deja espacio para que el usuario profundice en el que más le interese.`,
+              : `${IA_CENTER_SYSTEM}\n\nContexto: ${context}\nLugares en DB:\n${placesText}\n\nIMPORTANTE: Las tarjetas se mostrarán automáticamente. Escribe SOLO 1-2 frases de introducción antes de las tarjetas. No repitas la información de cada lugar. Responde en español.`,
             messages: messages as { role: "user" | "assistant"; content: string }[],
             temperature: isMapMode ? 0.3 : 0.5,
           });
@@ -737,7 +737,7 @@ Termina con una frase breve invitando a explorar un tema específico.`,
               model: (getGroq() as any)("llama-3.3-70b-versatile"),
               system: isMapMode
                 ? `Eres Itinera IA, guía de Honduras. El usuario buscó en lenguaje natural y encontramos estos lugares relevantes:\n\n${placesText}\n\nDescribe brevemente estos lugares. Máximo 3 frases. Solo información real. Responde en español.`
-                : `${IA_CENTER_SYSTEM}\n\nEl usuario buscó: "${lastMsg}"\n\nLugares relevantes encontrados en Itinera:\n${placesText}\n\nResponde de forma rica y detallada. Explica por qué estos lugares son relevantes para lo que busca el usuario, qué los hace especiales culturalmente, y qué puede esperar al visitarlos.`,
+                : `${IA_CENTER_SYSTEM}\n\nBúsqueda: "${lastMsg}"\nLugares encontrados:\n${placesText}\n\nIMPORTANTE: Las tarjetas se mostrarán automáticamente. Escribe SOLO 1-2 frases conectando la búsqueda del usuario con los resultados. No describas cada lugar en detalle. Responde en español.`,
               messages: [{ role: "user", content: lastMsg }],
               temperature: 0.4,
             });

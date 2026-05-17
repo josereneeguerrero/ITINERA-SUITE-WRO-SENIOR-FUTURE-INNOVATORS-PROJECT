@@ -5,15 +5,22 @@ import { MapPin, BookOpen, ChevronRight, Plus, ArrowRight, Star, Map } from "luc
 function showOnMap(slug: string) {
   window.dispatchEvent(
     new CustomEvent("itinera:ui-actions", {
-      detail: {
-        intent: "show_place",
-        actions: [{ type: "show_place", slug }],
-      },
+      detail: { intent: "show_place", actions: [{ type: "show_place", slug }] },
     })
   );
 }
 
-export function ToolResultInline({ toolName, result }: { toolName: string; result: unknown }) {
+// mapMode=true  → dispatch event (for /explore map)
+// mapMode=false → navigate to /explore?place=slug (for /ia and other pages)
+export function ToolResultInline({
+  toolName,
+  result,
+  mapMode = true,
+}: {
+  toolName: string;
+  result: unknown;
+  mapMode?: boolean;
+}) {
   const data = result as Record<string, unknown>;
 
   if (toolName === "navigate_to") {
@@ -96,15 +103,26 @@ export function ToolResultInline({ toolName, result }: { toolName: string; resul
               </p>
             </a>
 
-            {/* Ver en mapa */}
-            <button
-              onClick={() => showOnMap(p.slug)}
-              title="Ver en el mapa"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-teal-50"
-              style={{ color: "#0D9488" }}
-            >
-              <Map className="h-3.5 w-3.5" />
-            </button>
+            {/* Ver en mapa — dispatch en /explore, navegar en /ia */}
+            {mapMode ? (
+              <button
+                onClick={() => showOnMap(p.slug)}
+                title="Ver en el mapa"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-teal-50"
+                style={{ color: "#0D9488" }}
+              >
+                <Map className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <a
+                href={`/explore?place=${p.slug}`}
+                title="Ver en el mapa"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-teal-50"
+                style={{ color: "#0D9488" }}
+              >
+                <Map className="h-3.5 w-3.5" />
+              </a>
+            )}
 
             {/* Ver detalle → /places */}
             <a href={p.url} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-gray-50">
