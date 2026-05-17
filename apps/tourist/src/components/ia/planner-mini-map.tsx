@@ -52,12 +52,12 @@ async function fetchRoadRoute(coords: [number, number][]): Promise<RouteResult> 
 }
 
 // ─── Tour timing constants ─────────────────────────────────────────────────────
-const FLY_DURATION   = 1400; // ms — flyTo each stop
-const VIEW_DURATION  = 2600; // ms — pause at each stop
-const RETURN_DURATION = 1600; // ms — flyTo back to overview
-const OVERVIEW_PAUSE  = 2200; // ms — pause on full route before repeating
+const FLY_DURATION   = 1200; // ms — flyTo each stop
+const VIEW_DURATION  = 2000; // ms — pause at each stop
+const RETURN_DURATION = 1200; // ms — flyTo back to overview
+const OVERVIEW_PAUSE  = 1600; // ms — pause on full route before repeating
 const ZOOM_IN        = 13;   // zoom level for individual stop
-const TOUR_START_DELAY = 1800; // ms after route is drawn before tour begins
+const TOUR_START_DELAY = 800; // ms after route is drawn before tour begins
 
 export function PlannerMiniMap({
   days,
@@ -169,13 +169,13 @@ export function PlannerMiniMap({
     setVisibleRoute([fullRoute[0]]);
     let idx = 1;
     const id = setInterval(() => {
-      idx = Math.min(idx + 4, fullRoute.length);
+      idx = Math.min(idx + 14, fullRoute.length); // 14 pts/16ms ≈ 875 pts/s
       setVisibleRoute(fullRoute.slice(0, idx));
       if (idx >= fullRoute.length) {
         clearInterval(id);
         setRouteDone(true);
       }
-    }, 20);
+    }, 16);
     return () => clearInterval(id);
   }, [fullRoute]);
 
