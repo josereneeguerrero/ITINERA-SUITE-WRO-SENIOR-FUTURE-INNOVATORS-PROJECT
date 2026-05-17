@@ -36,7 +36,7 @@ export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
         items={[
           { icon: Home, label: "Inicio", active: pathname === "/dashboard", onClick: () => router.push(homeHref) },
           { icon: Compass, label: "Explorar", active: pathname === "/explore", onClick: goExplore },
-          { icon: Sparkles, label: "IA", active: false, onClick: goExplore },
+          { icon: Sparkles, label: "IA", active: pathname === "/ia", onClick: () => router.push(isGuest ? "/ia?guest=true" : "/ia") },
           { icon: Route, label: "Rutas", active: pathname === "/routes", onClick: () => goProtected("/routes") },
           { icon: Heart, label: "Guardados", active: pathname === "/profile/saved", onClick: () => goProtected("/profile/saved") },
           { icon: User, label: "Perfil", active: pathname === "/profile", onClick: () => goProtected("/profile") },
