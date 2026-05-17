@@ -153,7 +153,7 @@ const CATEGORIES = [
   { slug: "nature",    keywords: ["naturaleza", "parque", "parques", "bosque", "sendero", "senderos", "ecoturismo", "flora", "fauna", "reserva"] },
   { slug: "heritage",  keywords: ["patrimonio", "ruinas", "historico", "historicos", "arqueologia", "colonial", "prehispanico"] },
   { slug: "religion",  keywords: ["iglesia", "iglesias", "catedral", "catedrales", "religioso", "religiosos", "templo", "templos", "capilla", "capillas", "basilica", "santuario"] },
-  { slug: "food",      keywords: ["comida", "restaurant", "restaurante", "restaurantes", "gastronomia", "tipico", "comer", "cocina"] },
+  { slug: "food",      keywords: ["comida", "restaurant", "restaurante", "restaurantes", "restaurants", "gastronomia", "tipico", "comer", "cocina", "cena", "almuerzo", "desayuno", "cafe", "cafeteria", "bar", "comedor"] },
   { slug: "adventure", keywords: ["aventura", "aventuras", "senderismo", "escalada", "adrenalina", "extremo", "outdoor"] },
   { slug: "arts",      keywords: ["museo", "museos", "galeria", "galerias", "arte", "artes", "cultura", "artesania"] },
 ];
@@ -381,21 +381,26 @@ CONTEXTO: Estás en el Centro IA de Itinera — una interfaz de chat dedicada, s
 Tu misión es ser un compañero cultural conversacional: informativo, apasionado por Honduras y sus historias.
 
 CÓMO RESPONDES:
-- Respuestas ricas y detalladas (2-5 párrafos cuando el tema lo amerita)
+- Respuestas ricas pero enfocadas (2-3 párrafos por defecto, más solo si el tema lo exige)
 - Incluye contexto histórico, cultural y geográfico real y verificado
-- Cuando menciones lugares específicos, invita al usuario a explorarlos: "puedes ver más en /explore" o "lee su historia completa en la plataforma"
+- Cuando menciones destinos, invita a explorar: "puedes ver más en /explore"
 - NUNCA digas "te muestro en el mapa", "filtré el mapa" ni "aparece en el mapa"
-- NUNCA inventes datos, fechas, nombres ni hechos históricos
+
+REGLA CRÍTICA — ANTI-ALUCINACIÓN:
+- NUNCA inventes nombres específicos de restaurantes, hoteles, negocios o establecimientos
+- NUNCA inventes nombres de personas, fechas exactas ni datos estadísticos que no sean de conocimiento general verificado
+- Si el usuario pide restaurantes u otros negocios específicos y NO tienes datos reales de la base de datos de Itinera, dilo claramente:
+  "No tengo información de restaurantes verificados en nuestra base de datos para esta zona aún. Te recomiendo explorar en /explore donde encontrarás lugares con reseñas reales, o buscar en plataformas como Google Maps para negocios locales actualizados."
+- Solo menciona nombres específicos de lugares si provienen de los datos reales que te proporciona el sistema
 
 TEMAS EN LOS QUE DESTACAS:
 - Historia: civilización maya, época colonial, independencia, personajes ilustres de Honduras
-- Destinos: descripción vívida, qué ver, qué comer, cuándo ir, cómo llegar
-- Cultura: tradiciones, gastronomía típica, artesanías, música, festivales, leyendas
-- Planificación: itinerarios por días, combinaciones de destinos, consejos prácticos de viaje
-- Comparaciones: "¿qué diferencia hay entre Copán y Comayagua?"
+- Destinos: descripción vívida, qué ver, gastronomía típica (en general), cuándo ir
+- Cultura: tradiciones, artesanías, música, festivales, leyendas
+- Planificación: itinerarios por días, combinaciones de destinos, consejos prácticos
 - Curiosidades: datos únicos, récords, mitos y leyendas de Honduras
 
-TONO: Como un guía local experto que lleva años narrando las historias de Honduras — apasionado, preciso y cercano.`;
+TONO: Como un guía local experto — apasionado, preciso y honesto cuando no tiene datos.`;
 
   // Store device ID for logging (thread-local alternative to params)
   (globalThis as any).currentDeviceId = deviceId;
@@ -447,9 +452,19 @@ TONO: Como un guía local experto que lleva años narrando las historias de Hond
         }
 
         // ── 3. Detect region and category ──────────────────────────────────
+        // Also scan recent history so "adjunta restaurants" after "Comayagua" works
 
         const region = detectRegion(lastMsg);
         const category = detectCategory(lastMsg);
+
+        // If no region in current message, look in the last 6 user messages
+        let contextRegion = region;
+        if (!contextRegion) {
+          for (const m of messages.filter(m => m.role === "user").slice(-6)) {
+            const r = detectRegion(m.content);
+            if (r) { contextRegion = r; break; }
+          }
+        }
 
         // ── 4. Region only (no category in current message) ───────────────
         // Before asking for a category, check if there's one already in history.
@@ -568,16 +583,8 @@ Termina con una frase breve invitando a explorar un tema específico.`,
 
         if (category) {
           // Look for region in history if not in current message
-          let searchRegion = region;
-          if (!searchRegion) {
-            for (const msg of messages.filter(m => m.role === "user").slice(-5, -1)) {
-              const r = detectRegion(msg.content);
-              if (r) {
-                searchRegion = r;
-                break;
-              }
-            }
-          }
+          // Use contextRegion (already includes history scan done above)
+          let searchRegion = contextRegion;
 
           const places = await fetchPlaces(searchRegion, category);
 
@@ -676,6 +683,9 @@ Termina con una frase breve invitando a explorar un tema específico.`,
           controller.close();
           return;
         }
+
+        // ── 5b. Category detected but no region yet — use contextRegion ────────
+        // Handles: "adjunta restaurants" after "Comayagua" was mentioned earlier
 
         // ── 6. Direct place-name search (no category/region detected) ─────────
         // Handles "Muestrame La Atoniana Gastro Pub", "el otro El Torito", etc.
