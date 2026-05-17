@@ -52,3 +52,32 @@ export async function toggleRoutePublic(id: string, isPublic: boolean) {
   await supabase.from("itineraries").update({ public: isPublic }).eq("id", id).eq("user_id", user.id);
   return { ok: true };
 }
+
+export async function renameRoute(id: string, title: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+  const { error } = await supabase
+    .from("itineraries")
+    .update({ title_i18n: { es: title, en: title } })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+export async function removeStop(stopId: string, routeId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+  // Verify ownership via itinerary
+  const { data: itinerary } = await supabase
+    .from("itineraries")
+    .select("id")
+    .eq("id", routeId)
+    .eq("user_id", user.id)
+    .single();
+  if (!itinerary) return { error: "Sin permiso" };
+  await supabase.from("itinerary_stops").delete().eq("id", stopId);
+  return { ok: true };
+}

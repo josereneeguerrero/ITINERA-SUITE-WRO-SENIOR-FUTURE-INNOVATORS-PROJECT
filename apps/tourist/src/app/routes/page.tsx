@@ -168,6 +168,7 @@ export default async function RoutesPage() {
                         routeId={route.id}
                         isPublic={route.public}
                         shareUrl={shareUrl}
+                        currentTitle={title}
                       />
                     </div>
                   );

@@ -4,6 +4,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { MapPin, Clock, Lock, Globe, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { RemoveStopButton } from "./remove-stop-button";
 
 export default async function SharedRoutePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,7 +12,7 @@ export default async function SharedRoutePage({ params }: { params: Promise<{ id
 
   const { data: route } = await supabase
     .from("itineraries")
-    .select(`id, title_i18n, public, created_at, itinerary_stops(seq, notes_i18n, places(name_i18n, slug, ai_summary_i18n, aggregated_rating, place_categories(name_i18n)))`)
+    .select(`id, user_id, title_i18n, public, created_at, itinerary_stops(id, seq, notes_i18n, places(name_i18n, slug, ai_summary_i18n, aggregated_rating, place_categories(name_i18n)))`)
     .eq("id", id)
     .single();
 
@@ -82,15 +83,20 @@ export default async function SharedRoutePage({ params }: { params: Promise<{ id
                 <div className="flex-1 pb-3">
                   <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-jakarta text-base font-semibold text-[#0F172A]">{name}</p>
                         {category && <p className="mt-0.5 font-inter text-xs text-[#0D9488]">{category}</p>}
                       </div>
-                      {rating && (
-                        <span className="flex items-center gap-1 font-inter text-xs font-semibold text-[#F59E0B]">
-                          ⭐ {Number(rating).toFixed(1)}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {rating && (
+                          <span className="flex items-center gap-1 font-inter text-xs font-semibold text-[#F59E0B]">
+                            ⭐ {Number(rating).toFixed(1)}
+                          </span>
+                        )}
+                        {isOwner && (
+                          <RemoveStopButton stopId={stop.id} routeId={route.id} />
+                        )}
+                      </div>
                     </div>
                     {summary && <p className="mt-2 font-inter text-sm leading-relaxed text-[#64748B] line-clamp-2">{summary}</p>}
                     {slug && (
