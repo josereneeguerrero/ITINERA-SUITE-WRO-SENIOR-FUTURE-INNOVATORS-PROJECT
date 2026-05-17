@@ -1,8 +1,6 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { BookOpen, Volume2, ChevronRight, Lock } from "lucide-react";
+import { BookOpen, Lock, Volume2, ArrowRight, BookMarked } from "lucide-react";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 
 interface Story {
   id: string;
@@ -20,21 +18,22 @@ interface Region {
   name_i18n: Record<string, string>;
 }
 
-const STORY_COLORS = [
-  "linear-gradient(135deg, #0D9488, #064E3B)",
-  "linear-gradient(135deg, #7C3AED, #4C1D95)",
-  "linear-gradient(135deg, #D97706, #92400E)",
-  "linear-gradient(135deg, #0369A1, #0C4A6E)",
-  "linear-gradient(135deg, #DC2626, #7F1D1D)",
-  "linear-gradient(135deg, #059669, #065F46)",
+// Accent palette — matches brand DNA
+const ACCENTS = [
+  { border: "#0D9488", iconBg: "bg-teal-50",    icon: "text-[#0D9488]" },
+  { border: "#7C3AED", iconBg: "bg-violet-50",  icon: "text-violet-600" },
+  { border: "#D97706", iconBg: "bg-amber-50",   icon: "text-amber-600"  },
+  { border: "#0284C7", iconBg: "bg-sky-50",     icon: "text-sky-600"    },
+  { border: "#E11D48", iconBg: "bg-rose-50",    icon: "text-rose-600"   },
+  { border: "#059669", iconBg: "bg-emerald-50", icon: "text-emerald-600"},
 ];
 
-// Placeholder stories to fill the grid visually
+// Coming-soon teasers to fill empty grid
 const COMING_SOON = [
-  { title: "Los Garífunas de la Costa Caribe", region: "La Ceiba" },
-  { title: "La Ruta del Café Hondureño", region: "Copán" },
-  { title: "Mosquitia: La Selva Inexplorada", region: "Trujillo" },
-  { title: "Las Mariposas de Lancetilla", region: "Tela" },
+  { title: "Los Garífunas de la Costa Caribe", region: "Atlántida" },
+  { title: "La Ruta del Café Hondureño",       region: "Copán"     },
+  { title: "Mosquitia: La Selva Inexplorada",  region: "Gracias a Dios" },
+  { title: "Las Mariposas de Lancetilla",      region: "Atlántida" },
 ];
 
 export function StoriesGrid({
@@ -45,204 +44,169 @@ export function StoriesGrid({
   stories: Story[];
   regions: Region[];
   activeRegion?: string;
+  isGuest?: boolean;
 }) {
-  const router   = useRouter();
-  const pathname = usePathname();
-
-  function setRegion(slug: string) {
-    router.push(slug ? `${pathname}?region=${slug}` : pathname);
-  }
-
-  // How many "coming soon" to show to fill grid nicely
-  const fillerCount = Math.max(0, 3 - stories.length);
+  const activeRegionName = regions.find((r) => r.slug === activeRegion)?.name_i18n?.es ?? activeRegion;
+  const fillerCount = Math.max(0, 4 - stories.length);
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+    <div>
 
-      {/* Filter pills */}
-      <div className="flex items-center gap-2 mb-8 flex-wrap">
-        <button
-          onClick={() => setRegion("")}
-          className="px-4 py-1.5 rounded-full font-inter font-medium text-sm transition-all"
-          style={
+      {/* ── Filter pills ──────────────────────────────────────────────── */}
+      <div className="mb-8 flex flex-wrap items-center gap-2">
+        <Link
+          href="/stories"
+          className={`cursor-pointer rounded-full px-4 py-1.5 font-inter text-sm font-semibold transition-all duration-200 ${
             !activeRegion
-              ? { backgroundColor: "#0D9488", color: "white" }
-              : { backgroundColor: "#F1F5F9", color: "#64748B", border: "1px solid #E2E8F0" }
-          }
+              ? "bg-[#0D9488] text-white shadow-sm"
+              : "border border-[#d7e2de] bg-white text-[#334155] hover:border-[#0D9488]/30 hover:text-[#0D9488]"
+          }`}
         >
           Todas
-        </button>
+        </Link>
         {regions.map((r) => (
-          <button
+          <Link
             key={r.id}
-            onClick={() => setRegion(r.slug)}
-            className="px-4 py-1.5 rounded-full font-inter font-medium text-sm transition-all"
-            style={
+            href={`/stories?region=${r.slug}`}
+            className={`cursor-pointer rounded-full px-4 py-1.5 font-inter text-sm font-semibold transition-all duration-200 ${
               activeRegion === r.slug
-                ? { backgroundColor: "#0D9488", color: "white" }
-                : { backgroundColor: "#F1F5F9", color: "#64748B", border: "1px solid #E2E8F0" }
-            }
+                ? "bg-[#0D9488] text-white shadow-sm"
+                : "border border-[#d7e2de] bg-white text-[#334155] hover:border-[#0D9488]/30 hover:text-[#0D9488]"
+            }`}
           >
             {r.name_i18n?.es}
-          </button>
+          </Link>
         ))}
       </div>
 
-      {/* Section title */}
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-jakarta font-bold text-xl text-[#0F172A]">
+      {/* ── Section header ────────────────────────────────────────────── */}
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h2 className="font-jakarta text-2xl font-bold text-[#0f172a] md:text-3xl">
           {activeRegion
-            ? `Historias de ${regions.find(r => r.slug === activeRegion)?.name_i18n?.es ?? activeRegion}`
-            : "Todas las historias"
-          }
+            ? `Historias de ${activeRegionName}`
+            : "Todas las historias"}
         </h2>
-        <span className="font-inter text-sm" style={{ color: "#94A3B8" }}>
-          {stories.length} historia{stories.length !== 1 ? "s" : ""}
+        <span className="font-inter text-sm text-[#64748b]">
+          {stories.length} {stories.length === 1 ? "historia" : "historias"}
         </span>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* Real stories */}
-        {stories.map((story, i) => {
-          const title   = story.title_i18n?.es ?? story.slug;
-          const summary = story.summary_i18n?.es ?? "";
-          const region  = story.regions as { slug: string; name_i18n: Record<string,string> } | null;
-          const regName = region?.name_i18n?.es;
-
-          return (
-            <Link
-              key={story.id}
-              href={`/stories/${story.slug}`}
-              className="group rounded-2xl overflow-hidden bg-white flex flex-col cursor-pointer"
-              style={{
-                border: story.featured ? "2px solid rgba(13,148,136,0.4)" : "1px solid #E2E8F0",
-                boxShadow: story.featured
-                  ? "0 4px 20px rgba(13,148,136,0.1)"
-                  : "0 1px 4px rgba(0,0,0,0.05)",
-                transition: "box-shadow 0.2s ease, transform 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow = story.featured
-                  ? "0 4px 20px rgba(13,148,136,0.1)"
-                  : "0 1px 4px rgba(0,0,0,0.05)";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)";
-              }}
-            >
-              {/* Image area */}
-              <div
-                className="h-44 relative flex items-center justify-center"
-                style={{ background: STORY_COLORS[i % STORY_COLORS.length] }}
-              >
-                <BookOpen className="w-14 h-14 text-white opacity-20" />
-
-                {/* Badges */}
-                <div className="absolute top-3 left-3 flex items-center gap-2 flex-wrap">
-                  {story.featured && (
-                    <span
-                      className="font-inter font-semibold text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: "rgba(245,158,11,0.25)", color: "#FCD34D", backdropFilter: "blur(4px)" }}
-                    >
-                      ★ Destacada
-                    </span>
-                  )}
-                  {regName && (
-                    <span
-                      className="font-inter font-semibold text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white", backdropFilter: "blur(4px)" }}
-                    >
-                      {regName}
-                    </span>
-                  )}
-                </div>
-
-                {story.audio_storage_path && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: "rgba(13,148,136,0.3)", backdropFilter: "blur(4px)" }}>
-                    <Volume2 className="w-3 h-3 text-white" />
-                    <span className="font-inter text-[10px] text-white">Audio</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="p-4 flex-1 flex flex-col">
-                <h3 className="font-jakarta font-semibold text-[15px] text-[#0F172A] mb-2 line-clamp-2 leading-snug">
-                  {title}
-                </h3>
-                <p className="font-inter text-xs leading-relaxed line-clamp-3 flex-1"
-                  style={{ color: "#64748B" }}>
-                  {summary}
-                </p>
-                <div className="flex items-center justify-between mt-3 pt-3"
-                  style={{ borderTop: "1px solid #F1F5F9" }}>
-                  <span className="font-inter text-[10px] italic" style={{ color: "#94A3B8" }}>
-                    Narrada por Itinera IA
-                  </span>
-                  <span
-                    className="flex items-center gap-0.5 font-inter font-medium text-xs"
-                    style={{ color: "#0D9488" }}
-                  >
-                    Leer <ChevronRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-
-        {/* Coming soon placeholders */}
-        {!activeRegion && COMING_SOON.slice(0, fillerCount + 2).map((item, i) => (
-          <div
-            key={`soon-${i}`}
-            className="rounded-2xl overflow-hidden bg-white flex flex-col opacity-60"
-            style={{ border: "1px solid #E2E8F0", borderStyle: "dashed" }}
-          >
-            <div
-              className="h-44 relative flex items-center justify-center"
-              style={{ backgroundColor: "#F1F5F9" }}
-            >
-              <Lock className="w-8 h-8" style={{ color: "#CBD5E1" }} />
-              <span
-                className="absolute top-3 left-3 font-inter font-semibold text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: "#E2E8F0", color: "#94A3B8" }}
-              >
-                {item.region}
-              </span>
-            </div>
-            <div className="p-4 flex-1 flex flex-col">
-              <h3 className="font-jakarta font-semibold text-[15px] text-[#CBD5E1] mb-2 line-clamp-2 leading-snug">
-                {item.title}
-              </h3>
-              <p className="font-inter text-xs" style={{ color: "#CBD5E1" }}>
-                Próximamente
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Empty state when filtering */}
+      {/* ── Empty state ───────────────────────────────────────────────── */}
       {stories.length === 0 && activeRegion && (
-        <div className="py-16 text-center">
-          <BookOpen className="w-10 h-10 mx-auto mb-3" style={{ color: "#94A3B8" }} />
-          <p className="font-jakarta font-semibold text-base text-[#0F172A] mb-1">
+        <div className="py-20 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d7e2de] bg-white">
+            <BookOpen className="h-8 w-8 text-[#bcc9c6]" aria-hidden />
+          </div>
+          <p className="font-jakarta text-lg font-bold text-[#0f172a]">
             Sin historias en esta región aún
           </p>
-          <button
-            onClick={() => setRegion("")}
-            className="font-inter text-sm mt-2"
-            style={{ color: "#0D9488" }}
+          <p className="mt-1.5 font-inter text-sm text-[#64748b]">
+            Estamos trabajando en más contenido para {activeRegionName}.
+          </p>
+          <Link
+            href="/stories"
+            className="mt-5 inline-flex cursor-pointer items-center gap-1.5 font-inter text-sm font-bold text-[#0D9488] hover:underline"
           >
-            Ver todas las historias →
-          </button>
+            Ver todas las historias <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         </div>
       )}
-    </section>
+
+      {/* ── Stories grid ──────────────────────────────────────────────── */}
+      {stories.length > 0 && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+          {stories.map((story, i) => {
+            const accent  = ACCENTS[i % ACCENTS.length];
+            const title   = story.title_i18n?.es ?? story.title_i18n?.en ?? story.slug;
+            const summary = story.summary_i18n?.es ?? story.summary_i18n?.en ?? "";
+            const region  = story.regions as { slug: string; name_i18n: Record<string, string> } | null;
+            const regName = region?.name_i18n?.es;
+
+            return (
+              <ScrollReveal key={story.id} delay={Math.min(i * 60, 300)}>
+                <Link
+                  href={`/stories/${story.slug}`}
+                  className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#d7e2de] bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0D9488]/30 hover:shadow-md"
+                  style={{ borderTop: `3px solid ${accent.border}` }}
+                >
+                  {/* Card header */}
+                  <div className="flex items-start justify-between gap-3 p-5 pb-3">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${accent.iconBg}`}>
+                      <BookMarked className={`h-5 w-5 ${accent.icon}`} aria-hidden />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {story.featured && (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-inter text-[10px] font-bold text-amber-700">
+                          Destacada
+                        </span>
+                      )}
+                      {story.audio_storage_path && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-teal-100 bg-teal-50 px-2 py-0.5 font-inter text-[10px] font-bold text-[#0D9488]">
+                          <Volume2 className="h-3 w-3" aria-hidden />
+                          Audio
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card body */}
+                  <div className="flex flex-1 flex-col px-5 pb-5">
+                    <h3 className="font-jakarta text-base font-bold leading-snug text-[#0f172a] line-clamp-2 group-hover:text-[#0D9488] transition-colors duration-200">
+                      {title}
+                    </h3>
+                    {summary && (
+                      <p className="mt-2 font-inter text-xs leading-5 text-[#64748b] line-clamp-3 flex-1">
+                        {summary}
+                      </p>
+                    )}
+
+                    {/* Footer */}
+                    <div className="mt-4 flex items-center justify-between border-t border-[#f1f5f9] pt-3">
+                      <div className="flex items-center gap-1.5">
+                        {regName && (
+                          <span className="font-inter text-[11px] font-semibold text-[#64748b]">
+                            {regName}
+                          </span>
+                        )}
+                        <span className="font-inter text-[10px] italic text-[#94a3b8]">
+                          {regName ? "· " : ""}Narrada por Itinera IA
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 font-inter text-xs font-bold text-[#0D9488] transition-transform duration-200 group-hover:translate-x-0.5">
+                        Leer <ArrowRight className="h-3 w-3" aria-hidden />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </ScrollReveal>
+            );
+          })}
+
+          {/* Coming soon fillers */}
+          {!activeRegion && COMING_SOON.slice(0, fillerCount).map((item, i) => (
+            <div
+              key={`soon-${i}`}
+              className="flex flex-col overflow-hidden rounded-2xl border border-dashed border-[#bcc9c6] bg-white/60 opacity-55"
+            >
+              <div className="flex items-start gap-3 p-5 pb-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f1f5f9]">
+                  <Lock className="h-5 w-5 text-[#bcc9c6]" aria-hidden />
+                </div>
+                <span className="mt-1 rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-2.5 py-0.5 font-inter text-[10px] font-semibold text-[#94a3b8]">
+                  {item.region}
+                </span>
+              </div>
+              <div className="px-5 pb-5">
+                <h3 className="font-jakarta text-sm font-bold leading-snug text-[#bcc9c6] line-clamp-2">
+                  {item.title}
+                </h3>
+                <p className="mt-2 font-inter text-xs text-[#cbd5e1]">Próximamente</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
