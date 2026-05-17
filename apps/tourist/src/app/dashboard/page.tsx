@@ -13,6 +13,10 @@ import {
   type ImageAutoSliderItem,
 } from "@/components/ui/image-auto-slider";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
+import { DashboardSearchBar } from "@/components/dashboard/dashboard-search-bar";
+import { DashboardRegions } from "@/components/dashboard/dashboard-regions";
+import { DashboardMyRoutes } from "@/components/dashboard/dashboard-my-routes";
+import { Map, Sparkles, Globe2, Bot } from "lucide-react";
 
 import {
 
@@ -216,7 +220,7 @@ export default async function DashboardPage({
     redirect("/bienvenida?redirect=/dashboard");
   }
 
-  const [{ data: categoriesData }, { data: placesData }, { data: storiesData }] =
+  const [{ data: categoriesData }, { data: placesData }, { data: storiesData }, { data: routesData }, { count: placeCount }, { count: storyCount }] =
     await Promise.all([
     supabase.from("place_categories").select("id,slug,name_i18n,icon_name").limit(12),
     supabase
@@ -238,6 +242,17 @@ export default async function DashboardPage({
       .order("featured", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(12),
+    // My routes — only for authenticated users
+    user
+      ? supabase
+          .from("itineraries")
+          .select("id,title_i18n,public,created_at,itinerary_stops(seq,places(name_i18n,slug))")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: [] }),
+    supabase.from("places").select("id", { count: "exact", head: true }).eq("status", "published"),
+    supabase.from("stories").select("id", { count: "exact", head: true }).eq("status", "published").eq("moderation_status", "approved"),
   ]);
 
   const categories = (categoriesData ?? []) as Category[];
@@ -287,10 +302,35 @@ export default async function DashboardPage({
 
   return (
     <main className="min-h-screen w-full bg-[#f0f5f2]">
+
+      {/* ── Hero ── */}
       <section className="mx-auto w-full max-w-6xl px-6 pt-8 md:px-10 md:pt-10">
         <DashboardHero />
       </section>
 
+      {/* ── Search bar ── */}
+      <section className="mx-auto mt-6 w-full max-w-6xl px-6 md:px-10">
+        <DashboardSearchBar isGuest={isGuest} />
+      </section>
+
+      {/* ── Quick stats ── */}
+      <section className="mx-auto mt-5 w-full max-w-6xl px-6 md:px-10">
+        <div className="flex flex-wrap gap-2.5">
+          {[
+            { icon: Map,      label: `${placeCount ?? "—"} destinos culturales` },
+            { icon: Globe2,   label: "18 departamentos" },
+            { icon: Sparkles, label: `${storyCount ?? "—"} historias con IA` },
+            { icon: Bot,      label: "Asistente IA activo" },
+          ].map(({ icon: Icon, label }) => (
+            <div key={label} className="inline-flex items-center gap-2 rounded-full border border-[#d7e2de] bg-white px-4 py-2 shadow-sm">
+              <Icon className="h-3.5 w-3.5 text-[#0D9488]" aria-hidden />
+              <span className="font-inter text-xs font-semibold text-[#334155]">{label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Categorías ── */}
       <section className="mx-auto mt-10 w-full max-w-6xl px-6 md:mt-12 md:px-10">
         <h2 className="font-jakarta text-2xl font-bold text-[#171d1c] md:text-3xl">
           Explorar por categoría
@@ -300,7 +340,17 @@ export default async function DashboardPage({
         </div>
       </section>
 
+      {/* ── Regiones de Honduras (18 departamentos) ── */}
+      <section className="mt-12">
+        <DashboardRegions isGuest={isGuest} />
+      </section>
+
       <DashboardHomeMap places={mapPlaces} isGuest={isGuest} />
+
+      {/* ── Mis Rutas ── */}
+      <section className="mt-14">
+        <DashboardMyRoutes routes={(routesData ?? []) as never} isGuest={isGuest} />
+      </section>
 
       <DashboardHomeStories stories={featuredStories as DashboardHomeStory[]} />
 
