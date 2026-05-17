@@ -26,6 +26,8 @@ export type PlaceCard = {
   rating: number;
   summary: string;
   url: string;
+  lat: number | null;
+  lng: number | null;
 };
 
 export type DayPlan = {
@@ -132,7 +134,7 @@ export async function POST(req: Request) {
     let placesQuery = db
       .from("places")
       .select(`
-        slug, name_i18n, ai_summary_i18n, aggregated_rating,
+        slug, name_i18n, ai_summary_i18n, aggregated_rating, lat, lng,
         place_categories(name_i18n, slug),
         regions(name_i18n, slug)
       `)
@@ -154,7 +156,7 @@ export async function POST(req: Request) {
     // Normalize places
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allPlaces: PlaceCard[] = (rawPlaces as any[])
-      .filter(p => p.place_categories) // must have category (join worked)
+      .filter(p => p.place_categories)
       .map(p => ({
         slug: p.slug,
         name: p.name_i18n?.es ?? p.slug,
@@ -163,6 +165,8 @@ export async function POST(req: Request) {
         rating: Number(p.aggregated_rating ?? 0),
         summary: p.ai_summary_i18n?.es ?? "",
         url: `/places/${p.slug}`,
+        lat: typeof p.lat === "number" ? p.lat : null,
+        lng: typeof p.lng === "number" ? p.lng : null,
       }));
 
     // Sort: preferred regions first, then by rating

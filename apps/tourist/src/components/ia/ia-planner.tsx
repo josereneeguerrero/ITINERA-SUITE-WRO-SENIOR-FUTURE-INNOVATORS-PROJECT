@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { GeneratedPlan } from "@/app/api/plan/route";
+import { PlannerMiniMap } from "@/components/ia/planner-mini-map";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -361,6 +362,9 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
               <h2 className="mt-2 font-jakarta text-2xl font-extrabold text-[#0f172a]">{plan.title}</h2>
               <p className="mt-1 font-inter text-sm text-[#64748b]">{plan.subtitle}</p>
             </div>
+
+            {/* Live mini map — animated route */}
+            <PlannerMiniMap days={plan.days} />
 
             {/* Day cards */}
             {plan.days.map(day => (
