@@ -6,6 +6,7 @@ import {
   ArrowRight, Bot, CalendarDays, Compass, Map, Mic,
   RotateCcw, Send, Sparkles, X,
 } from "lucide-react";
+import { IaPlanner } from "@/components/ia/ia-planner";
 import { useStreamingChat } from "@/hooks/use-streaming-chat";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 import { StreamingText } from "@/components/ui/streaming-text";
@@ -14,7 +15,7 @@ import { StreamingText } from "@/components/ui/streaming-text";
 
 const TABS = [
   { id: "chat",        label: "Chat IA",      icon: Sparkles,    available: true  },
-  { id: "planner",     label: "Planificador",  icon: CalendarDays, available: false },
+  { id: "planner",     label: "Planificador",  icon: CalendarDays, available: true  },
   { id: "discover",    label: "Descubrir",     icon: Compass,      available: false },
 ] as const;
 
@@ -137,8 +138,11 @@ export function IaChatCenter({
         </div>
       </div>
 
-      {/* ── Messages area ──────────────────────────────────────────────── */}
-      <div
+      {/* ── Planificador (tab=planner) ─────────────────────────────────── */}
+      {tab === "planner" && <IaPlanner isGuest={isGuest} />}
+
+      {/* ── Messages area (tab=chat only) ──────────────────────────────── */}
+      {tab === "chat" && <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
       >
@@ -276,9 +280,10 @@ export function IaChatCenter({
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
-      {/* ── Input bar — in flex flow, never overlaps messages ──────────── */}
+      {/* ── Input bar — only in chat tab ────────────────────────────────── */}
+      {tab === "chat" &&
       <div className="shrink-0 px-4 pb-24 pt-2 sm:px-6">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-end gap-2 rounded-2xl border border-[#d7e2de] bg-white px-3 py-2 shadow-lg">
@@ -333,7 +338,8 @@ export function IaChatCenter({
             Enter para enviar · Shift+Enter nueva línea
           </p>
         </div>
-      </div>
+      </div>}
+
     </div>
   );
 }
