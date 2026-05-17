@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import {
-  X, Star, MapPin, Sparkles, Navigation,
+  X, Star, MapPin, Sparkles, Navigation, ExternalLink,
   ArrowRight, Plus, Heart, Landmark, Leaf, UtensilsCrossed,
   Waves, Zap, Church, Accessibility, Phone, Globe, Clock,
 } from "lucide-react";
@@ -160,7 +160,7 @@ export function PlaceDrawer({ place, onClose, onAddToRoute, onSave, isSaved }: P
             style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
             aria-label="Cómo llegar en Google Maps"
           >
-            <Navigation className="w-3 h-3" />
+            <ExternalLink className="w-3 h-3" />
             Cómo llegar
           </a>
         </div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import { Bookmark, Eye, Navigation, Star, X, Phone, Globe, MapPin } from "lucide-react";
+import { Bookmark, Eye, Navigation, Star, X, Phone, Globe, MapPin, ExternalLink } from "lucide-react";
 import { getCategoryColor } from "@/lib/category-theme";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -716,7 +716,7 @@ export function ExploreMap({
               rel="noopener noreferrer"
               className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#E2E8F0] font-inter text-sm font-semibold text-[#475569] transition-colors hover:border-[#0D9488]/30 hover:bg-[#f0f5f2] hover:text-[#0D9488]"
             >
-              <Navigation className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5" />
               Cómo llegar
             </a>
 
