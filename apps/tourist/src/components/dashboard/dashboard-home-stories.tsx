@@ -35,17 +35,17 @@ function firstRelation<T>(value: T | T[] | null | undefined) {
 export function DashboardHomeStories({ stories }: { stories: DashboardHomeStory[] }) {
   const ROTATION_MS = 5200;
   const visibleStories = useMemo(() => stories.slice(0, 6), [stories]);
-  const initialIndex = useMemo(() => {
-    if (visibleStories.length <= 1) return 0;
-    return Math.floor(Math.random() * visibleStories.length);
-  }, [visibleStories.length]);
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  // Always start at 0 to match server render — randomize after mount to avoid hydration mismatch
+  const [activeIndex, setActiveIndex] = useState(0);
   const [progressKey, setProgressKey] = useState(0);
   const story = visibleStories[activeIndex] ?? null;
 
   useEffect(() => {
-    setActiveIndex(initialIndex);
-  }, [initialIndex]);
+    if (visibleStories.length > 1) {
+      setActiveIndex(Math.floor(Math.random() * visibleStories.length));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (visibleStories.length <= 1) return;

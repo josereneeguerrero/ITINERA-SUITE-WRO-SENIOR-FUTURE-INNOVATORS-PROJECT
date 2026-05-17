@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // Allow local network access during development (e.g. phone on same WiFi)
   allowedDevOrigins: ["192.168.1.100", "192.168.0.0/16", "10.0.0.0/8"],
 
+  turbopack: {
+    root: ".",
+  },
+
   images: {
     qualities: [68, 75, 85, 90],
     remotePatterns: [
