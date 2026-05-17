@@ -11,10 +11,11 @@ import { cn } from "@/lib/utils";
 export function StreamingText({
   content,
   isStreaming = false,
-  speed = 18,       // ms per tick — slower = more readable
-  charsPerTick = 2, // chars revealed per tick
+  speed = 18,
+  charsPerTick = 2,
   className,
-  onReveal,         // fired on every tick so parent can scroll
+  onReveal,
+  animate = true,   // false → show full text instantly (historical messages)
 }: {
   content: string;
   isStreaming?: boolean;
@@ -22,26 +23,24 @@ export function StreamingText({
   charsPerTick?: number;
   className?: string;
   onReveal?: () => void;
+  animate?: boolean;
 }) {
-  const [shown, setShown]     = useState(0);
-  const targetRef             = useRef(content);
-  const reducedMotion         = useRef(
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+  const noAnimation = !animate ||
+    (typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  const [shown, setShown] = useState(() => noAnimation ? content.length : 0);
+  const targetRef         = useRef(content);
 
   // Keep target up-to-date as streaming appends chars
   useEffect(() => {
     targetRef.current = content;
-    if (reducedMotion.current) setShown(content.length);
-  }, [content]);
+    if (noAnimation) setShown(content.length);
+  }, [content, noAnimation]);
 
-  // Single interval per component instance — runs for the component lifetime
+  // Single interval per component instance — only when animation is enabled
   useEffect(() => {
-    if (reducedMotion.current) {
-      setShown(content.length);
-      return;
-    }
+    if (noAnimation) return;
 
     const id = setInterval(() => {
       setShown((prev) => {

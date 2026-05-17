@@ -68,6 +68,7 @@ export function FloatingAiAssistant({
   const chatRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const didAutoSend = useRef(false);
+  const historicalCount = useRef<number | null>(null);
 
   // Initialize device ID on mount
   useEffect(() => {
@@ -110,6 +111,8 @@ export function FloatingAiAssistant({
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, initialMessage]);
+
+  if (historicalCount.current === null) historicalCount.current = messages.length;
 
   const hasConversation = messages.length > 0;
 
@@ -231,6 +234,7 @@ export function FloatingAiAssistant({
                             key={`widget-${index}`}
                             content={chatMessage.content}
                             isStreaming={isLoading && index === messages.length - 1}
+                            animate={index >= (historicalCount.current ?? 0)}
                             speed={15}
                             charsPerTick={2}
                             className="text-sm leading-relaxed"

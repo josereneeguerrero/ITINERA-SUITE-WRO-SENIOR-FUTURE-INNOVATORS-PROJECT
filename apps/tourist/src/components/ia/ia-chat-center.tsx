@@ -41,11 +41,18 @@ export function IaChatCenter({
   const [tab, setTab]     = useState<"chat" | "planner" | "discover">("chat");
   const [message, setMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Messages that existed on mount are historical — show them instantly
+  const historicalCount = useRef<number | null>(null);
 
   const { messages, isLoading, send, clear, suggestions } = useStreamingChat(
     { page: "ia-center" },
     { storageKey: "itinera-ia-center", deviceId: "" }
   );
+
+  // Record how many messages existed at mount (history from sessionStorage)
+  if (historicalCount.current === null) {
+    historicalCount.current = messages.length;
+  }
 
   // Scroll to bottom — used both on new messages and on each typewriter tick
   const scrollToBottom = () => {
@@ -196,6 +203,7 @@ export function IaChatCenter({
                         key={`msg-${i}`}
                         content={msg.content}
                         isStreaming={isLoading && i === messages.length - 1}
+                        animate={i >= (historicalCount.current ?? 0)}
                         onReveal={i === messages.length - 1 ? scrollToBottom : undefined}
                         className="font-inter text-sm leading-relaxed"
                       />
