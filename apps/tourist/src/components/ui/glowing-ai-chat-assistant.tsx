@@ -231,7 +231,7 @@ export function FloatingAiAssistant({
                             key={`widget-${index}`}
                             content={chatMessage.content}
                             isStreaming={isLoading && index === messages.length - 1}
-                            speed={8}
+                            speed={15}
                             charsPerTick={2}
                             className="text-sm leading-relaxed"
                           />

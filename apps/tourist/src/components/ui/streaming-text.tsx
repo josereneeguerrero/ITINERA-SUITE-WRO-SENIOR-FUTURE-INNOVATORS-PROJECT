@@ -11,15 +11,17 @@ import { cn } from "@/lib/utils";
 export function StreamingText({
   content,
   isStreaming = false,
-  speed = 10,      // ms per tick
-  charsPerTick = 3, // chars revealed per tick (higher = faster)
+  speed = 18,       // ms per tick — slower = more readable
+  charsPerTick = 2, // chars revealed per tick
   className,
+  onReveal,         // fired on every tick so parent can scroll
 }: {
   content: string;
   isStreaming?: boolean;
   speed?: number;
   charsPerTick?: number;
   className?: string;
+  onReveal?: () => void;
 }) {
   const [shown, setShown]     = useState(0);
   const targetRef             = useRef(content);
@@ -42,7 +44,11 @@ export function StreamingText({
     }
 
     const id = setInterval(() => {
-      setShown((prev) => Math.min(prev + charsPerTick, targetRef.current.length));
+      setShown((prev) => {
+        const next = Math.min(prev + charsPerTick, targetRef.current.length);
+        if (next !== prev) onReveal?.();
+        return next;
+      });
     }, speed);
 
     return () => clearInterval(id);

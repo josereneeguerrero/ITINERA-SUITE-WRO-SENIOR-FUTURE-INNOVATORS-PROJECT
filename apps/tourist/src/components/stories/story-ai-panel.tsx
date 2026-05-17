@@ -124,7 +124,7 @@ export function StoryAIPanel({ story }: { story: Story }) {
                             key={`story-${i}`}
                             content={msg.content}
                             isStreaming={isLoading && i === messages.length - 1}
-                            speed={8}
+                            speed={15}
                             charsPerTick={2}
                             className="font-inter text-xs leading-relaxed"
                           />

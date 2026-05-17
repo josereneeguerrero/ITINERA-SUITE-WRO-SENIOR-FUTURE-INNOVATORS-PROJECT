@@ -119,7 +119,7 @@ export function PlaceAIPanel({ place }: { place: Place }) {
                             key={`place-${i}`}
                             content={msg.content}
                             isStreaming={isLoading && i === messages.length - 1}
-                            speed={8}
+                            speed={15}
                             charsPerTick={2}
                             className="font-inter text-xs leading-relaxed"
                           />

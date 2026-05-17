@@ -47,11 +47,15 @@ export function IaChatCenter({
     { storageKey: "itinera-ia-center", deviceId: "" }
   );
 
-  // Scroll messages container (not the page)
-  useEffect(() => {
-    if ((messages.length > 0 || isLoading) && scrollRef.current) {
+  // Scroll to bottom — used both on new messages and on each typewriter tick
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
+  };
+
+  useEffect(() => {
+    if (messages.length > 0 || isLoading) scrollToBottom();
   }, [messages, isLoading]);
 
   const handleSend = async () => {
@@ -129,7 +133,7 @@ export function IaChatCenter({
       {/* ── Messages area ──────────────────────────────────────────────── */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-6 pb-52 sm:px-6"
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
       >
         <div className="mx-auto max-w-3xl space-y-5">
 
@@ -192,6 +196,7 @@ export function IaChatCenter({
                         key={`msg-${i}`}
                         content={msg.content}
                         isStreaming={isLoading && i === messages.length - 1}
+                        onReveal={i === messages.length - 1 ? scrollToBottom : undefined}
                         className="font-inter text-sm leading-relaxed"
                       />
                     )}
@@ -263,8 +268,8 @@ export function IaChatCenter({
         </div>
       </div>
 
-      {/* ── Input bar ──────────────────────────────────────────────────── */}
-      <div className="fixed bottom-[100px] left-0 right-0 z-30 px-4 sm:px-6">
+      {/* ── Input bar — in flex flow, never overlaps messages ──────────── */}
+      <div className="shrink-0 px-4 pb-24 pt-2 sm:px-6">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-end gap-2 rounded-2xl border border-[#d7e2de] bg-white px-3 py-2 shadow-lg">
             {/* Mic */}
