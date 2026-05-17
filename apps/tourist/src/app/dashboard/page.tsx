@@ -230,7 +230,7 @@ export default async function DashboardPage({
       .eq("status", "published")
       .order("featured", { ascending: false })
       .order("aggregated_rating", { ascending: false })
-      .limit(24),
+      .limit(200),
     supabase
       .from("stories")
       .select(
