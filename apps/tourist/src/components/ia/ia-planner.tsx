@@ -363,17 +363,11 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
               <p className="mt-1 font-inter text-sm text-[#64748b]">{plan.subtitle}</p>
             </div>
 
-            {/* ── Desktop layout: days left + map sticky right ── */}
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+            {/* Mini map — full-width hero between header and days */}
+            <PlannerMiniMap days={plan.days} />
 
-              {/* Left — day cards */}
-              <div className="min-w-0 flex-1 space-y-4">
-                {/* Mobile-only map (compact, above days) */}
-                <div className="lg:hidden">
-                  <PlannerMiniMap days={plan.days} />
-                </div>
-
-                {/* Day cards */}
+            {/* Day cards */}
+            <div className="space-y-4">
                 {plan.days.map(day => (
               <div key={day.dayNumber} className="rounded-2xl border border-[#d7e2de] bg-white shadow-sm overflow-hidden">
                 {/* Day header */}
@@ -432,6 +426,8 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
               </div>
             ))}
 
+            </div>{/* end day cards */}
+
             {/* Error */}
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 font-inter text-sm text-red-700">
@@ -459,20 +455,6 @@ export function IaPlanner({ isGuest }: { isGuest: boolean }) {
                 <RotateCcw className="h-4 w-4" aria-hidden /> Planificar otro viaje
               </button>
             </div>
-
-              </div>{/* end left column */}
-
-              {/* Right — sticky mini map (desktop only) */}
-              <aside className="hidden lg:block lg:w-[320px] lg:shrink-0">
-                <div className="sticky top-4">
-                  <PlannerMiniMap days={plan.days} />
-                  <p className="mt-2 text-center font-inter text-[11px] text-[#94a3b8]">
-                    Ruta trazada en tiempo real
-                  </p>
-                </div>
-              </aside>
-
-            </div>{/* end desktop flex layout */}
           </div>
         )}
 

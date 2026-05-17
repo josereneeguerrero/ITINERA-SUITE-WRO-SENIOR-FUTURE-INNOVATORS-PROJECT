@@ -1,82 +1,90 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Map, MapMarker, MarkerContent, MapRoute } from "@/components/ui/map";
-import type { PlaceCard, DayPlan } from "@/app/api/plan/route";
+import type { DayPlan } from "@/app/api/plan/route";
 
-// Colors per day (up to 7 days)
+// One color per day (up to 7)
 const DAY_COLORS = [
-  "#0D9488", // teal  — día 1
+  "#0D9488", // teal   — día 1
   "#7C3AED", // violet — día 2
-  "#D97706", // amber — día 3
-  "#0284C7", // sky   — día 4
-  "#E11D48", // rose  — día 5
-  "#059669", // green — día 6
+  "#D97706", // amber  — día 3
+  "#0284C7", // sky    — día 4
+  "#E11D48", // rose   — día 5
+  "#059669", // green  — día 6
   "#9333EA", // purple — día 7
 ];
 
-interface MiniMapPlace extends PlaceCard {
+interface MiniPlace {
+  slug: string;
+  name: string;
+  lat: number;
+  lng: number;
   stopNumber: number;
-  dayNumber: number;
   dayColor: string;
 }
 
 export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
-  // Flatten all places with coordinates, in day order
-  const allPlaces: MiniMapPlace[] = days.flatMap((day, dayIdx) =>
-    day.places
-      .filter((p): p is PlaceCard & { lat: number; lng: number } =>
-        typeof p.lat === "number" && typeof p.lng === "number"
-      )
-      .map((p, placeIdx) => ({
-        ...p,
-        stopNumber: days.slice(0, dayIdx).reduce((acc, d) => acc + d.places.filter(pp => pp.lat && pp.lng).length, 0) + placeIdx + 1,
-        dayNumber: day.dayNumber,
-        dayColor: DAY_COLORS[(dayIdx) % DAY_COLORS.length],
-      }))
-  );
+  // Flatten all places that have coordinates
+  const places: MiniPlace[] = [];
+  let stop = 0;
+  days.forEach((day, dayIdx) => {
+    day.places.forEach(p => {
+      if (typeof p.lat === "number" && typeof p.lng === "number") {
+        stop++;
+        places.push({
+          slug: p.slug,
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          stopNumber: stop,
+          dayColor: DAY_COLORS[dayIdx % DAY_COLORS.length],
+        });
+      }
+    });
+  });
 
-  const allCoords: [number, number][] = allPlaces.map(p => [p.lng, p.lat]);
+  const allCoords: [number, number][] = places.map(p => [p.lng, p.lat]);
 
-  // Animated route: reveal one coordinate at a time
+  // Animated route — grow one point at a time
   const [visibleCoords, setVisibleCoords] = useState<[number, number][]>(
     allCoords.length > 0 ? [allCoords[0]] : []
   );
-  const [visibleCount, setVisibleCount] = useState(allCoords.length > 0 ? 1 : 0);
+  const [visibleStops, setVisibleStops] = useState(allCoords.length > 0 ? 1 : 0);
+
   const coordsKey = allCoords.map(c => c.join(",")).join("|");
 
   useEffect(() => {
     if (allCoords.length < 2) return;
-    // Reset and restart animation when places change
     setVisibleCoords([allCoords[0]]);
-    setVisibleCount(1);
+    setVisibleStops(1);
     let step = 1;
-    const interval = setInterval(() => {
+    const id = setInterval(() => {
       step++;
-      setVisibleCoords(allCoords.slice(0, step));
-      setVisibleCount(step);
-      if (step >= allCoords.length) clearInterval(interval);
-    }, 700);
-    return () => clearInterval(interval);
+      setVisibleCoords(prev => [...prev, allCoords[step - 1]]);
+      setVisibleStops(step);
+      if (step >= allCoords.length) clearInterval(id);
+    }, 650);
+    return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coordsKey]); // Re-run only when places actually change
+  }, [coordsKey]);
 
-  // Compute center and bounds for initial viewport
-  const lats = allPlaces.map(p => p.lat);
-  const lngs = allPlaces.map(p => p.lng);
-  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  // Nothing to show without coords
+  if (places.length === 0) return null;
 
-  // Fit zoom based on bounding box spread
-  const latSpread = Math.max(...lats) - Math.min(...lats);
-  const lngSpread = Math.max(...lngs) - Math.min(...lngs);
-  const spread = Math.max(latSpread, lngSpread);
-  const zoom = spread < 0.5 ? 10 : spread < 1.5 ? 8.5 : spread < 3 ? 7.5 : 6.5;
-
-  if (allPlaces.length < 2) return null;
+  // Auto-center + zoom from bounding box
+  const lats = places.map(p => p.lat);
+  const lngs = places.map(p => p.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+  const spread = Math.max(maxLat - minLat, maxLng - minLng);
+  const zoom = spread < 0.3 ? 11 : spread < 0.8 ? 9.5 : spread < 2 ? 8 : spread < 4 ? 7 : 6;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#d7e2de] shadow-sm" style={{ height: 300 }}>
+    <div className="overflow-hidden rounded-2xl border border-[#d7e2de] shadow-sm"
+      style={{ height: 340 }}>
       <Map
         theme="light"
         center={[centerLng, centerLat]}
@@ -84,33 +92,33 @@ export function PlannerMiniMap({ days }: { days: DayPlan[] }) {
         interactive={false}
         attributionControl={{ compact: true }}
       >
-        {/* Animated route — always mounted, MapRoute handles empty coords */}
+        {/* Animated route line — always mounted */}
         <MapRoute
           coordinates={visibleCoords}
           color="#0D9488"
-          width={3}
-          opacity={0.9}
-          dashArray={[6, 3]}
+          width={4}
+          opacity={0.85}
+          dashArray={[8, 4]}
         />
 
-        {/* Place markers — appear as the route reaches them */}
-        {allPlaces.map((place, i) => {
-          const isVisible = i < visibleCount;
+        {/* Markers — appear one by one as route draws */}
+        {places.map((place, i) => {
+          const visible = i < visibleStops;
           return (
-            <MapMarker
-              key={place.slug}
-              longitude={place.lng}
-              latitude={place.lat}
-            >
+            <MapMarker key={place.slug} longitude={place.lng} latitude={place.lat}>
               <MarkerContent>
                 <div
-                  className="flex h-7 w-7 items-center justify-center rounded-full font-jakarta text-[11px] font-bold text-white shadow-md ring-2 ring-white transition-all duration-500"
+                  className="flex items-center justify-center rounded-full font-jakarta font-bold text-white shadow-lg transition-all duration-500"
                   style={{
-                    backgroundColor: isVisible ? place.dayColor : "transparent",
-                    border: isVisible ? "none" : `2px solid ${place.dayColor}`,
-                    color: isVisible ? "white" : place.dayColor,
-                    opacity: isVisible ? 1 : 0,
-                    transform: isVisible ? "scale(1)" : "scale(0.5)",
+                    width: 32,
+                    height: 32,
+                    fontSize: 13,
+                    backgroundColor: visible ? place.dayColor : "transparent",
+                    border: `3px solid ${place.dayColor}`,
+                    color: visible ? "white" : place.dayColor,
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "scale(1)" : "scale(0.3)",
+                    boxShadow: visible ? `0 2px 8px ${place.dayColor}60, 0 0 0 3px white` : "none",
                   }}
                 >
                   {place.stopNumber}
