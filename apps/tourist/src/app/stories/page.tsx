@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
-import { AIFloatingButton } from "@/components/ai/ai-floating-button";
+import { FloatingAiAssistant } from "@/components/ui/glowing-ai-chat-assistant";
 import { StoriesHero } from "@/components/stories/stories-hero";
 import { StoriesGrid } from "@/components/stories/stories-grid";
 
@@ -17,20 +17,17 @@ export default async function StoriesPage({
   const { data: { user } } = await supabase.auth.getUser();
   const isGuest = !user && guest === "true";
 
-  // Regions for filter pills
   const { data: regions } = await supabase
     .from("regions")
     .select("id, slug, name_i18n")
     .order("sort_order");
 
-  // Resolve region slug → id
   let regionId: string | null = null;
   if (region) {
     const found = regions?.find((r) => r.slug === region);
     regionId = found?.id ?? null;
   }
 
-  // Stories query
   let query = supabase
     .from("stories")
     .select("id, slug, title_i18n, summary_i18n, audio_storage_path, featured, created_at, region_id, regions(id, slug, name_i18n)")
@@ -42,18 +39,13 @@ export default async function StoriesPage({
   if (regionId) query = query.eq("region_id", regionId);
 
   const { data: stories } = await query;
-
   const featured = stories?.find((s) => s.featured) ?? stories?.[0] ?? null;
 
   return (
     <main className="min-h-screen w-full bg-[#f0f5f2] pb-28">
-
-      {/* Hero */}
       <section className="mx-auto w-full max-w-6xl px-6 pt-8 md:px-10 md:pt-10">
         <StoriesHero featured={featured as never} />
       </section>
-
-      {/* Grid + filters */}
       <section className="mx-auto mt-10 w-full max-w-6xl px-6 md:px-10">
         <StoriesGrid
           stories={(stories ?? []) as never}
@@ -62,9 +54,8 @@ export default async function StoriesPage({
           isGuest={isGuest}
         />
       </section>
-
       <DashboardDockDemo isGuest={isGuest} />
-      <AIFloatingButton context={{ page: "stories" }} />
+      <FloatingAiAssistant context={{ page: "stories" }} />
     </main>
   );
 }

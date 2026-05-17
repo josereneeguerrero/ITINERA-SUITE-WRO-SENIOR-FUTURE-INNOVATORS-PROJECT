@@ -1,9 +1,13 @@
 import Link from "next/link";
 import {
-  ArrowLeft, Volume2, BookOpen,
-  MapPin, Star, ChevronRight, Sparkles,
+  ArrowLeft, BookMarked, BookOpen, Landmark, Leaf,
+  MapPin, Sparkles, Star, Utensils, Volume2, Waves,
+  type LucideIcon,
 } from "lucide-react";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 import { StoryAIPanel } from "./story-ai-panel";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StoryPlace {
   places: {
@@ -35,208 +39,191 @@ interface RelatedStory {
   audio_storage_path: string | null;
 }
 
-const ICON_MAP: Record<string, string> = {
-  landmark: "🏛️", leaf: "🌿", utensils: "🍽️",
-  waves: "🏖️", zap: "⚡", church: "⛪",
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ICON_BY_CATEGORY: Record<string, LucideIcon> = {
+  landmark: Landmark,
+  leaf: Leaf,
+  utensils: Utensils,
+  waves: Waves,
 };
 
-const RELATED_COLORS = [
-  "linear-gradient(135deg, #7C3AED, #4C1D95)",
-  "linear-gradient(135deg, #D97706, #92400E)",
-  "linear-gradient(135deg, #0369A1, #0C4A6E)",
+const RELATED_ACCENTS = [
+  { border: "#7C3AED", iconBg: "bg-violet-50", icon: "text-violet-600" },
+  { border: "#D97706", iconBg: "bg-amber-50",  icon: "text-amber-600"  },
+  { border: "#0284C7", iconBg: "bg-sky-50",    icon: "text-sky-600"    },
 ];
 
-// Render markdown to rich HTML
+// Minimal markdown → HTML for story body
 function parseMarkdown(text: string): string {
   return text
-    .replace(/^## (.+)$/gm,
-      '<h2 style="font-family:var(--font-jakarta),sans-serif;font-weight:700;font-size:22px;color:#0F172A;margin-top:2.5rem;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:2px solid rgba(13,148,136,0.2);">$1</h2>')
-    .replace(/^### (.+)$/gm,
-      '<h3 style="font-family:var(--font-jakarta),sans-serif;font-weight:600;font-size:17px;color:#0F172A;margin-top:1.75rem;margin-bottom:0.5rem;">$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g,
-      '<strong style="font-weight:600;color:#0F172A;">$1</strong>')
+    .replace(/^## (.+)$/gm, '<h2 class="story-h2">$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 class="story-h3">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="story-strong">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm,
-      '<li style="margin-left:1.25rem;margin-bottom:0.25rem;color:#334155;font-size:15px;">$1</li>')
-    .replace(/\n\n/g,
-      '</p><p style="font-family:var(--font-inter),sans-serif;font-size:15px;line-height:1.8;color:#334155;margin-bottom:1rem;">')
+    .replace(/^- (.+)$/gm, '<li class="story-li">$1</li>')
+    .replace(/\n\n/g, '</p><p class="story-p">')
     .trim();
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function StoryDetail({
   story,
   related,
+  isGuest = false,
 }: {
   story: Story;
   related: RelatedStory[];
+  isGuest?: boolean;
 }) {
   const title   = story.title_i18n?.es ?? story.slug;
   const summary = story.summary_i18n?.es ?? "";
   const body    = story.body_markdown_i18n?.es ?? "";
-  const region  = story.regions as { name_i18n: Record<string,string>; slug: string } | null;
+  const region  = story.regions as { name_i18n: Record<string, string>; slug: string } | null;
   const regName = region?.name_i18n?.es;
   const places  = story.story_places ?? [];
-
-  // Extract first sentence for pull quote
   const pullQuote = summary.split(".")[0] + ".";
 
   return (
-    <article className="pt-16">
+    <article>
 
-      {/* Editorial header */}
-      <div
-        className="px-6 py-16 relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #0F172A 0%, #1E293B 60%, #0F172A 100%)" }}
-      >
-        {/* Decorative pattern */}
-        <div className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage: `radial-gradient(circle, white 1px, transparent 1px)`,
-            backgroundSize: "32px 32px",
-          }}
-        />
-        <div className="absolute right-0 top-0 bottom-0 w-[40%] opacity-5 flex items-center justify-center">
-          <BookOpen className="w-[300px] h-[300px] text-white" />
-        </div>
+      {/* ── Hero — AuroraBackground ──────────────────────────────── */}
+      <div className="mx-auto w-full max-w-6xl px-6 pt-8 md:px-10 md:pt-10">
+        <AuroraBackground className="rounded-2xl border border-[#d7e2de] items-start justify-start">
+          <div className="relative z-10 w-full px-6 py-8 md:px-8 md:py-10">
 
-        <div className="max-w-3xl mx-auto relative z-10">
-          <Link
-            href="/stories"
-            className="inline-flex items-center gap-1.5 font-inter text-sm text-white/40 hover:text-white/80 transition-colors mb-8"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver a Historias
-          </Link>
-
-          <div className="flex flex-wrap items-center gap-2 mb-5">
-            {regName && (
-              <span
-                className="font-inter font-semibold text-[10px] uppercase tracking-[0.15em] px-3 py-1 rounded-full"
-                style={{ backgroundColor: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }}
-              >
-                PATRIMONIO · {regName.toUpperCase()}
-              </span>
-            )}
-            <span
-              className="font-inter font-semibold text-[10px] uppercase tracking-[0.15em] px-3 py-1 rounded-full"
-              style={{ backgroundColor: "rgba(13,148,136,0.15)", color: "#6EE7B7", border: "1px solid rgba(13,148,136,0.25)" }}
+            {/* Back link */}
+            <Link
+              href="/stories"
+              className="mb-6 inline-flex cursor-pointer items-center gap-1.5 font-inter text-sm font-semibold text-[#64748b] transition-colors hover:text-[#0D9488]"
             >
-              ✨ NARRADA POR IA
-            </span>
-          </div>
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              Volver a Historias
+            </Link>
 
-          <h1
-            className="font-jakarta font-bold text-white leading-tight mb-5"
-            style={{ fontSize: "clamp(28px, 4.5vw, 48px)" }}
-          >
-            {title}
-          </h1>
+            {/* Badges */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {regName && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d7e2de] bg-white/80 px-3 py-1 font-inter text-xs font-bold text-[#334155]">
+                  <MapPin className="h-3 w-3 text-[#0D9488]" aria-hidden />
+                  {regName}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0D9488]/25 bg-[#0D9488]/10 px-3 py-1 font-inter text-xs font-bold text-[#00685f]">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                Narrada por Itinera IA
+              </span>
+              {story.featured && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-inter text-xs font-bold text-amber-700">
+                  Destacada
+                </span>
+              )}
+            </div>
 
-          <p className="font-inter text-white/65 text-lg leading-relaxed max-w-2xl mb-7">
-            {summary}
-          </p>
+            {/* Title */}
+            <h1
+              className="max-w-3xl font-jakarta font-extrabold leading-tight text-[#0f172a]"
+              style={{ fontSize: "clamp(24px, 4vw, 44px)" }}
+            >
+              {title}
+            </h1>
 
-          {/* Meta + audio */}
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="font-inter text-xs text-white/30 italic">
-              Narrada por Itinera IA · Honduras
-            </span>
+            {/* Summary + audio */}
+            <p className="mt-4 max-w-2xl font-inter text-base leading-7 text-[#334155]">
+              {summary}
+            </p>
+
             {story.audio_storage_path && (
               <button
-                className="flex items-center gap-2 px-4 py-2 rounded-full font-inter font-semibold text-sm transition-all hover:opacity-90"
-                style={{ backgroundColor: "#0D9488", color: "white" }}
+                type="button"
+                className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#0D9488] px-5 py-2.5 font-inter text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#0f766e]"
               >
-                <Volume2 className="w-4 h-4" />
+                <Volume2 className="h-4 w-4" aria-hidden />
                 Escuchar narración
               </button>
             )}
           </div>
-        </div>
+        </AuroraBackground>
       </div>
 
-      {/* Main: article + AI panel */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-        <div className="flex gap-8 items-start">
+      {/* ── Content ──────────────────────────────────────────────── */}
+      <div className="mx-auto mt-8 w-full max-w-6xl px-6 md:px-10">
+        <div className="flex items-start gap-8">
 
-          {/* ── Article body ── */}
-          <div className="flex-1 min-w-0">
+          {/* ── Left: article body ── */}
+          <div className="min-w-0 flex-1">
 
             {/* Pull quote */}
-            <blockquote
-              className="mb-8 px-6 py-5 rounded-2xl relative"
-              style={{
-                background: "linear-gradient(135deg, rgba(13,148,136,0.06), rgba(13,148,136,0.02))",
-                border: "1px solid rgba(13,148,136,0.15)",
-                borderLeft: "4px solid #0D9488",
-              }}
-            >
-              <Sparkles className="w-5 h-5 mb-2" style={{ color: "#0D9488" }} />
-              <p className="font-jakarta font-semibold text-lg leading-relaxed text-[#0F172A]">
+            <blockquote className="mb-8 rounded-2xl border border-[#d7e2de] border-l-4 border-l-[#0D9488] bg-white px-6 py-5 shadow-sm">
+              <Sparkles className="mb-2 h-5 w-5 text-[#0D9488]" aria-hidden />
+              <p className="font-jakarta text-lg font-semibold leading-relaxed text-[#0f172a]">
                 &ldquo;{pullQuote}&rdquo;
               </p>
-              <p className="font-inter text-xs mt-2 italic" style={{ color: "#94A3B8" }}>
+              <p className="mt-2 font-inter text-xs italic text-[#94a3b8]">
                 Fragmento de la historia
               </p>
             </blockquote>
 
-            {/* Body text */}
+            {/* Body */}
             {body ? (
               <div
+                className="story-body rounded-2xl border border-[#d7e2de] bg-white px-6 py-8 shadow-sm md:px-8"
                 dangerouslySetInnerHTML={{
-                  __html: `<p style="font-family:var(--font-inter),sans-serif;font-size:15px;line-height:1.8;color:#334155;margin-bottom:1rem;">${parseMarkdown(body)}</p>`,
+                  __html: `<p class="story-p">${parseMarkdown(body)}</p>`,
                 }}
               />
             ) : (
-              <p className="font-inter text-[15px] leading-relaxed text-[#64748B]">
-                Historia en preparación. Próximamente disponible con narración completa.
-              </p>
+              <div className="rounded-2xl border border-[#d7e2de] bg-white px-6 py-10 text-center shadow-sm">
+                <BookOpen className="mx-auto mb-3 h-10 w-10 text-[#bcc9c6]" aria-hidden />
+                <p className="font-jakarta text-base font-bold text-[#0f172a]">Historia en preparación</p>
+                <p className="mt-1.5 font-inter text-sm text-[#64748b]">
+                  Próximamente disponible con narración completa.
+                </p>
+              </div>
             )}
 
             {/* Linked places */}
             {places.length > 0 && (
-              <div
-                className="mt-10 rounded-2xl p-5"
-                style={{ backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0" }}
-              >
-                <h2 className="font-jakarta font-bold text-base text-[#0F172A] mb-4 flex items-center gap-2">
-                  <MapPin className="w-4 h-4" style={{ color: "#0D9488" }} />
+              <div className="mt-6 rounded-2xl border border-[#d7e2de] bg-white p-5 shadow-sm">
+                <h2 className="mb-4 flex items-center gap-2 font-jakarta text-base font-bold text-[#0f172a]">
+                  <MapPin className="h-4 w-4 text-[#0D9488]" aria-hidden />
                   Lugares de esta historia
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {places.map((sp, i) => {
                     const place = sp.places;
                     if (!place) return null;
-                    const pName    = place.name_i18n?.es;
-                    const pCat     = place.place_categories as { name_i18n: Record<string,string>; icon_name: string } | null;
-                    const pIcon    = ICON_MAP[pCat?.icon_name ?? ""] ?? "📍";
+                    const pName    = place.name_i18n?.es ?? place.slug;
+                    const pCat     = place.place_categories as { name_i18n: Record<string, string>; icon_name: string } | null;
                     const pCatName = pCat?.name_i18n?.es;
+                    const PlaceIcon = ICON_BY_CATEGORY[pCat?.icon_name ?? ""] ?? Landmark;
 
                     return (
                       <Link
                         key={i}
                         href={`/places/${place.slug}`}
-                        className="flex items-center gap-3 p-3 rounded-xl transition-all hover:shadow-md"
-                        style={{ backgroundColor: "white", border: "1px solid #E2E8F0" }}
+                        className="group flex cursor-pointer items-center gap-3 rounded-xl border border-[#d7e2de] bg-[#f0f5f2] p-3 transition-all duration-200 hover:border-[#0D9488]/30 hover:bg-white hover:shadow-sm"
                       >
-                        <div
-                          className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-lg"
-                          style={{ backgroundColor: "rgba(13,148,136,0.08)" }}
-                        >
-                          {pIcon}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border border-[#d7e2de]">
+                          <PlaceIcon className="h-5 w-5 text-[#0D9488]" aria-hidden />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-jakarta font-semibold text-sm text-[#0F172A]">{pName}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-jakarta text-sm font-bold text-[#0f172a] group-hover:text-[#0D9488] transition-colors">
+                            {pName}
+                          </p>
                           {pCatName && (
-                            <p className="font-inter text-[11px]" style={{ color: "#0D9488" }}>{pCatName}</p>
+                            <p className="font-inter text-xs text-[#64748b]">{pCatName}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                          <span className="font-inter text-xs text-[#64748B]">
-                            {Number(place.aggregated_rating).toFixed(1)}
-                          </span>
-                          <ChevronRight className="w-4 h-4 ml-1" style={{ color: "#0D9488" }} />
-                        </div>
+                        {place.aggregated_rating > 0 && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden />
+                            <span className="font-inter text-xs font-semibold text-[#334155]">
+                              {Number(place.aggregated_rating).toFixed(1)}
+                            </span>
+                          </div>
+                        )}
                       </Link>
                     );
                   })}
@@ -246,45 +233,95 @@ export function StoryDetail({
 
             {/* Related stories */}
             {related.length > 0 && (
-              <div className="mt-10">
-                <h2 className="font-jakarta font-bold text-lg text-[#0F172A] mb-5">
+              <div className="mt-6 mb-6">
+                <h2 className="mb-4 font-jakarta text-xl font-bold text-[#0f172a]">
                   Más historias culturales
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {related.map((r, i) => (
-                    <Link
-                      key={r.id}
-                      href={`/stories/${r.slug}`}
-                      className="p-4 rounded-xl transition-all hover:shadow-md"
-                      style={{ backgroundColor: "white", border: "1px solid #E2E8F0" }}
-                    >
-                      <div
-                        className="h-20 rounded-lg mb-3 flex items-center justify-center"
-                        style={{ background: RELATED_COLORS[i % RELATED_COLORS.length] }}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {related.map((r, i) => {
+                    const accent = RELATED_ACCENTS[i % RELATED_ACCENTS.length];
+                    return (
+                      <Link
+                        key={r.id}
+                        href={`/stories/${r.slug}`}
+                        className="group cursor-pointer overflow-hidden rounded-2xl border border-[#d7e2de] bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0D9488]/30 hover:shadow-md"
+                        style={{ borderTop: `3px solid ${accent.border}` }}
                       >
-                        <BookOpen className="w-8 h-8 text-white opacity-30" />
-                      </div>
-                      <h3 className="font-jakarta font-semibold text-sm text-[#0F172A] line-clamp-2 mb-1">
-                        {r.title_i18n?.es}
-                      </h3>
-                      <span className="font-inter font-medium text-xs" style={{ color: "#0D9488" }}>
-                        Leer →
-                      </span>
-                    </Link>
-                  ))}
+                        <div className="p-4">
+                          <div className={`mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg ${accent.iconBg}`}>
+                            <BookMarked className={`h-4 w-4 ${accent.icon}`} aria-hidden />
+                          </div>
+                          <h3 className="font-jakarta text-sm font-bold leading-snug text-[#0f172a] line-clamp-2 group-hover:text-[#0D9488] transition-colors">
+                            {r.title_i18n?.es ?? r.slug}
+                          </h3>
+                          <div className="mt-3 flex items-center justify-between">
+                            {r.audio_storage_path && (
+                              <span className="inline-flex items-center gap-1 font-inter text-[10px] font-bold text-[#0D9488]">
+                                <Volume2 className="h-3 w-3" aria-hidden /> Audio
+                              </span>
+                            )}
+                            <span className="ml-auto font-inter text-xs font-bold text-[#0D9488]">
+                              Leer →
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── AI Narration Panel ── */}
-          <div className="w-[320px] shrink-0 hidden lg:block">
-            <div className="sticky top-24">
+          {/* ── Right: AI panel (desktop) ── */}
+          <aside className="hidden w-[300px] shrink-0 lg:block">
+            <div className="sticky top-8">
               <StoryAIPanel story={story as never} />
             </div>
-          </div>
+          </aside>
+
         </div>
       </div>
+
+      {/* Inline styles for story body prose */}
+      <style jsx global>{`
+        .story-body .story-p {
+          font-family: var(--font-inter), sans-serif;
+          font-size: 15px;
+          line-height: 1.85;
+          color: #334155;
+          margin-bottom: 1.25rem;
+        }
+        .story-body .story-h2 {
+          font-family: var(--font-jakarta), sans-serif;
+          font-weight: 700;
+          font-size: 20px;
+          color: #0f172a;
+          margin-top: 2.5rem;
+          margin-bottom: 0.75rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 2px solid rgba(13,148,136,0.2);
+        }
+        .story-body .story-h3 {
+          font-family: var(--font-jakarta), sans-serif;
+          font-weight: 600;
+          font-size: 16px;
+          color: #0f172a;
+          margin-top: 1.75rem;
+          margin-bottom: 0.5rem;
+        }
+        .story-body .story-strong {
+          font-weight: 600;
+          color: #0f172a;
+        }
+        .story-body .story-li {
+          margin-left: 1.25rem;
+          margin-bottom: 0.25rem;
+          color: #334155;
+          font-size: 15px;
+          list-style-type: disc;
+        }
+      `}</style>
     </article>
   );
 }
