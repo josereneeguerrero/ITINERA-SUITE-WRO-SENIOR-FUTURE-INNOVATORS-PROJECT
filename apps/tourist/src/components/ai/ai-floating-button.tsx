@@ -14,7 +14,7 @@ export function AIFloatingButton({ context = {} }: { context?: ChatContext }) {
       {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 right-6 z-50 flex items-center gap-2 rounded-full font-inter font-semibold text-sm text-white shadow-lg transition-all"
+        className="fixed bottom-24 right-4 z-[46] flex items-center gap-2 rounded-full font-inter font-semibold text-sm text-white shadow-lg transition-all"
         style={{
           backgroundColor: "#0D9488",
           padding: open ? "10px 16px" : "14px",

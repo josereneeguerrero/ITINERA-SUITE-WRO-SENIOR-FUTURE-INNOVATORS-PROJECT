@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
@@ -27,11 +27,14 @@ interface DockIconButtonProps {
 
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
   ({ icon: Icon, label, onClick, active, locked, className }, ref) => {
+    const reduceMotion = useReducedMotion();
+
     return (
       <motion.button
         ref={ref}
-        whileHover={active ? undefined : { scale: 1.12, y: -3 }}
-        whileTap={{ scale: 0.93 }}
+        // No y offset on hover — avoids clipping if parent has overflow constraints
+        whileHover={active || reduceMotion ? undefined : { scale: 1.1 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.93 }}
         onClick={onClick}
         title={locked ? `${label} — inicia sesión` : label}
         aria-label={locked ? `${label} — requiere cuenta` : label}
@@ -48,7 +51,12 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
           <motion.span
             layoutId="dock-active-indicator"
             className="absolute inset-0 rounded-xl bg-[#0D9488]/20"
-            transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.5 }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                // Softer spring: less stiff so long jumps (Inicio→Perfil) don't overshoot
+                : { type: "spring", stiffness: 260, damping: 28, mass: 0.6 }
+            }
           />
         ) : null}
         <Icon className={cn("relative z-10 h-5 w-5", active ? "text-[#065F46]" : "text-[#0F766E]")} />

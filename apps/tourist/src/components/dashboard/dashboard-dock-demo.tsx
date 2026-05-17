@@ -44,7 +44,7 @@ export function DashboardDockDemo({ isGuest = false }: { isGuest?: boolean }) {
   const homeHref = isGuest ? "/dashboard?guest=true" : "/dashboard";
 
   return (
-    <div className="fixed bottom-3 left-1/2 z-[40] w-full -translate-x-1/2 px-4">
+    <div className="fixed bottom-3 left-1/2 z-[45] w-full -translate-x-1/2 px-4">
       <Dock
         className="h-auto p-0"
         items={[

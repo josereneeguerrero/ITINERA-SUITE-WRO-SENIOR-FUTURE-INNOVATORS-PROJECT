@@ -43,13 +43,13 @@ export function AIDrawer({
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-40"
+        <div className="fixed inset-0 z-[48]"
           style={{ backgroundColor: "rgba(0,0,0,0.15)" }}
           onClick={onClose}
         />
       )}
 
-      <div className="fixed bottom-0 right-0 z-50 flex flex-col bg-white"
+      <div className="fixed bottom-0 right-0 z-[49] flex flex-col bg-white"
         style={{
           width: "min(420px, 100vw)",
           height: "min(680px, 90vh)",
