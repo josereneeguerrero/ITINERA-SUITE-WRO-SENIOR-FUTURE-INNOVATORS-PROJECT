@@ -373,6 +373,30 @@ export async function POST(req: Request) {
   // ia-center = no map. All other pages (explore, places, stories) = map mode.
   const isMapMode = context?.page !== "ia-center";
 
+  // ── Sistema dedicado para el Centro IA ────────────────────────────────────
+  // Usado en TODOS los llamados LLM cuando !isMapMode.
+  const IA_CENTER_SYSTEM = `Eres Itinera IA, guía cultural experta de Honduras.
+
+CONTEXTO: Estás en el Centro IA de Itinera — una interfaz de chat dedicada, sin mapa.
+Tu misión es ser un compañero cultural conversacional: informativo, apasionado por Honduras y sus historias.
+
+CÓMO RESPONDES:
+- Respuestas ricas y detalladas (2-5 párrafos cuando el tema lo amerita)
+- Incluye contexto histórico, cultural y geográfico real y verificado
+- Cuando menciones lugares específicos, invita al usuario a explorarlos: "puedes ver más en /explore" o "lee su historia completa en la plataforma"
+- NUNCA digas "te muestro en el mapa", "filtré el mapa" ni "aparece en el mapa"
+- NUNCA inventes datos, fechas, nombres ni hechos históricos
+
+TEMAS EN LOS QUE DESTACAS:
+- Historia: civilización maya, época colonial, independencia, personajes ilustres de Honduras
+- Destinos: descripción vívida, qué ver, qué comer, cuándo ir, cómo llegar
+- Cultura: tradiciones, gastronomía típica, artesanías, música, festivales, leyendas
+- Planificación: itinerarios por días, combinaciones de destinos, consejos prácticos de viaje
+- Comparaciones: "¿qué diferencia hay entre Copán y Comayagua?"
+- Curiosidades: datos únicos, récords, mitos y leyendas de Honduras
+
+TONO: Como un guía local experto que lleva años narrando las historias de Honduras — apasionado, preciso y cercano.`;
+
   // Store device ID for logging (thread-local alternative to params)
   (globalThis as any).currentDeviceId = deviceId;
 
@@ -399,7 +423,9 @@ export async function POST(req: Request) {
           const result = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             model: (getGroq() as any)("llama-3.3-70b-versatile"),
-            system: "Eres Itinera IA. El usuario saludó. Responde con UN saludo breve (máximo 1 frase) y pregunta qué quiere explorar. NUNCA listes lugares.",
+            system: isMapMode
+              ? "Eres Itinera IA. El usuario saludó. Responde con UN saludo breve (máximo 1 frase) y pregunta qué quiere explorar. NUNCA listes lugares."
+              : `${IA_CENTER_SYSTEM}\n\nEl usuario saludó. Dale una bienvenida cálida al Centro IA de Itinera (máximo 2 frases). Menciona brevemente que puedes hablar de historia, destinos, cultura, itinerarios y curiosidades de Honduras. Invítalo a preguntar lo que quiera.`,
             messages: [{ role: "user", content: lastMsg }],
             temperature: 0.9,
           });
@@ -474,9 +500,11 @@ export async function POST(req: Request) {
               const llmResult = await generateText({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 model: (getGroq() as any)("llama-3.3-70b-versatile"),
-                system: `Eres Itinera IA, guía de Honduras. Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo info real. Responde en español.\n\n${places.map(p => `• ${p.name} — ${p.summary || "Atracción"} | ⭐${p.rating}`).join("\n")}`,
+                system: isMapMode
+                  ? `Eres Itinera IA, guía de Honduras. Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo info real. Responde en español.\n\n${places.map(p => `• ${p.name} — ${p.summary || "Atracción"} | ⭐${p.rating}`).join("\n")}`
+                  : `${IA_CENTER_SYSTEM}\n\nLugares encontrados en la base de datos de Itinera:\n${places.map(p => `• ${p.name} (${p.category}${p.region ? ", " + p.region : ""}) — ${p.summary || "Atracción turística"} | ⭐${p.rating}`).join("\n")}\n\nDescribe estos lugares con riqueza cultural. Para cada uno menciona qué lo hace especial y por qué vale la pena visitarlo. Responde en español.`,
                 messages: [{ role: "user", content: lastMsg }],
-                temperature: 0.3,
+                temperature: 0.4,
               });
               emit({ type: "text-delta", textDelta: llmResult.text });
               emit({
@@ -491,27 +519,14 @@ export async function POST(req: Request) {
             return;
           }
 
-          // No category in history either — orient the user and ask
+          // No category in history either
           const regionName = REGION_NAMES[region] || region;
-          const text = isMapMode
-            ? `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas?`
-            : `Excelente elección. ${regionName} tiene mucho por ofrecer. ¿Qué tipo de experiencia buscas?`;
-
-          // Log region-only search (awaiting category)
           await logInteraction("search_region_only", { region });
 
-          emit({ type: "text-delta", textDelta: text });
           if (isMapMode) {
-            emit({
-              type: "ui-actions",
-              intent: "filter_region",
-              actions: [{ type: "filter_region", slug: region }],
-              entities: { region },
-            });
-          }
-          emit({
-            type: "suggestions",
-            suggestions: [
+            emit({ type: "text-delta", textDelta: `${regionName} te espera en el mapa. ¿Qué tipo de experiencia buscas?` });
+            emit({ type: "ui-actions", intent: "filter_region", actions: [{ type: "filter_region", slug: region }], entities: { region } });
+            emit({ type: "suggestions", suggestions: [
               { label: "Restaurantes", value: "restaurantes" },
               { label: "Iglesias",     value: "iglesias" },
               { label: "Naturaleza",   value: "naturaleza" },
@@ -519,8 +534,24 @@ export async function POST(req: Request) {
               { label: "Patrimonio",   value: "patrimonio" },
               { label: "Aventura",     value: "aventura" },
               { label: "Arte",         value: "museos" },
-            ],
-          });
+            ]});
+          } else {
+            // Centro IA — descripción cultural rica de la región
+            const regionResult = await generateText({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              model: (getGroq() as any)("llama-3.3-70b-versatile"),
+              system: `${IA_CENTER_SYSTEM}\n\nEl usuario preguntó sobre ${regionName}. Describe esta región de Honduras con riqueza cultural e histórica: qué la hace única, lugares icónicos, historia relevante, gastronomía y el mejor momento para visitarla. Sé detallado pero accesible.`,
+              messages: [{ role: "user", content: lastMsg }],
+              temperature: 0.5,
+            });
+            emit({ type: "text-delta", textDelta: regionResult.text });
+            emit({ type: "suggestions", suggestions: [
+              { label: `Historia de ${regionName}`,      value: `Cuéntame la historia de ${regionName}` },
+              { label: "¿Cuándo visitar?",               value: `¿Cuál es el mejor momento para visitar ${regionName}?` },
+              { label: "Gastronomía típica",             value: `¿Qué platos típicos tiene ${regionName}?` },
+              { label: "Itinerario de 2 días",           value: `Arma un itinerario de 2 días en ${regionName}` },
+            ]});
+          }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -612,14 +643,11 @@ export async function POST(req: Request) {
           const llmResult = await generateText({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             model: (getGroq() as any)("llama-3.3-70b-versatile"),
-            system: `Eres Itinera IA, guía de Honduras.
-
-Lugares encontrados (${context}):
-${placesText}
-
-Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo información real. Responde en español. No inventes.`,
+            system: isMapMode
+              ? `Eres Itinera IA, guía de Honduras.\n\nLugares encontrados (${context}):\n${placesText}\n\nDescribe brevemente estos lugares al usuario. Máximo 3 frases. Solo información real. Responde en español. No inventes.`
+              : `${IA_CENTER_SYSTEM}\n\nContexto de búsqueda: ${context}\nLugares encontrados:\n${placesText}\n\nDescribe estos lugares con riqueza cultural. Para cada uno, menciona su historia, qué lo hace único en Honduras y por qué vale la pena visitarlo.`,
             messages: messages as { role: "user" | "assistant"; content: string }[],
-            temperature: 0.3,
+            temperature: isMapMode ? 0.3 : 0.5,
           });
 
           emit({ type: "text-delta", textDelta: llmResult.text });
@@ -691,9 +719,11 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
             const semanticResult = await generateText({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               model: (getGroq() as any)("llama-3.3-70b-versatile"),
-              system: `Eres Itinera IA, guía de Honduras. El usuario buscó en lenguaje natural y encontramos estos lugares relevantes:\n\n${placesText}\n\nDescribe brevemente estos lugares. Máximo 3 frases. Solo información real. Responde en español.`,
+              system: isMapMode
+                ? `Eres Itinera IA, guía de Honduras. El usuario buscó en lenguaje natural y encontramos estos lugares relevantes:\n\n${placesText}\n\nDescribe brevemente estos lugares. Máximo 3 frases. Solo información real. Responde en español.`
+                : `${IA_CENTER_SYSTEM}\n\nEl usuario buscó: "${lastMsg}"\n\nLugares relevantes encontrados en Itinera:\n${placesText}\n\nResponde de forma rica y detallada. Explica por qué estos lugares son relevantes para lo que busca el usuario, qué los hace especiales culturalmente, y qué puede esperar al visitarlos.`,
               messages: [{ role: "user", content: lastMsg }],
-              temperature: 0.3,
+              temperature: 0.4,
             });
 
             emit({ type: "text-delta", textDelta: semanticResult.text });
@@ -714,7 +744,7 @@ Describe brevemente estos lugares al usuario. Máximo 3 frases. Solo informació
           model: (getGroq() as any)("llama-3.3-70b-versatile"),
           system: isMapMode
             ? "Eres Itinera IA de Honduras. El usuario hizo una pregunta. Responde de forma breve, amigable. Pregunta qué región o tipo de lugar busca. NUNCA inventes lugares."
-            : "Eres Itinera IA, guía cultural de Honduras. Estás en el Centro IA — NO tienes acceso a ningún mapa. Responde de forma rica y conversacional sobre cultura, historia, gastronomía y turismo de Honduras. Cuando menciones lugares, indica que el usuario puede explorarlos en /explore o leer sus detalles en la plataforma. NUNCA digas 'te muestro en el mapa'. NUNCA inventes hechos.",
+            : `${IA_CENTER_SYSTEM}\n\nEl usuario hizo una pregunta o comentario libre. Responde con profundidad cultural. Si hace una pregunta general sobre Honduras, respóndela con detalle. Si menciona un tema que no conoces, dilo honestamente. Si la pregunta es ambigua, pide clarificación de forma amigable.`,
           messages: [{ role: "user", content: lastMsg }],
           temperature: 0.7,
         });
