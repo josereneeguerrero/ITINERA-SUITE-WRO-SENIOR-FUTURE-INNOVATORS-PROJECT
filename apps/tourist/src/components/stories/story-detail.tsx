@@ -57,13 +57,17 @@ const RELATED_ACCENTS = [
 
 // Minimal markdown → HTML for story body
 function parseMarkdown(text: string): string {
-  return text
+  // Normalize escaped \n (stored literally in DB) → real newlines
+  const normalized = text.replace(/\\n/g, "\n");
+  return normalized
+    .replace(/^# (.+)$/gm,  '<h2 class="story-h2">$1</h2>')
     .replace(/^## (.+)$/gm, '<h2 class="story-h2">$1</h2>')
     .replace(/^### (.+)$/gm, '<h3 class="story-h3">$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="story-strong">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^- (.+)$/gm, '<li class="story-li">$1</li>')
     .replace(/\n\n/g, '</p><p class="story-p">')
+    .replace(/\n/g, '<br/>')
     .trim();
 }
 
