@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { StoryAIPanel } from "./story-ai-panel";
+import { NarratorPlayer } from "./narrator-player";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,15 +135,13 @@ export function StoryDetail({
               {summary}
             </p>
 
-            {story.audio_storage_path && (
-              <button
-                type="button"
-                className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#0D9488] px-5 py-2.5 font-inter text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#0f766e]"
-              >
-                <Volume2 className="h-4 w-4" aria-hidden />
-                Escuchar narración
-              </button>
-            )}
+            {/* Narrator player — always available via ElevenLabs TTS */}
+            <div className="mt-5 max-w-md">
+              <NarratorPlayer
+                text={body ?? summary}
+                storyTitle={title}
+              />
+            </div>
           </div>
         </AuroraBackground>
       </div>
