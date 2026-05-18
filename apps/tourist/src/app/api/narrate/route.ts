@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-const VOICE_ID = "qvN99qHpu3uqmqBD6pEt";
+const VOICE_ID = "pNInz6obpgDQGcFmaJgB"; // Adam — premade, free tier, multilingual
 const MODEL_ID = "eleven_multilingual_v2";
 
 // Strip markdown formatting from story body
