@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Send, Bot, X } from "lucide-react";
 import { useStreamingChat, type ChatContext, type UIActionsChunk, type Suggestion } from "@/hooks/use-streaming-chat";
+import { useVoiceInput } from "@/hooks/use-voice-input";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 import { StreamingText } from "@/components/ui/streaming-text";
 
@@ -63,6 +64,14 @@ export function FloatingAiAssistant({
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [charCount, setCharCount] = useState(0);
+
+  const { status: voiceStatus, start: startVoice } = useVoiceInput({
+    onTranscript: (text) => {
+      const next = message ? `${message} ${text}` : text;
+      setMessage(next);
+      setCharCount(next.length);
+    },
+  });
   const [deviceId, setDeviceId] = useState("");
   const maxChars = 2000;
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -285,9 +294,21 @@ export function FloatingAiAssistant({
 
             <div className="shrink-0 border-t border-[#E2E8F0]/80 px-3.5 pb-3 pt-2.5">
               <div className="flex min-h-11 items-end gap-2 rounded-2xl border border-[#D9E5E2] bg-white/90 px-2.5 py-1.5 shadow-inner">
-                <ToolButton label="Comando por voz" className="shrink-0 border border-[#E2E8F0]">
-                  <Mic className="h-4 w-4 transition-all duration-300 group-hover:-rotate-3 group-hover:scale-125" />
-                </ToolButton>
+                <button
+                  type="button"
+                  onClick={startVoice}
+                  disabled={voiceStatus === "unsupported" || isLoading}
+                  aria-label={voiceStatus === "listening" ? "Detener grabación" : "Hablar con la IA"}
+                  className={`shrink-0 rounded-lg p-2 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed border border-[#E2E8F0] ${
+                    voiceStatus === "listening"
+                      ? "animate-pulse bg-red-50 text-red-500 border-red-200"
+                      : voiceStatus === "processing"
+                        ? "bg-amber-50 text-amber-500 border-amber-200"
+                        : "text-slate-500 hover:bg-teal-50 hover:text-[#0D9488]"
+                  }`}
+                >
+                  <Mic className="h-4 w-4" />
+                </button>
                 <textarea
                   value={message}
                   onChange={handleInputChange}
