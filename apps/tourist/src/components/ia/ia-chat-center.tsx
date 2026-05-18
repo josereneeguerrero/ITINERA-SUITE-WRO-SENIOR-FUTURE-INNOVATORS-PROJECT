@@ -9,6 +9,7 @@ import {
 import { IaPlanner } from "@/components/ia/ia-planner";
 import { IaDescubrir } from "@/components/ia/ia-descubrir";
 import { useStreamingChat } from "@/hooks/use-streaming-chat";
+import { useVoiceInput } from "@/hooks/use-voice-input";
 import { ToolResultInline } from "@/components/ai/tool-result-inline";
 import { StreamingText } from "@/components/ui/streaming-text";
 
@@ -46,6 +47,10 @@ export function IaChatCenter({
   const scrollRef = useRef<HTMLDivElement>(null);
   // Messages that existed on mount are historical — show them instantly
   const historicalCount = useRef<number | null>(null);
+
+  const { status: voiceStatus, start: startVoice } = useVoiceInput({
+    onTranscript: (text) => setMessage(prev => prev ? `${prev} ${text}` : text),
+  });
 
   const { messages, isLoading, send, clear, suggestions } = useStreamingChat(
     { page: "ia-center" },
@@ -302,8 +307,25 @@ export function IaChatCenter({
             {/* Mic */}
             <button
               type="button"
-              className="mb-0.5 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[#d7e2de] text-[#94a3b8] transition-colors hover:border-[#0D9488]/30 hover:text-[#0D9488]"
-              aria-label="Comando por voz"
+              onClick={startVoice}
+              disabled={voiceStatus === "unsupported" || isLoading}
+              title={
+                voiceStatus === "unsupported" ? "Voz no disponible en este browser" :
+                voiceStatus === "listening"    ? "Escuchando... toca para detener" :
+                voiceStatus === "processing"   ? "Procesando..." :
+                voiceStatus === "error"        ? "Error — intenta de nuevo" :
+                "Habla tu pregunta"
+              }
+              className={`mb-0.5 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+                voiceStatus === "listening"
+                  ? "animate-pulse border-red-300 bg-red-50 text-red-500"
+                  : voiceStatus === "processing"
+                    ? "border-amber-300 bg-amber-50 text-amber-500"
+                    : voiceStatus === "error"
+                      ? "border-red-200 text-red-400"
+                      : "border-[#d7e2de] text-[#94a3b8] hover:border-[#0D9488]/30 hover:text-[#0D9488]"
+              }`}
+              aria-label={voiceStatus === "listening" ? "Detener grabación" : "Iniciar grabación de voz"}
             >
               <Mic className="h-4 w-4" aria-hidden />
             </button>
@@ -347,7 +369,11 @@ export function IaChatCenter({
             </button>
           </div>
           <p className="mt-1.5 px-1 text-center font-inter text-[11px] text-[#94a3b8]">
-            Enter para enviar · Shift+Enter nueva línea
+            {voiceStatus === "listening"
+              ? "🎙️ Escuchando... habla tu pregunta"
+              : voiceStatus === "processing"
+                ? "Procesando audio..."
+                : "Enter para enviar · Shift+Enter nueva línea"}
           </p>
         </div>
       </div>}
