@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import {
-  ArrowRight, Heart, Map, MessageSquare, Route,
-  Sparkles, Star, User,
+  ArrowRight, Heart, Map, Route,
+  Sparkles, Star, LogOut,
 } from "lucide-react";
 import Link from "next/link";
+import { LogoutButton } from "@/components/profile/logout-button";
 
 export const revalidate = 0;
 
@@ -37,7 +38,7 @@ export default async function ProfilePage() {
     { icon: Heart,   label: "Favoritos",    count: favCount ?? 0,   href: "/profile/saved", color: "#EC4899", bg: "bg-pink-50",    border: "border-pink-100"   },
     { icon: Route,   label: "Mis Rutas",    count: routeCount ?? 0, href: "/routes",        color: "#0D9488", bg: "bg-teal-50",    border: "border-teal-100"   },
     { icon: Star,    label: "Reseñas",      count: reviewCount ?? 0,href: null,             color: "#F59E0B", bg: "bg-amber-50",   border: "border-amber-100"  },
-    { icon: MessageSquare, label: "Chats IA", count: null,          href: "/ia",            color: "#7C3AED", bg: "bg-violet-50",  border: "border-violet-100" },
+    { icon: Star,    label: "IA",           count: null,           href: "/ia",            color: "#7C3AED", bg: "bg-violet-50",  border: "border-violet-100" },
   ];
 
   return (
@@ -136,6 +137,9 @@ export default async function ProfilePage() {
           </div>
           <p className="font-inter text-sm text-[#334155]">{user.email}</p>
           <p className="mt-0.5 font-inter text-xs text-[#94a3b8]">WRO 2026 · Itinera Suite</p>
+          <div className="mt-4 border-t border-[#f1f5f9] pt-3">
+            <LogoutButton />
+          </div>
         </div>
       </section>
 
