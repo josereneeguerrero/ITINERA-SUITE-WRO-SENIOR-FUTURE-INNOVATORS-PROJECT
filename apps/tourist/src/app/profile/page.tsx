@@ -4,7 +4,7 @@ import { DashboardDockDemo } from "@/components/dashboard/dashboard-dock-demo";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import {
   ArrowRight, Heart, Map, Route,
-  Sparkles, Star, LogOut,
+  Sparkles, Star, LogOut, User,
 } from "lucide-react";
 import Link from "next/link";
 import { LogoutButton } from "@/components/profile/logout-button";
