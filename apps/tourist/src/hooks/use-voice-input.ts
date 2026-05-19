@@ -2,6 +2,54 @@
 
 import { useState, useRef, useCallback } from "react";
 
+// Web Speech API types — declarados explícitamente para compatibilidad
+// con versiones de TypeScript que no los incluyen en lib.dom
+declare global {
+  interface SpeechRecognitionEvent extends Event {
+    readonly results: SpeechRecognitionResultList;
+  }
+  interface SpeechRecognitionErrorEvent extends Event {
+    readonly error: string;
+  }
+  interface SpeechRecognitionResultList {
+    readonly length: number;
+    item(index: number): SpeechRecognitionResult;
+    [index: number]: SpeechRecognitionResult;
+  }
+  interface SpeechRecognitionResult {
+    readonly length: number;
+    readonly isFinal: boolean;
+    item(index: number): SpeechRecognitionAlternative;
+    [index: number]: SpeechRecognitionAlternative;
+  }
+  interface SpeechRecognitionAlternative {
+    readonly transcript: string;
+    readonly confidence: number;
+  }
+  interface SpeechRecognition extends EventTarget {
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    maxAlternatives: number;
+    onstart:     ((this: SpeechRecognition, ev: Event) => void) | null;
+    onend:       ((this: SpeechRecognition, ev: Event) => void) | null;
+    onspeechend: ((this: SpeechRecognition, ev: Event) => void) | null;
+    onresult:    ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
+    onerror:     ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => void) | null;
+    start(): void;
+    stop(): void;
+    abort(): void;
+  }
+  declare const SpeechRecognition: {
+    new (): SpeechRecognition;
+    prototype: SpeechRecognition;
+  };
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
+
 export type VoiceStatus = "idle" | "listening" | "processing" | "error" | "unsupported";
 
 interface UseVoiceInputOptions {
