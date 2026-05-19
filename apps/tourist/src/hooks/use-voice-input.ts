@@ -40,7 +40,7 @@ declare global {
     stop(): void;
     abort(): void;
   }
-  declare const SpeechRecognition: {
+  const SpeechRecognition: {
     new (): SpeechRecognition;
     prototype: SpeechRecognition;
   };
