@@ -1,0 +1,16 @@
+# Secretos y estado local — NUNCA al repositorio
+.env
+device.json
+itinera.db
+itinera.db-shm
+itinera.db-wal
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Logs
+*.log

@@ -1,0 +1,32 @@
+# Itinera Terminal — Sprint 0
+# Instalar con: pip install -r requirements.txt
+
+# Servidor
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# HTTP cliente async (sync + device + ingest)
+httpx>=0.27.0
+
+# Variables de entorno
+python-dotenv>=1.0.0
+
+# Validación de modelos
+pydantic>=2.0.0
+
+# ── Sprints siguientes (no instalar aún) ─────────────────────
+# Sprint 3: NLU
+# groq>=0.9.0
+
+# Sprint 5: ASR local
+# faster-whisper>=1.0.0
+
+# Sprint 6: Semántica local
+# sentence-transformers>=3.0.0
+# numpy>=1.26.0
+
+# Sprint 7: TTS local
+# pyttsx3>=2.90
+
+# Sprint 8: Visión / cámara
+# opencv-python>=4.9.0
