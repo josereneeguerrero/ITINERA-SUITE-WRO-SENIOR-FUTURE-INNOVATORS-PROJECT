@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1024, initial-scale=1.0" />
+  <title>Itinera — Kiosk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal:       #0D9488;
+      --teal-light: rgba(13, 148, 136, 0.12);
+      --amber:      #F59E0B;
+      --dark:       #0F172A;
+      --muted:      #64748B;
+      --subtle:     #94A3B8;
+      --border:     #E2E8F0;
+      --white:      #FFFFFF;
+    }
+
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--white);
+      color: var(--dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: none;
+      background-image:
+        radial-gradient(ellipse 65% 55% at 50% 46%, rgba(13,148,136,0.05) 0%, transparent 70%),
+        radial-gradient(circle, rgba(13,148,136,0.11) 1px, transparent 1px);
+      background-size: auto, 28px 28px;
+    }
+
+    /* ── Franja superior ─────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent 0%, var(--teal) 15%, var(--teal) 85%, transparent 100%);
+      z-index: 100;
+    }
+
+    /* ── Keyframes globales ───────────────────────────────────── */
+    @keyframes fadeUp  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+    @keyframes compassSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+    @keyframes pulse   { 0% { transform:scale(1); opacity:.65; } 70%,100% { transform:scale(1.6); opacity:0; } }
+    @keyframes breathe { 0%,100% { transform:scale(1); } 50% { transform:scale(1.12); } }
+    @keyframes rippleAnim { to { transform:scale(5); opacity:0; } }
+    @keyframes leaveAnim  { to { opacity:0; transform:scale(1.018); filter:blur(2px); } }
+
+    /* ── AnimatedText: letra a letra ─────────────────────────── */
+    @keyframes letterDrop {
+      0%   { opacity: 0; transform: translateY(22px); }
+      60%  { opacity: 1; transform: translateY(-3px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Subrayado que crece desde el centro hacia afuera */
+    @keyframes underlineExpand {
+      0%   { width: 0%;   left: 50%; }
+      100% { width: 110%; left: -5%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration:0.01ms !important; animation-iteration-count:1 !important; }
+    }
+
+    /* ── Reloj ───────────────────────────────────────────────── */
+    .clock {
+      position: fixed;
+      top: 16px; right: 26px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      font-size: 13px;
+      color: var(--subtle);
+      letter-spacing: 0.08em;
+      animation: fadeIn 1s ease-out 1s both;
+      z-index: 50;
+    }
+
+    /* ── Brújula ─────────────────────────────────────────────── */
+    .header {
+      padding-top: 36px;
+      animation: fadeUp 0.7s ease-out 0.1s both;
+    }
+
+    .compass-svg {
+      width: 52px; height: 52px;
+      animation: compassSpin 25s linear infinite;
+      opacity: 0.8;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Contenedor del wordmark animado */
+    .wordmark-wrap {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      overflow: visible;
+    }
+
+    /* Las letras se renderizan aquí por JS */
+    .wordmark-letters {
+      display: flex;
+      gap: 0.01em;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 84px;
+      letter-spacing: 0.13em;
+      color: var(--teal);
+      line-height: 1;
+    }
+
+    .wordmark-letters .letter {
+      display: inline-block;
+      opacity: 0; /* oculta hasta que JS activa la animación */
+    }
+
+    .wordmark-letters .letter.visible {
+      animation: letterDrop 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+    }
+
+    /* Subrayado degradado teal → amber */
+    .wordmark-underline {
+      position: absolute;
+      bottom: -6px;
+      height: 3px;
+      border-radius: 2px;
+      width: 0%;
+      left: 50%;
+      background: linear-gradient(90deg, var(--teal) 0%, #14b8a6 45%, var(--amber) 100%);
+    }
+
+    .wordmark-underline.expand {
+      animation: underlineExpand 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .tagline {
+      margin-top: 18px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 13.5px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-align: center;
+      line-height: 1.65;
+      max-width: 520px;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+    .tagline.visible { opacity: 1; }
+
+    .tagline-line2 {
+      display: block;
+      font-size: 11.5px;
+      color: var(--subtle);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── CTA ─────────────────────────────────────────────────── */
+    .cta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      animation: fadeUp 0.75s ease-out 0.7s both;
+    }
+
+    .pulse-wrapper {
+      position: relative;
+      width: 50px; height: 50px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .pulse-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid var(--teal);
+      animation: pulse 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+    }
+    .pulse-ring:nth-child(2) { animation-delay: 1.3s; }
+
+    .pulse-dot {
+      width: 13px; height: 13px;
+      background-color: var(--teal);
+      border-radius: 50%;
+      z-index: 1;
+      animation: breathe 2.6s ease-in-out infinite;
+    }
+
+    .cta-label {
+      font-weight: 500; font-size: 14.5px;
+      color: var(--dark); letter-spacing: 0.02em;
+    }
+    .cta-sub {
+      font-style: italic; font-weight: 300; font-size: 11.5px;
+      color: var(--subtle); margin-top: -4px;
+    }
+
+    /* ── "Un proyecto de" label ──────────────────────────────── */
+    .project-label {
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 9.5px;
+      color: var(--subtle);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .badges-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: fadeUp 0.75s ease-out 0.85s both;
+    }
+
+    /* ── Badges ──────────────────────────────────────────────── */
+    .badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 9px;
+      padding: 0 24px;
+    }
+
+    /* ── Badges: cada uno completamente independiente ────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: 9999px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      /* Sin border aquí — cada variante define el suyo completo */
+    }
+
+    .badge--innovakers {
+      background-color: #EFF6FF;
+      border: 1.5px solid #3B82F6;
+      color: #1D4ED8;
+      font-size: 12px;
+    }
+    .badge--innovakers .badge-dot {
+      background-color: #1D4ED8;
+    }
+
+    .badge--unicah {
+      background-color: #FEFCE8;
+      border: 2px solid #CA8A04;
+      color: #1E3A8A;
+    }
+
+    .badge--wro {
+      background-color: #FFF1F2;
+      border: 1.5px solid #EF4444;
+      color: #B91C1C;
+    }
+
+    .badge-dot {
+      width: 5px; height: 5px;
+      background-color: var(--teal);
+      border-radius: 50%;
+      opacity: 0.65; flex-shrink: 0;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    .footer {
+      width: 100%;
+      border-top: 1px solid var(--border);
+      padding: 8px 32px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 1s ease-out 1s both;
+    }
+
+    .footer-text {
+      font-size: 10px; font-weight: 400;
+      color: var(--subtle);
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+
+    /* ── Ripple ──────────────────────────────────────────────── */
+    .ripple {
+      position: fixed; border-radius: 50%;
+      background: rgba(13,148,136,0.15);
+      pointer-events: none;
+      transform: scale(0);
+      animation: rippleAnim 0.6s linear forwards;
+      z-index: 9999;
+    }
+
+    body.leaving { animation: leaveAnim 0.32s ease-out forwards; }
+  </style>
+</head>
+
+<body id="screen">
+
+  <!-- Reloj -->
+  <div class="clock" id="clock" aria-live="polite"></div>
+
+  <!-- Brújula -->
+  <header class="header" aria-hidden="true">
+    <svg class="compass-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"
+         fill="none" stroke="#0D9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="24" cy="24" r="20"/>
+      <path d="M24 8v4m0 24v4M8 24h4m24 0h4M12.7 12.7l2.8 2.8m17 17l2.8 2.8M35.3 12.7l-2.8 2.8M12.7 35.3l2.8-2.8"/>
+      <path d="M24 16l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z" fill="#0D9488" stroke="none"/>
+    </svg>
+  </header>
+
+  <!-- Wordmark animado + tagline -->
+  <main class="hero" role="main">
+    <div class="wordmark-wrap" aria-label="ITINERA">
+      <div class="wordmark-letters" id="wordmark-letters" aria-hidden="true"></div>
+      <div class="wordmark-underline" id="wordmark-underline" aria-hidden="true"></div>
+    </div>
+    <p class="tagline" id="tagline">
+      Plataforma de turismo cultural inteligente para explorar
+      el patrimonio, la historia y los destinos de Honduras
+      <span class="tagline-line2">Guiado por Inteligencia Artificial · Datos reales en tiempo real</span>
+    </p>
+  </main>
+
+  <!-- CTA -->
+  <div class="cta" role="button" aria-label="Toca para comenzar" tabindex="0">
+    <div class="pulse-wrapper" aria-hidden="true">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="pulse-dot"></div>
+    </div>
+    <span class="cta-label">Toca para comenzar</span>
+    <span class="cta-sub">Touch to begin</span>
+  </div>
+
+  <!-- Badges institucionales -->
+  <div class="badges-section" role="contentinfo" aria-label="Equipo y organización">
+    <p class="project-label">Un proyecto de</p>
+    <div class="badges">
+      <span class="badge badge--innovakers">
+        <span class="badge-dot" aria-hidden="true"></span>
+        INNOVAKERS
+      </span>
+      <span class="badge badge--unicah">Universidad Católica de Honduras</span>
+      <span class="badge badge--wro">WRO 2026 Honduras</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p class="footer-text">Honduras · Future Innovators Senior</p>
+  </footer>
+
+  <script>
+    /* ── Reloj ──────────────────────────────────────────────── */
+    const clockEl = document.getElementById('clock');
+    const updateClock = () => {
+      const n = new Date();
+      clockEl.textContent =
+        String(n.getHours()).padStart(2,'0') + ':' +
+        String(n.getMinutes()).padStart(2,'0');
+    };
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    /* ── AnimatedText — portado de React a vanilla JS ────────
+       Replicando la lógica de:
+         container: staggerChildren + delayChildren
+         child:     spring(damping:12, stiffness:200) → letterDrop CSS
+         lineVariants: width 0%→100%, left 50%→0%
+    ──────────────────────────────────────────────────────── */
+    const WORD        = 'ITINERA';
+    const LETTER_MS   = 80;   // stagger entre letras (= duration * 1000 ~0.08s)
+    const DELAY_MS    = 120;  // delay inicial
+    const UNDERLINE_DELAY_MS = DELAY_MS + WORD.length * LETTER_MS + 60;
+    const TAGLINE_DELAY_MS   = UNDERLINE_DELAY_MS + 400;
+    const REPLAY_INTERVAL_MS = 9000; // replay cada 9 segundos
+
+    const lettersEl   = document.getElementById('wordmark-letters');
+    const underlineEl = document.getElementById('wordmark-underline');
+    const taglineEl   = document.getElementById('tagline');
+
+    let replayTimer = null;
+
+    function buildLetters() {
+      lettersEl.innerHTML = '';
+      WORD.split('').forEach(char => {
+        const span = document.createElement('span');
+        span.className = 'letter';
+        span.textContent = char;
+        lettersEl.appendChild(span);
+      });
+    }
+
+    function playAnimation() {
+      // Reset estado
+      underlineEl.classList.remove('expand');
+      taglineEl.classList.remove('visible');
+      const letters = lettersEl.querySelectorAll('.letter');
+      letters.forEach(l => {
+        l.classList.remove('visible');
+        l.style.animationDelay = '';
+        // Forzar reflow para poder reanimar
+        void l.offsetWidth;
+      });
+
+      // Animar letras con stagger
+      letters.forEach((l, i) => {
+        setTimeout(() => {
+          l.style.animationDelay = '0ms';
+          l.classList.add('visible');
+        }, DELAY_MS + i * LETTER_MS);
+      });
+
+      // Subrayado crece desde el centro
+      setTimeout(() => {
+        void underlineEl.offsetWidth;
+        underlineEl.classList.add('expand');
+      }, UNDERLINE_DELAY_MS);
+
+      // Tagline aparece
+      setTimeout(() => {
+        taglineEl.classList.add('visible');
+      }, TAGLINE_DELAY_MS);
+    }
+
+    function scheduleReplay() {
+      clearTimeout(replayTimer);
+      replayTimer = setTimeout(() => {
+        playAnimation();
+        scheduleReplay();
+      }, REPLAY_INTERVAL_MS);
+    }
+
+    // Primera ejecución al cargar
+    buildLetters();
+    // Pequeño delay para que el resto de la página cargue primero
+    setTimeout(() => {
+      playAnimation();
+      scheduleReplay();
+    }, 200);
+
+    /* ── Ripple + navegación ────────────────────────────────── */
+    const screen = document.getElementById('screen');
+
+    function spawnRipple(x, y) {
+      const size = 90;
+      const el = document.createElement('div');
+      el.className = 'ripple';
+      el.style.cssText = `width:${size}px;height:${size}px;left:${x-size/2}px;top:${y-size/2}px;`;
+      document.body.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+
+    function navigate(x, y) {
+      clearTimeout(replayTimer); // pausar replay al navegar
+      spawnRipple(x, y);
+      screen.classList.add('leaving');
+      screen.addEventListener('animationend', () => {
+        // Sprint 2 → window.location.href = '/screens/welcome.html';
+        screen.classList.remove('leaving');
+        scheduleReplay(); // reanudar si volvemos a idle
+      }, { once: true });
+    }
+
+    screen.addEventListener('touchstart', e => {
+      navigate(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    screen.addEventListener('click', e => navigate(e.clientX, e.clientY));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ')
+        navigate(window.innerWidth/2, window.innerHeight/2);
+    });
+  </script>
+</body>
+</html>
